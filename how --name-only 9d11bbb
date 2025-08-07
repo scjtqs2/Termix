@@ -1,0 +1,10 @@
+[33m25148c3[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdev-1.1[m[33m)[m Update fonts
+[33m9d11bbb[m Hide ssh password, add rss like feed to homepage, support utf8 encoding and nerdfonts/ohmyzsh
+[33m7dd28f8[m[33m ([m[1;31morigin/dev-1.1[m[33m)[m Move .env
+[33m7b7b070[m Start on update indicators
+[33m8247369[m Finalized OIDC for beta testing
+[33maf53ef2[m Update hard coded frontend url
+[33m0ee1746[m Update hard coded frontend url
+[33m840a048[m Update auth for ocid
+[33m3abdf1d[m Update auth for ocid
+[33m11a8791[m Update auth for ocid
