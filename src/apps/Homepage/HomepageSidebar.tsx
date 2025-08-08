@@ -14,7 +14,7 @@ import {
     SidebarGroupLabel,
     SidebarMenu,
     SidebarMenuButton,
-    SidebarMenuItem, SidebarProvider,
+    SidebarMenuItem, SidebarProvider, SidebarInset,
 } from "@/components/ui/sidebar.tsx"
 
 import {
@@ -44,6 +44,7 @@ interface SidebarProps {
     disabled?: boolean;
     isAdmin?: boolean;
     username?: string | null;
+    children?: React.ReactNode;
 }
 
 function handleLogout() {
@@ -72,7 +73,8 @@ export function HomepageSidebar({
                                     getView,
                                     disabled,
                                     isAdmin,
-                                    username
+                                    username,
+                                    children,
                                 }: SidebarProps): React.ReactElement {
     const [adminSheetOpen, setAdminSheetOpen] = React.useState(false);
     const [allowRegistration, setAllowRegistration] = React.useState(true);
@@ -160,7 +162,7 @@ export function HomepageSidebar({
     };
 
     return (
-        <div>
+        <div className="min-h-svh">
             <SidebarProvider>
                 <Sidebar>
                     <SidebarContent>
@@ -430,6 +432,9 @@ export function HomepageSidebar({
                         </Sheet>
                     )}
                 </Sidebar>
+                <SidebarInset>
+                    {children}
+                </SidebarInset>
             </SidebarProvider>
         </div>
     )

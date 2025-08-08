@@ -98,7 +98,7 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
     };
 
     return (
-        <div className="w-[400px] h-[600px] mr-8 flex flex-col border border-border rounded-lg bg-card p-4">
+        <div className="w-[400px] h-[600px] flex flex-col border border-border rounded-lg bg-card p-4">
             <div>
                 <h3 className="text-lg font-semibold mb-3">Updates & Releases</h3>
 

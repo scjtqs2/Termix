@@ -35,8 +35,8 @@ function App() {
     }
 
     return (
-        <div className="flex">
-            <main>
+        <div className="flex min-h-svh w-full">
+            <main className="flex-1 w-full">
                 {renderActiveView()}
             </main>
         </div>

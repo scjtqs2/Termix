@@ -38,6 +38,7 @@ import {
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
 import {Input} from "@/components/ui/input.tsx";
 import {getSSHHosts} from "@/apps/SSH/ssh-axios";
+import {Checkbox} from "@/components/ui/checkbox.tsx";
 
 interface SSHHost {
     id: number;
@@ -186,6 +187,17 @@ export function SSHSidebar({onSelectView, onHostConnect, allTabs, runCommandOnTa
         }
     };
 
+    function getCookie(name: string) {
+        return document.cookie.split('; ').reduce((r, v) => {
+            const parts = v.split('=');
+            return parts[0] === name ? decodeURIComponent(parts[1]) : r;
+        }, "");
+    }
+
+    const updateRightClickCopyPaste = (checked) => {
+        document.cookie = `rightClickCopyPaste=${checked}; expires=2147483647; path=/`;
+    }
+
     return (
         <SidebarProvider>
             <Sidebar className="h-full flex flex-col overflow-hidden">
@@ -332,6 +344,19 @@ export function SSHSidebar({onSelectView, onHostConnect, allTabs, runCommandOnTa
                                                 </AccordionContent>
                                             </AccordionItem>
                                         </Accordion>
+
+                                        <Separator className="p-0.25"/>
+
+                                        <div className="flex items-center space-x-2 mt-5">
+                                            <Checkbox id="enable-copy-paste" onCheckedChange={updateRightClickCopyPaste}
+                                                      defaultChecked={getCookie("rightClickCopyPaste") === "true"}/>
+                                            <label
+                                                htmlFor="enable-paste"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            >
+                                                Enable right‑click copy/paste
+                                            </label>
+                                        </div>
                                     </div>
                                 </SheetContent>
                             </Sheet>

@@ -68,16 +68,14 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
     }, []);
 
     return (
-        <div className="flex min-h-screen">
-            <HomepageSidebar
-                onSelectView={onSelectView}
-                disabled={!loggedIn || authLoading}
-                isAdmin={isAdmin}
-                username={loggedIn ? username : null}
-            />
-            <div className="flex-1 bg-background grid grid-cols-3 items-center">
-                <div className="col-span-1"></div>
-                <div className="col-span-1 flex justify-center">
+        <HomepageSidebar
+            onSelectView={onSelectView}
+            disabled={!loggedIn || authLoading}
+            isAdmin={isAdmin}
+            username={loggedIn ? username : null}
+        >
+            <div className="w-full min-h-svh grid place-items-center">
+                <div className="flex flex-row items-center justify-center gap-8">
                     <HomepageAuth
                         setLoggedIn={setLoggedIn}
                         setIsAdmin={setIsAdmin}
@@ -87,13 +85,11 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
                         dbError={dbError}
                         setDbError={setDbError}
                     />
-                </div>
-                <div className="col-span-1 flex justify-center">
                     <HomepageUpdateLog
                         loggedIn={loggedIn}
                     />
                 </div>
             </div>
-        </div>
+        </HomepageSidebar>
     );
 }

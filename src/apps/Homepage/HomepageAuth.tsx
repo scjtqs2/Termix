@@ -249,50 +249,50 @@ export function HomepageAuth({
                 )}
                 {(internalLoggedIn || (authLoading && getCookie("jwt"))) && (
                     <div className="flex flex-col items-center gap-4">
-                            <Alert className="my-2">
-                                <AlertTitle>Logged in!</AlertTitle>
-                                <AlertDescription>
-                                    You are logged in! Use the sidebar to access all available tools. To get started,
-                                    create an SSH Host in the SSH Manager tab. Once created, you can connect to that
-                                    host using the other apps in the sidebar.
-                                </AlertDescription>
-                            </Alert>
+                        <Alert className="my-2">
+                            <AlertTitle>Logged in!</AlertTitle>
+                            <AlertDescription>
+                                You are logged in! Use the sidebar to access all available tools. To get started,
+                                create an SSH Host in the SSH Manager tab. Once created, you can connect to that
+                                host using the other apps in the sidebar.
+                            </AlertDescription>
+                        </Alert>
 
-                            <div className="flex flex-row items-center gap-2">
-                                <Button
-                                    variant="link"
-                                    className="text-sm"
-                                    onClick={() => window.open('https://github.com/LukeGus/Termix', '_blank')}
-                                >
-                                    GitHub
-                                </Button>
-                                <div className="w-px h-4 bg-border"></div>
-                                <Button
-                                    variant="link"
-                                    className="text-sm"
-                                    onClick={() => window.open('https://github.com/LukeGus/Termix/issues/new', '_blank')}
-                                >
-                                    Feedback
-                                </Button>
-                                <div className="w-px h-4 bg-border"></div>
-                                <Button
-                                    variant="link"
-                                    className="text-sm"
-                                    onClick={() => window.open('https://discord.com/invite/jVQGdvHDrf', '_blank')}
-                                >
-                                    Discord
-                                </Button>
-                                <div className="w-px h-4 bg-border"></div>
-                                <Button
-                                    variant="link"
-                                    className="text-sm"
-                                    onClick={() => window.open('https://github.com/sponsors/LukeGus', '_blank')}
-                                >
-                                    Fund
-                                </Button>
-                                                         </div>
-                         </div>
-                 )}
+                        <div className="flex flex-row items-center gap-2">
+                            <Button
+                                variant="link"
+                                className="text-sm"
+                                onClick={() => window.open('https://github.com/LukeGus/Termix', '_blank')}
+                            >
+                                GitHub
+                            </Button>
+                            <div className="w-px h-4 bg-border"></div>
+                            <Button
+                                variant="link"
+                                className="text-sm"
+                                onClick={() => window.open('https://github.com/LukeGus/Termix/issues/new', '_blank')}
+                            >
+                                Feedback
+                            </Button>
+                            <div className="w-px h-4 bg-border"></div>
+                            <Button
+                                variant="link"
+                                className="text-sm"
+                                onClick={() => window.open('https://discord.com/invite/jVQGdvHDrf', '_blank')}
+                            >
+                                Discord
+                            </Button>
+                            <div className="w-px h-4 bg-border"></div>
+                            <Button
+                                variant="link"
+                                className="text-sm"
+                                onClick={() => window.open('https://github.com/sponsors/LukeGus', '_blank')}
+                            >
+                                Fund
+                            </Button>
+                        </div>
+                    </div>
+                )}
                 {(!internalLoggedIn && (!authLoading || !getCookie("jwt"))) && (
                     <>
                         <div className="flex gap-2 mb-6">

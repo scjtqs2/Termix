@@ -52,6 +52,49 @@ export const SSHTerminal = forwardRef<any, SSHTerminalProps>(function SSHTermina
         fitAddonRef.current?.fit();
     }
 
+    function getCookie(name: string) {
+        return document.cookie.split('; ').reduce((r, v) => {
+            const parts = v.split('=');
+            return parts[0] === name ? decodeURIComponent(parts[1]) : r;
+        }, "");
+    }
+
+    function getUseRightClickCopyPaste() {
+        return getCookie("rightClickCopyPaste") === "true"
+    }
+
+    async function writeTextToClipboard(text: string): Promise<void> {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+        } catch (_) {
+        }
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            document.execCommand('copy');
+        } finally {
+            document.body.removeChild(textarea);
+        }
+    }
+
+    async function readTextFromClipboard(): Promise<string> {
+        try {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                return await navigator.clipboard.readText();
+            }
+        } catch (_) {
+        }
+        return '';
+    }
+
     useEffect(() => {
         if (!terminal || !xtermRef.current || !hostConfig) return;
 
@@ -59,7 +102,7 @@ export const SSHTerminal = forwardRef<any, SSHTerminalProps>(function SSHTermina
             cursorBlink: true,
             cursorStyle: 'bar',
             scrollback: 10000,
-            fontSize: 15,
+            fontSize: 14,
             fontFamily: '"JetBrains Mono Nerd Font", "MesloLGS NF", "FiraCode Nerd Font", "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace',
             theme: {
                 background: '#09090b',
@@ -87,6 +130,31 @@ export const SSHTerminal = forwardRef<any, SSHTerminalProps>(function SSHTermina
         terminal.loadAddon(unicode11Addon);
         terminal.loadAddon(webLinksAddon);
         terminal.open(xtermRef.current);
+
+        const element = xtermRef.current;
+        const handleContextMenu = async (e: MouseEvent) => {
+            if (!getUseRightClickCopyPaste()) return;
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+                if (terminal.hasSelection()) {
+                    const selection = terminal.getSelection();
+                    if (selection) {
+                        await writeTextToClipboard(selection);
+                        terminal.clearSelection();
+                    }
+                } else {
+                    const pasteText = await readTextFromClipboard();
+                    if (pasteText) {
+                        terminal.paste(pasteText);
+                    }
+                }
+            } catch (_) {
+            }
+        };
+        if (element) {
+            element.addEventListener('contextmenu', handleContextMenu);
+        }
 
         const resizeObserver = new ResizeObserver(() => {
             if (resizeTimeout.current) clearTimeout(resizeTimeout.current);
@@ -158,6 +226,9 @@ export const SSHTerminal = forwardRef<any, SSHTerminalProps>(function SSHTermina
 
         return () => {
             resizeObserver.disconnect();
+            if (element) {
+                element.removeEventListener('contextmenu', handleContextMenu);
+            }
             if (resizeTimeout.current) clearTimeout(resizeTimeout.current);
             if (pingIntervalRef.current) {
                 clearInterval(pingIntervalRef.current);
