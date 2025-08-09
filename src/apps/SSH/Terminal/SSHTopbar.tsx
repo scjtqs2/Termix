@@ -37,7 +37,7 @@ export function SSHTopbar({
             alignItems: 'center',
         }}>
             <div style={{flex: 1, minWidth: 0, height: '100%', overflowX: 'auto'}}>
-                <div style={{minWidth: 'max-content', height: '100%', paddingLeft: 8}}>
+                <div style={{minWidth: 'max-content', height: '100%', paddingLeft: 8, overflowY: 'hidden'}}>
                     <SSHTabList
                         allTabs={allTabs}
                         currentTab={currentTab}
