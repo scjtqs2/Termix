@@ -59,10 +59,7 @@ function getCookie(name: string) {
     }, "");
 }
 
-const apiBase =
-    typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "http://localhost:8081/users"
-        : "/users";
+const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
 
 const API = axios.create({
     baseURL: apiBase,

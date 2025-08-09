@@ -50,10 +50,7 @@ interface VersionResponse {
     cache_age?: number;
 }
 
-const apiBase =
-    typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "http://localhost:8081"
-        : "";
+const apiBase = import.meta.env.DEV ? "http://localhost:8081" : "";
 
 const API = axios.create({
     baseURL: apiBase,
@@ -70,7 +67,7 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
             setLoading(true);
             Promise.all([
                 API.get('/releases/rss?per_page=100'),
-                API.get('/version')
+                API.get('/version/')
             ])
                 .then(([releasesRes, versionRes]) => {
                     setReleases(releasesRes.data);
