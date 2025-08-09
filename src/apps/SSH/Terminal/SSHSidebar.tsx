@@ -2,7 +2,7 @@ import React, {useState} from 'react';
 
 import {
     CornerDownLeft,
-    Hammer, Pin
+    Hammer, Pin, Menu
 } from "lucide-react"
 
 import {
@@ -63,14 +63,26 @@ interface SSHHost {
     updatedAt: string;
 }
 
-interface SidebarProps {
+export interface SidebarProps {
     onSelectView: (view: string) => void;
     onHostConnect: (hostConfig: any) => void;
     allTabs: { id: number; title: string; terminalRef: React.RefObject<any> }[];
     runCommandOnTabs: (tabIds: number[], command: string) => void;
+    onCloseSidebar?: () => void;
+    onAddHostSubmit?: (data: any) => void;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }
 
-export function SSHSidebar({onSelectView, onHostConnect, allTabs, runCommandOnTabs}: SidebarProps): React.ReactElement {
+export function SSHSidebar({
+                               onSelectView,
+                               onHostConnect,
+                               allTabs,
+                               runCommandOnTabs,
+                               onCloseSidebar,
+                               open,
+                               onOpenChange
+                           }: SidebarProps): React.ReactElement {
     const [hosts, setHosts] = useState<SSHHost[]>([]);
     const [hostsLoading, setHostsLoading] = useState(false);
     const [hostsError, setHostsError] = useState<string | null>(null);
@@ -199,12 +211,32 @@ export function SSHSidebar({onSelectView, onHostConnect, allTabs, runCommandOnTa
     }
 
     return (
-        <SidebarProvider>
+        <SidebarProvider open={open} onOpenChange={onOpenChange}>
             <Sidebar className="h-full flex flex-col overflow-hidden">
                 <SidebarContent className="flex flex-col flex-grow h-full overflow-hidden">
                     <SidebarGroup className="flex flex-col flex-grow h-full overflow-hidden">
-                        <SidebarGroupLabel className="text-lg font-bold text-white flex items-center gap-2">
-                            Termix / Terminal
+                        <SidebarGroupLabel
+                            className="text-lg font-bold text-white flex items-center justify-between gap-2 w-full">
+                            <span>Termix / Terminal</span>
+                            <button
+                                type="button"
+                                onClick={() => onCloseSidebar?.()}
+                                title="Hide sidebar"
+                                style={{
+                                    height: 28,
+                                    width: 28,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'hsl(240 5% 9%)',
+                                    color: 'hsl(240 5% 64.9%)',
+                                    border: '1px solid hsl(240 3.7% 15.9%)',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <Menu className="h-4 w-4"/>
+                            </button>
                         </SidebarGroupLabel>
                         <Separator className="p-0.25 mt-1 mb-1"/>
                         <SidebarGroupContent className="flex flex-col flex-grow h-full overflow-hidden">

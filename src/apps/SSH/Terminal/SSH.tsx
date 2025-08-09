@@ -22,6 +22,11 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
     const [allSplitScreenTab, setAllSplitScreenTab] = useState<number[]>([]);
     const nextTabId = useRef(1);
 
+    const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+    const [isTopbarOpen, setIsTopbarOpen] = useState<boolean>(true);
+    const SIDEBAR_WIDTH = 256;
+    const HANDLE_THICKNESS = 6;
+
     const [panelRects, setPanelRects] = useState<Record<string, DOMRect | null>>({});
     const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const panelGroupRefs = useRef<{ [key: string]: any }>({});
@@ -587,20 +592,25 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
     };
 
     return (
-        <div style={{display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden'}}>
-            <div style={{
-                width: 256,
-                flexShrink: 0,
-                height: '100vh',
-                position: 'relative',
-                zIndex: 2,
-                margin: 0,
-                padding: 0,
-                border: 'none'
-            }}>
+        <div style={{display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative'}}>
+            {/* Sidebar (collapsible) */}
+            <div
+                style={{
+                    width: isSidebarOpen ? SIDEBAR_WIDTH : 0,
+                    flexShrink: 0,
+                    height: '100vh',
+                    position: 'relative',
+                    zIndex: 2,
+                    margin: 0,
+                    padding: 0,
+                    border: 'none',
+                    overflow: 'hidden',
+                    transition: 'width 240ms ease-in-out',
+                    willChange: 'width',
+                }}
+            >
                 <SSHSidebar
                     onSelectView={onSelectView}
-                    onAddHostSubmit={onAddHostSubmit}
                     onHostConnect={onHostConnect}
                     allTabs={allTabs}
                     runCommandOnTabs={(tabIds: number[], command: string) => {
@@ -610,8 +620,12 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                             }
                         });
                     }}
+                    onCloseSidebar={() => setIsSidebarOpen(false)}
+                    open={isSidebarOpen}
+                    onOpenChange={setIsSidebarOpen}
                 />
             </div>
+
             <div
                 className="terminal-container"
                 style={{
@@ -621,10 +635,26 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                     overflow: 'hidden',
                     margin: 0,
                     padding: 0,
+                    paddingLeft: isSidebarOpen ? 0 : HANDLE_THICKNESS,
+                    paddingTop: isTopbarOpen ? 0 : HANDLE_THICKNESS,
                     border: 'none',
+                    transition: 'padding-left 240ms ease-in-out, padding-top 240ms ease-in-out',
+                    willChange: 'padding',
                 }}
             >
-                <div style={{position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 10}}>
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: isTopbarOpen ? 46 : 0,
+                        overflow: 'hidden',
+                        zIndex: 10,
+                        transition: 'height 240ms ease-in-out',
+                        willChange: 'height',
+                    }}
+                >
                     <SSHTopbar
                         allTabs={allTabs}
                         currentTab={currentTab ?? -1}
@@ -632,9 +662,35 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                         allSplitScreenTab={allSplitScreenTab}
                         setSplitScreenTab={setSplitScreenTab}
                         setCloseTab={setCloseTab}
+                        onHideTopbar={() => setIsTopbarOpen(false)}
                     />
                 </div>
-                <div style={{height: 'calc(100% - 46px)', marginTop: 46, position: 'relative'}}>
+                {!isTopbarOpen && (
+                    <div
+                        onClick={() => setIsTopbarOpen(true)}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: HANDLE_THICKNESS,
+                            background: '#222224',
+                            cursor: 'pointer',
+                            zIndex: 12,
+                        }}
+                        title="Show top bar"
+                    />
+                )}
+
+                {/* Main terminal area (height adapts to topbar) */}
+                <div
+                    style={{
+                        height: isTopbarOpen ? 'calc(100% - 46px)' : '100%',
+                        marginTop: isTopbarOpen ? 46 : 0,
+                        position: 'relative',
+                        transition: 'margin-top 240ms ease-in-out, height 240ms ease-in-out',
+                    }}
+                >
                     {allTabs.length === 0 && (
                         <div style={{
                             position: 'absolute',
@@ -699,6 +755,24 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                     {renderSplitOverlays()}
                 </div>
             </div>
+
+            {/* Sidebar reopen handle */}
+            {!isSidebarOpen && (
+                <div
+                    onClick={() => setIsSidebarOpen(true)}
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: HANDLE_THICKNESS,
+                        height: '100%',
+                        background: '#222224',
+                        cursor: 'pointer',
+                        zIndex: 20,
+                    }}
+                    title="Show sidebar"
+                />
+            )}
         </div>
     );
 }

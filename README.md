@@ -31,12 +31,12 @@ Termix is an open-source, forever-free, self-hosted all-in-one server management
 - **SSH Tunnel Management** - Create and manage SSH tunnels with automatic reconnection and health monitoring
 - **Remote Config Editor** - Edit files directly on remote servers with syntax highlighting and file management
 - **SSH Host Manager** - Save, organize, and manage your SSH connections with tags and folders
-- **User Authentication** - Secure user management with admin controls
+- **User Authentication** - Secure user management with admin controls and OIDC support with more auth types planned
 - **Modern UI** - Clean interface built with React, Tailwind CSS, and the amazing Shadcn
 
 # Planned Features
 - **Improved Admin Control** - Ability to manage admins, and give more fine-grained control over their permissions, share hosts, reset passwords, delete accounts, etc
-- **More auth types** - Add 2FA, OCID support, etc
+- **More auth types** - Add 2FA, TOTP, etc
 - **Theming** - Modify themeing for all tools
 - **Improved SFTP Support** - Ability to manage files easier with the config editor by uploading, creating, and removing files
 - **Improved Terminal Support** - Add more terminal protocols such as VNC and RDP (anyone who has experience in integrating RDP into a web-application similar to Apache Guacamole, please contact me by creating an issue)

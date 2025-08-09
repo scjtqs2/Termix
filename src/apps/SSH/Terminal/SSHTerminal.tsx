@@ -173,7 +173,7 @@ export const SSHTerminal = forwardRef<any, SSHTerminalProps>(function SSHTermina
             fitAddon.fit();
             setVisible(true);
 
-            const cols = terminal.cols + 1;
+            const cols = terminal.cols;
             const rows = terminal.rows;
             const wsUrl = window.location.hostname === 'localhost'
                 ? 'ws://localhost:8082'
