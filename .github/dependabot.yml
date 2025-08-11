@@ -23,7 +23,7 @@ updates:
           - "minor"
           
   - package-ecosystem: "docker"
-    directory: "/"
+    directory: "/docker"
     schedule:
       interval: "daily"
     groups:
