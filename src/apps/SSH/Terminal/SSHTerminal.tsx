@@ -13,7 +13,7 @@ interface SSHTerminalProps {
     splitScreen?: boolean;
 }
 
-export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
+export const SSHTerminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
     {hostConfig, isVisible, splitScreen = false},
     ref
 ) {

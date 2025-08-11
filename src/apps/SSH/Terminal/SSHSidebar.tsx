@@ -74,7 +74,7 @@ export interface SidebarProps {
     onOpenChange?: (open: boolean) => void;
 }
 
-export function TerminalSidebar({
+export function SSHSidebar({
                                onSelectView,
                                onHostConnect,
                                allTabs,

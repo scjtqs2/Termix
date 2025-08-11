@@ -1,7 +1,7 @@
 import React from "react"
 
 import {Homepage} from "@/apps/Homepage/Homepage.tsx"
-import {Terminal} from "@/apps/SSH/Terminal/Terminal.tsx"
+import {SSH} from "@/apps/SSH/Terminal/SSH.tsx"
 import {SSHTunnel} from "@/apps/SSH/Tunnel/SSHTunnel.tsx";
 import {ConfigEditor} from "@/apps/SSH/Config Editor/ConfigEditor.tsx";
 import {SSHManager} from "@/apps/SSH/Manager/SSHManager.tsx"
@@ -35,7 +35,7 @@ function App() {
                 )}
                 {mountedViews.has("terminal") && (
                     <div style={{display: view === "terminal" ? "block" : "none"}}>
-                        <Terminal onSelectView={handleSelectView} />
+                        <SSH onSelectView={handleSelectView} />
                     </div>
                 )}
                 {mountedViews.has("tunnel") && (

@@ -16,7 +16,7 @@ interface SSHTabListProps {
     setCloseTab: (tab: number) => void;
 }
 
-export function TerminalTabList({
+export function SSHTabList({
                                allTabs,
                                currentTab,
                                setActiveTab,
