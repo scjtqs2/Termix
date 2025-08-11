@@ -1,9 +1,10 @@
 import React, {useState, useRef, useEffect} from "react";
-import {SSHSidebar} from "@/apps/SSH/Terminal/SSHSidebar.tsx";
-import {SSHTerminal} from "./SSHTerminal.tsx";
-import {SSHTopbar} from "@/apps/SSH/Terminal/SSHTopbar.tsx";
+import {TerminalSidebar} from "@/apps/SSH/Terminal/TerminalSidebar.tsx";
+import {TerminalComponent} from "./TerminalComponent.tsx";
+import {TerminalTopbar} from "@/apps/SSH/Terminal/TerminalTopbar.tsx";
 import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
 import * as ResizablePrimitive from "react-resizable-panels";
+import {ChevronDown, ChevronRight} from "lucide-react";
 
 interface ConfigEditorProps {
     onSelectView: (view: string) => void;
@@ -16,7 +17,7 @@ type Tab = {
     terminalRef: React.RefObject<any>;
 };
 
-export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
+export function Terminal({onSelectView}: ConfigEditorProps): React.ReactElement {
     const [allTabs, setAllTabs] = useState<Tab[]>([]);
     const [currentTab, setCurrentTab] = useState<number | null>(null);
     const [allSplitScreenTab, setAllSplitScreenTab] = useState<number[]>([]);
@@ -25,7 +26,7 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
     const [isTopbarOpen, setIsTopbarOpen] = useState<boolean>(true);
     const SIDEBAR_WIDTH = 256;
-    const HANDLE_THICKNESS = 6;
+    const HANDLE_THICKNESS = 10;
 
     const [panelRects, setPanelRects] = useState<Record<string, DOMRect | null>>({});
     const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -160,7 +161,7 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                     const isVisible = !!layoutStyles[tab.id];
                     return (
                         <div key={tab.id} style={style} data-terminal-id={tab.id}>
-                            <SSHTerminal
+                            <TerminalComponent
                                 key={tab.id}
                                 ref={tab.terminalRef}
                                 hostConfig={tab.hostConfig}
@@ -593,7 +594,6 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
 
     return (
         <div style={{display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative'}}>
-            {/* Sidebar (collapsible) */}
             <div
                 style={{
                     width: isSidebarOpen ? SIDEBAR_WIDTH : 0,
@@ -609,7 +609,7 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                     willChange: 'width',
                 }}
             >
-                <SSHSidebar
+                <TerminalSidebar
                     onSelectView={onSelectView}
                     onHostConnect={onHostConnect}
                     allTabs={allTabs}
@@ -655,7 +655,7 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                         willChange: 'height',
                     }}
                 >
-                    <SSHTopbar
+                    <TerminalTopbar
                         allTabs={allTabs}
                         currentTab={currentTab ?? -1}
                         setActiveTab={setActiveTab}
@@ -677,12 +677,15 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                             background: '#222224',
                             cursor: 'pointer',
                             zIndex: 12,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                         }}
-                        title="Show top bar"
-                    />
+                        title="Show top bar">
+                        <ChevronDown size={HANDLE_THICKNESS} />
+                    </div>
                 )}
 
-                {/* Main terminal area (height adapts to topbar) */}
                 <div
                     style={{
                         height: isTopbarOpen ? 'calc(100% - 46px)' : '100%',
@@ -756,7 +759,6 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                 </div>
             </div>
 
-            {/* Sidebar reopen handle */}
             {!isSidebarOpen && (
                 <div
                     onClick={() => setIsSidebarOpen(true)}
@@ -769,9 +771,13 @@ export function SSH({onSelectView}: ConfigEditorProps): React.ReactElement {
                         background: '#222224',
                         cursor: 'pointer',
                         zIndex: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                     }}
-                    title="Show sidebar"
-                />
+                    title="Show sidebar">
+                    <ChevronRight size={HANDLE_THICKNESS} />
+                </div>
             )}
         </div>
     );
