@@ -3,6 +3,7 @@ import React, {useEffect, useState} from "react";
 import {HomepageAuth} from "@/apps/Homepage/HomepageAuth.tsx";
 import axios from "axios";
 import {HomepageUpdateLog} from "@/apps/Homepage/HompageUpdateLog.tsx";
+import {HomepageWelcomeCard} from "@/apps/Homepage/HomepageWelcomeCard.tsx";
 
 interface HomepageProps {
     onSelectView: (view: string) => void;
@@ -32,9 +33,12 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
     const [username, setUsername] = useState<string | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [dbError, setDbError] = useState<string | null>(null);
+    const [showWelcomeCard, setShowWelcomeCard] = useState(true);
 
     useEffect(() => {
         const jwt = getCookie("jwt");
+        const welcomeHidden = getCookie("welcome_hidden");
+
         if (jwt) {
             setAuthLoading(true);
             Promise.all([
@@ -46,6 +50,7 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
                     setIsAdmin(!!meRes.data.is_admin);
                     setUsername(meRes.data.username || null);
                     setDbError(null);
+                    setShowWelcomeCard(welcomeHidden !== "true");
                 })
                 .catch((err) => {
                     setLoggedIn(false);
@@ -63,6 +68,11 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
             setAuthLoading(false);
         }
     }, []);
+
+    const handleHideWelcomeCard = () => {
+        setShowWelcomeCard(false);
+        setCookie("welcome_hidden", "true", 365 * 10);
+    };
 
     return (
         <HomepageSidebar
@@ -86,6 +96,13 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
                         loggedIn={loggedIn}
                     />
                 </div>
+
+                {loggedIn && !authLoading && showWelcomeCard && (
+                    <div
+                        className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
+                        <HomepageWelcomeCard onHidePermanently={handleHideWelcomeCard}/>
+                    </div>
+                )}
             </div>
         </HomepageSidebar>
     );

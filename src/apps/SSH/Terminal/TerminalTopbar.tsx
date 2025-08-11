@@ -1,4 +1,4 @@
-import {SSHTabList} from "@/apps/SSH/Terminal/SSHTabList.tsx";
+import {TerminalTabList} from "@/apps/SSH/Terminal/TerminalTabList.tsx";
 import React from "react";
 import {ChevronUp} from "lucide-react";
 
@@ -17,7 +17,7 @@ interface SSHTopbarProps {
     onHideTopbar?: () => void;
 }
 
-export function SSHTopbar({
+export function TerminalTopbar({
                               allTabs,
                               currentTab,
                               setActiveTab,
@@ -38,7 +38,7 @@ export function SSHTopbar({
         }}>
             <div style={{flex: 1, minWidth: 0, height: '100%', overflowX: 'auto'}}>
                 <div style={{minWidth: 'max-content', height: '100%', paddingLeft: 8, overflowY: 'hidden'}}>
-                    <SSHTabList
+                    <TerminalTabList
                         allTabs={allTabs}
                         currentTab={currentTab}
                         setActiveTab={setActiveTab}
