@@ -35,7 +35,7 @@ Termix is an open-source, forever-free, self-hosted all-in-one server management
 - **Modern UI** - Clean interface built with React, Tailwind CSS, and the amazing Shadcn
 
 # Planned Features
-- **Improved Admin Control** - Ability to manage admins, and give more fine-grained control over their permissions, share hosts, reset passwords, delete accounts, etc
+- **Improved Admin Control** - Give more fine-grained control over user and admin permissions, share hosts, etc
 - **More auth types** - Add 2FA, TOTP, etc
 - **Theming** - Modify themeing for all tools
 - **Improved SFTP Support** - Ability to manage files easier with the config editor by uploading, creating, and removing files
