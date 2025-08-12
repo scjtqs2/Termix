@@ -5,8 +5,9 @@ import {Badge} from "@/components/ui/badge";
 import {ScrollArea} from "@/components/ui/scroll-area";
 import {Input} from "@/components/ui/input";
 import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@/components/ui/accordion";
-import {getSSHHosts, deleteSSHHost} from "@/apps/SSH/ssh-axios";
-import {Edit, Trash2, Server, Folder, Tag, Pin, Terminal, Network, FileEdit, Search} from "lucide-react";
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
+import {getSSHHosts, deleteSSHHost, bulkImportSSHHosts} from "@/apps/SSH/ssh-axios";
+import {Edit, Trash2, Server, Folder, Tag, Pin, Terminal, Network, FileEdit, Search, Upload, Info} from "lucide-react";
 
 interface SSHHost {
     id: number;
@@ -36,6 +37,7 @@ export function SSHManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [importing, setImporting] = useState(false);
 
     useEffect(() => {
         fetchHosts();
@@ -68,6 +70,47 @@ export function SSHManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
     const handleEdit = (host: SSHHost) => {
         if (onEditHost) {
             onEditHost(host);
+        }
+    };
+
+    const handleJsonImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+            setImporting(true);
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            if (!Array.isArray(data.hosts) && !Array.isArray(data)) {
+                throw new Error('JSON must contain a "hosts" array or be an array of hosts');
+            }
+
+            const hostsArray = Array.isArray(data.hosts) ? data.hosts : data;
+
+            if (hostsArray.length === 0) {
+                throw new Error('No hosts found in JSON file');
+            }
+
+            if (hostsArray.length > 100) {
+                throw new Error('Maximum 100 hosts allowed per import');
+            }
+
+            const result = await bulkImportSSHHosts(hostsArray);
+
+            if (result.success > 0) {
+                alert(`Import completed: ${result.success} successful, ${result.failed} failed${result.errors.length > 0 ? '\n\nErrors:\n' + result.errors.join('\n') : ''}`);
+                await fetchHosts();
+            } else {
+                alert(`Import failed: ${result.errors.join('\n')}`);
+            }
+
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to import JSON file';
+            alert(`Import error: ${errorMessage}`);
+        } finally {
+            setImporting(false);
+            event.target.value = '';
         }
     };
 
@@ -172,10 +215,369 @@ export function SSHManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
                         {filteredAndSortedHosts.length} hosts
                     </p>
                 </div>
-                <Button onClick={fetchHosts} variant="outline" size="sm">
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="relative"
+                                    onClick={() => document.getElementById('json-import-input')?.click()}
+                                    disabled={importing}
+                                >
+                                    {importing ? 'Importing...' : 'Import JSON'}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom"
+                                            className="max-w-sm bg-popover text-popover-foreground border border-border shadow-lg">
+                                <div className="space-y-2">
+                                    <p className="font-semibold text-sm">Import SSH Hosts from JSON</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Upload a JSON file to bulk import multiple SSH hosts (max 100).
+                                    </p>
+                                </div>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            const sampleData = {
+                                hosts: [
+                                    {
+                                        name: "Web Server - Production",
+                                        ip: "192.168.1.100",
+                                        port: 22,
+                                        username: "admin",
+                                        authType: "password",
+                                        password: "your_secure_password_here",
+                                        folder: "Production",
+                                        tags: ["web", "production", "nginx"],
+                                        pin: true,
+                                        enableTerminal: true,
+                                        enableTunnel: false,
+                                        enableConfigEditor: true,
+                                        defaultPath: "/var/www"
+                                    },
+                                    {
+                                        name: "Database Server",
+                                        ip: "192.168.1.101",
+                                        port: 22,
+                                        username: "dbadmin",
+                                        authType: "key",
+                                        key: "-----BEGIN OPENSSH PRIVATE KEY-----\nYour SSH private key content here\n-----END OPENSSH PRIVATE KEY-----",
+                                        keyPassword: "optional_key_passphrase",
+                                        keyType: "ssh-ed25519",
+                                        folder: "Production",
+                                        tags: ["database", "production", "postgresql"],
+                                        pin: false,
+                                        enableTerminal: true,
+                                        enableTunnel: true,
+                                        enableConfigEditor: false,
+                                        tunnelConnections: [
+                                            {
+                                                sourcePort: 5432,
+                                                endpointPort: 5432,
+                                                endpointHost: "Web Server - Production",
+                                                maxRetries: 3,
+                                                retryInterval: 10,
+                                                autoStart: true
+                                            }
+                                        ]
+                                    }
+                                ]
+                            };
+
+                            const blob = new Blob([JSON.stringify(sampleData, null, 2)], {type: 'application/json'});
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'sample-ssh-hosts.json';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        }}
+                    >
+                        Download Sample
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            const infoContent = `
+JSON Import Format Guide
+
+REQUIRED FIELDS:
+• ip: Host IP address (string)
+• port: SSH port (number, 1-65535)
+• username: SSH username (string)
+• authType: "password" or "key"
+
+AUTHENTICATION FIELDS:
+• password: Required if authType is "password"
+• key: SSH private key content (string) if authType is "key"
+• keyPassword: Optional key passphrase
+• keyType: Key type (auto, ssh-rsa, ssh-ed25519, etc.)
+
+OPTIONAL FIELDS:
+• name: Display name (string)
+• folder: Organization folder (string)
+• tags: Array of tag strings
+• pin: Pin to top (boolean)
+• enableTerminal: Show in Terminal tab (boolean, default: true)
+• enableTunnel: Show in Tunnel tab (boolean, default: true)
+• enableConfigEditor: Show in Config Editor tab (boolean, default: true)
+• defaultPath: Default directory path (string)
+
+TUNNEL CONFIGURATION:
+• tunnelConnections: Array of tunnel objects
+  - sourcePort: Local port (number)
+  - endpointPort: Remote port (number)
+  - endpointHost: Target host name (string)
+  - maxRetries: Retry attempts (number, default: 3)
+  - retryInterval: Retry delay in seconds (number, default: 10)
+  - autoStart: Auto-start on launch (boolean, default: false)
+
+EXAMPLE STRUCTURE:
+{
+  "hosts": [
+    {
+      "name": "Web Server",
+      "ip": "192.168.1.100",
+      "port": 22,
+      "username": "admin",
+      "authType": "password",
+      "password": "your_password",
+      "folder": "Production",
+      "tags": ["web", "production"],
+      "pin": true,
+      "enableTerminal": true,
+      "enableTunnel": false,
+      "enableConfigEditor": true,
+      "defaultPath": "/var/www"
+    }
+  ]
+}
+
+• Maximum 100 hosts per import
+• File should contain a "hosts" array or be an array of host objects
+• All fields are copyable for easy reference
+                            `;
+
+                            const newWindow = window.open('', '_blank', 'width=600,height=800,scrollbars=yes,resizable=yes');
+                            if (newWindow) {
+                                newWindow.document.write(`
+                                    <!DOCTYPE html>
+                                    <html>
+                                    <head>
+                                        <title>SSH JSON Import Guide</title>
+                                        <style>
+                                            body { 
+                                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                                                margin: 20px; 
+                                                background: #1a1a1a; 
+                                                color: #ffffff; 
+                                                line-height: 1.6;
+                                            }
+                                            pre { 
+                                                background: #2a2a2a; 
+                                                padding: 15px; 
+                                                border-radius: 5px; 
+                                                overflow-x: auto; 
+                                                border: 1px solid #404040;
+                                            }
+                                            code { 
+                                                background: #404040; 
+                                                padding: 2px 4px; 
+                                                border-radius: 3px; 
+                                                font-family: 'Consolas', 'Monaco', monospace;
+                                            }
+                                            h1 { color: #60a5fa; border-bottom: 2px solid #60a5fa; padding-bottom: 10px; }
+                                            h2 { color: #34d399; margin-top: 25px; }
+                                            .field-group { margin: 15px 0; }
+                                            .field-item { margin: 8px 0; }
+                                            .copy-btn { 
+                                                background: #3b82f6; 
+                                                color: white; 
+                                                border: none; 
+                                                padding: 5px 10px; 
+                                                border-radius: 3px; 
+                                                cursor: pointer; 
+                                                margin-left: 10px;
+                                            }
+                                            .copy-btn:hover { background: #2563eb; }
+                                        </style>
+                                    </head>
+                                    <body>
+                                        <h1>SSH JSON Import Format Guide</h1>
+                                        <p>Use this guide to create JSON files for bulk importing SSH hosts. All examples are copyable.</p>
+                                        
+                                        <h2>Required Fields</h2>
+                                        <div class="field-group">
+                                            <div class="field-item">
+                                                <code>ip</code> - Host IP address (string)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('ip')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>port</code> - SSH port (number, 1-65535)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('port')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>username</code> - SSH username (string)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('username')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>authType</code> - "password" or "key"
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('authType')">Copy</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <h2>Authentication Fields</h2>
+                                        <div class="field-group">
+                                            <div class="field-item">
+                                                <code>password</code> - Required if authType is "password"
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('password')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>key</code> - SSH private key content (string) if authType is "key"
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('key')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>keyPassword</code> - Optional key passphrase
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('keyPassword')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>keyType</code> - Key type (auto, ssh-rsa, ssh-ed25519, etc.)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('keyType')">Copy</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <h2>Optional Fields</h2>
+                                        <div class="field-group">
+                                            <div class="field-item">
+                                                <code>name</code> - Display name (string)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('name')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>folder</code> - Organization folder (string)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('folder')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>tags</code> - Array of tag strings
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('tags')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>pin</code> - Pin to top (boolean)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('pin')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>enableTerminal</code> - Show in Terminal tab (boolean, default: true)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('enableTerminal')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>enableTunnel</code> - Show in Tunnel tab (boolean, default: true)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('enableTunnel')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>enableConfigEditor</code> - Show in Config Editor tab (boolean, default: true)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('enableConfigEditor')">Copy</button>
+                                            </div>
+                                            <div class="field-item">
+                                                <code>defaultPath</code> - Default directory path (string)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('defaultPath')">Copy</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <h2>Tunnel Configuration</h2>
+                                        <div class="field-group">
+                                            <div class="field-item">
+                                                <code>tunnelConnections</code> - Array of tunnel objects
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('tunnelConnections')">Copy</button>
+                                            </div>
+                                            <div style="margin-left: 20px;">
+                                                <div class="field-item">
+                                                    <code>sourcePort</code> - Local port (number)
+                                                    <button class="copy-btn" onclick="navigator.clipboard.writeText('sourcePort')">Copy</button>
+                                                </div>
+                                                <div class="field-item">
+                                                    <code>endpointPort</code> - Remote port (number)
+                                                    <button class="copy-btn" onclick="navigator.clipboard.writeText('endpointPort')">Copy</button>
+                                                </div>
+                                                <div class="field-item">
+                                                    <code>endpointHost</code> - Target host name (string)
+                                                    <button class="copy-btn" onclick="navigator.clipboard.writeText('endpointHost')">Copy</button>
+                                                </div>
+                                                <div class="field-item">
+                                                    <code>maxRetries</code> - Retry attempts (number, default: 3)
+                                                    <button class="copy-btn" onclick="navigator.clipboard.writeText('maxRetries')">Copy</button>
+                                                </div>
+                                                <div class="field-item">
+                                                    <code>retryInterval</code> - Retry delay in seconds (number, default: 10)
+                                                    <button class="copy-btn" onclick="navigator.clipboard.writeText('retryInterval')">Copy</button>
+                                                </div>
+                                                <div class="field-item">
+                                                    <code>autoStart</code> - Auto-start on launch (boolean, default: false)
+                                                    <button class="copy-btn" onclick="navigator.clipboard.writeText('autoStart')">Copy</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <h2>Example JSON Structure</h2>
+                                        <pre><code>{
+  "hosts": [
+    {
+      "name": "Web Server",
+      "ip": "192.168.1.100",
+      "port": 22,
+      "username": "admin",
+      "authType": "password",
+      "password": "your_password",
+      "folder": "Production",
+      "tags": ["web", "production"],
+      "pin": true,
+      "enableTerminal": true,
+      "enableTunnel": false,
+      "enableConfigEditor": true,
+      "defaultPath": "/var/www"
+    }
+  ]
+}</code></pre>
+                                        
+                                        <h2>Important Notes</h2>
+                                        <ul>
+                                            <li>Maximum 100 hosts per import</li>
+                                            <li>File should contain a "hosts" array or be an array of host objects</li>
+                                            <li>All fields are copyable for easy reference</li>
+                                            <li>Use the Download Sample button to get a complete example file</li>
+                                        </ul>
+                                    </body>
+                                    </html>
+                                `);
+                                newWindow.document.close();
+                            }
+                        }}
+                    >
+                        Format Guide
+                    </Button>
+
+                    <Button onClick={fetchHosts} variant="outline" size="sm">
+                        Refresh
+                    </Button>
+                </div>
             </div>
+
+            <input
+                id="json-import-input"
+                type="file"
+                accept=".json"
+                onChange={handleJsonImport}
+                style={{display: 'none'}}
+            />
 
             <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground"/>

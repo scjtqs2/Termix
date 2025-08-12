@@ -13,7 +13,7 @@ async function verifyOIDCToken(idToken: string, issuerUrl: string, clientId: str
         let jwksUrl: string | null = null;
 
         const normalizedIssuerUrl = issuerUrl.endsWith('/') ? issuerUrl.slice(0, -1) : issuerUrl;
-        
+
         try {
             const discoveryUrl = `${normalizedIssuerUrl}/.well-known/openid-configuration`;
             const discoveryResponse = await fetch(discoveryUrl);
@@ -59,12 +59,12 @@ async function verifyOIDCToken(idToken: string, issuerUrl: string, clientId: str
                 logger.warn(`Authentik root JWKS URL also failed: ${error}`);
             }
         }
-        
+
         const jwksResponse = await fetch(jwksUrl);
         if (!jwksResponse.ok) {
             throw new Error(`Failed to fetch JWKS from ${jwksUrl}: ${jwksResponse.status}`);
         }
-        
+
         const jwks = await jwksResponse.json() as any;
 
         const header = JSON.parse(Buffer.from(idToken.split('.')[0], 'base64').toString());
@@ -75,14 +75,14 @@ async function verifyOIDCToken(idToken: string, issuerUrl: string, clientId: str
             throw new Error(`No matching public key found for key ID: ${keyId}`);
         }
 
-        const { importJWK, jwtVerify } = await import('jose');
+        const {importJWK, jwtVerify} = await import('jose');
         const key = await importJWK(publicKey);
 
-        const { payload } = await jwtVerify(idToken, key, {
+        const {payload} = await jwtVerify(idToken, key, {
             issuer: issuerUrl,
             audience: clientId,
         });
-        
+
         return payload;
     } catch (error) {
         logger.error('OIDC token verification failed:', error);
@@ -157,14 +157,14 @@ router.post('/create', async (req, res) => {
         }
     } catch (e) {
     }
-    
+
     const {username, password} = req.body;
-    
+
     if (!isNonEmptyString(username) || !isNonEmptyString(password)) {
         logger.warn('Invalid user creation attempt - missing username or password');
-        return res.status(400).json({ error: 'Username and password are required' });
+        return res.status(400).json({error: 'Username and password are required'});
     }
-    
+
     try {
         const existing = await db
             .select()
@@ -174,7 +174,7 @@ router.post('/create', async (req, res) => {
             logger.warn(`Attempt to create duplicate username: ${username}`);
             return res.status(409).json({error: 'Username already exists'});
         }
-        
+
         let isFirstUser = false;
         try {
             const countResult = db.$client.prepare('SELECT COUNT(*) as count FROM users').get();
@@ -182,7 +182,7 @@ router.post('/create', async (req, res) => {
         } catch (e) {
             isFirstUser = true;
         }
-        
+
         const saltRounds = parseInt(process.env.SALT || '10', 10);
         const password_hash = await bcrypt.hash(password, saltRounds);
         const id = nanoid();
@@ -220,7 +220,7 @@ router.post('/oidc-config', authenticateJWT, async (req, res) => {
         if (!user || user.length === 0 || !user[0].is_admin) {
             return res.status(403).json({error: 'Not authorized'});
         }
-        
+
         const {
             client_id,
             client_secret,
@@ -231,10 +231,10 @@ router.post('/oidc-config', authenticateJWT, async (req, res) => {
             name_path,
             scopes
         } = req.body;
-        
-                if (!isNonEmptyString(client_id) || !isNonEmptyString(client_secret) ||
+
+        if (!isNonEmptyString(client_id) || !isNonEmptyString(client_secret) ||
             !isNonEmptyString(issuer_url) || !isNonEmptyString(authorization_url) ||
-            !isNonEmptyString(token_url) || !isNonEmptyString(identifier_path) || 
+            !isNonEmptyString(token_url) || !isNonEmptyString(identifier_path) ||
             !isNonEmptyString(name_path)) {
             return res.status(400).json({error: 'All OIDC configuration fields are required'});
         }
@@ -249,7 +249,7 @@ router.post('/oidc-config', authenticateJWT, async (req, res) => {
             name_path,
             scopes: scopes || 'openid email profile'
         };
-        
+
         db.$client.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('oidc_config', ?)").run(JSON.stringify(config));
 
         res.json({message: 'OIDC configuration updated'});
@@ -282,7 +282,7 @@ router.get('/oidc/authorize', async (req, res) => {
         if (!row) {
             return res.status(404).json({error: 'OIDC not configured'});
         }
-        
+
         const config = JSON.parse((row as any).value);
         const state = nanoid();
         const nonce = nanoid();
@@ -292,13 +292,13 @@ router.get('/oidc/authorize', async (req, res) => {
         if (origin.includes('localhost')) {
             origin = 'http://localhost:8081';
         }
-        
+
         const redirectUri = `${origin}/users/oidc/callback`;
 
         db.$client.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(`oidc_state_${state}`, nonce);
 
         db.$client.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(`oidc_redirect_${state}`, redirectUri);
-        
+
         const authUrl = new URL(config.authorization_url);
         authUrl.searchParams.set('client_id', config.client_id);
         authUrl.searchParams.set('redirect_uri', redirectUri);
@@ -318,7 +318,7 @@ router.get('/oidc/authorize', async (req, res) => {
 // GET /users/oidc/callback
 router.get('/oidc/callback', async (req, res) => {
     const {code, state} = req.query;
-    
+
     if (!isNonEmptyString(code) || !isNonEmptyString(state)) {
         return res.status(400).json({error: 'Code and state are required'});
     }
@@ -328,7 +328,7 @@ router.get('/oidc/callback', async (req, res) => {
         return res.status(400).json({error: 'Invalid state parameter - redirect URI not found'});
     }
     const redirectUri = (storedRedirectRow as any).value;
-    
+
     try {
         const storedNonce = db.$client.prepare("SELECT value FROM settings WHERE key = ?").get(`oidc_state_${state}`);
         if (!storedNonce) {
@@ -342,9 +342,9 @@ router.get('/oidc/callback', async (req, res) => {
         if (!configRow) {
             return res.status(500).json({error: 'OIDC not configured'});
         }
-        
+
         const config = JSON.parse((configRow as any).value);
-        
+
         const tokenResponse = await fetch(config.token_url, {
             method: 'POST',
             headers: {
@@ -358,12 +358,12 @@ router.get('/oidc/callback', async (req, res) => {
                 redirect_uri: redirectUri,
             }),
         });
-        
+
         if (!tokenResponse.ok) {
             logger.error('OIDC token exchange failed', await tokenResponse.text());
             return res.status(400).json({error: 'Failed to exchange authorization code'});
         }
-        
+
         const tokenData = await tokenResponse.json() as any;
 
         let userInfo;
@@ -376,13 +376,13 @@ router.get('/oidc/callback', async (req, res) => {
                     const normalizedIssuerUrl = config.issuer_url.endsWith('/') ? config.issuer_url.slice(0, -1) : config.issuer_url;
                     const baseUrl = normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '');
                     const userInfoUrl = `${baseUrl}/userinfo/`;
-                    
+
                     const userInfoResponse = await fetch(userInfoUrl, {
                         headers: {
                             'Authorization': `Bearer ${tokenData.access_token}`,
                         },
                     });
-                    
+
                     if (userInfoResponse.ok) {
                         userInfo = await userInfoResponse.json();
                     } else {
@@ -394,27 +394,27 @@ router.get('/oidc/callback', async (req, res) => {
             const normalizedIssuerUrl = config.issuer_url.endsWith('/') ? config.issuer_url.slice(0, -1) : config.issuer_url;
             const baseUrl = normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '');
             const userInfoUrl = `${baseUrl}/userinfo/`;
-            
+
             const userInfoResponse = await fetch(userInfoUrl, {
                 headers: {
                     'Authorization': `Bearer ${tokenData.access_token}`,
                 },
             });
-            
+
             if (userInfoResponse.ok) {
                 userInfo = await userInfoResponse.json();
             } else {
                 logger.error(`Userinfo endpoint failed with status: ${userInfoResponse.status}`);
             }
         }
-        
+
         if (!userInfo) {
             return res.status(400).json({error: 'Failed to get user information'});
         }
 
         const identifier = userInfo[config.identifier_path];
         const name = userInfo[config.name_path] || identifier;
-        
+
         if (!identifier) {
             logger.error(`Identifier not found at path: ${config.identifier_path}`);
             logger.error(`Available fields: ${Object.keys(userInfo).join(', ')}`);
@@ -425,7 +425,7 @@ router.get('/oidc/callback', async (req, res) => {
             .select()
             .from(users)
             .where(and(eq(users.is_oidc, true), eq(users.oidc_identifier, identifier)));
-        
+
         let isFirstUser = false;
         if (!user || user.length === 0) {
             try {
@@ -452,14 +452,14 @@ router.get('/oidc/callback', async (req, res) => {
                 name_path: config.name_path,
                 scopes: config.scopes,
             });
-            
+
             user = await db
                 .select()
                 .from(users)
                 .where(eq(users.id, id));
         } else {
             await db.update(users)
-                .set({ username: name })
+                .set({username: name})
                 .where(eq(users.id, user[0].id));
 
             user = await db
@@ -467,11 +467,11 @@ router.get('/oidc/callback', async (req, res) => {
                 .from(users)
                 .where(eq(users.id, user[0].id));
         }
-        
+
         const userRecord = user[0];
 
         const jwtSecret = process.env.JWT_SECRET || 'secret';
-        const token = jwt.sign({ userId: userRecord.id }, jwtSecret, {
+        const token = jwt.sign({userId: userRecord.id}, jwtSecret, {
             expiresIn: '50d',
         });
 
@@ -480,13 +480,13 @@ router.get('/oidc/callback', async (req, res) => {
         if (frontendUrl.includes('localhost')) {
             frontendUrl = 'http://localhost:5173';
         }
-        
+
         const redirectUrl = new URL(frontendUrl);
         redirectUrl.searchParams.set('success', 'true');
         redirectUrl.searchParams.set('token', token);
 
         res.redirect(redirectUrl.toString());
-        
+
     } catch (err) {
         logger.error('OIDC callback failed', err);
 
@@ -495,10 +495,10 @@ router.get('/oidc/callback', async (req, res) => {
         if (frontendUrl.includes('localhost')) {
             frontendUrl = 'http://localhost:5173';
         }
-        
+
         const redirectUrl = new URL(frontendUrl);
         redirectUrl.searchParams.set('error', 'OIDC authentication failed');
-        
+
         res.redirect(redirectUrl.toString());
     }
 });
@@ -510,7 +510,7 @@ router.post('/login', async (req, res) => {
 
     if (!isNonEmptyString(username) || !isNonEmptyString(password)) {
         logger.warn('Invalid traditional login attempt');
-        return res.status(400).json({ error: 'Invalid username or password' });
+        return res.status(400).json({error: 'Invalid username or password'});
     }
 
     try {
@@ -521,27 +521,27 @@ router.post('/login', async (req, res) => {
 
         if (!user || user.length === 0) {
             logger.warn(`User not found: ${username}`);
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({error: 'User not found'});
         }
 
         const userRecord = user[0];
 
         if (userRecord.is_oidc) {
-            return res.status(403).json({ error: 'This user uses external authentication' });
+            return res.status(403).json({error: 'This user uses external authentication'});
         }
 
         const isMatch = await bcrypt.compare(password, userRecord.password_hash);
         if (!isMatch) {
             logger.warn(`Incorrect password for user: ${username}`);
-            return res.status(401).json({ error: 'Incorrect password' });
+            return res.status(401).json({error: 'Incorrect password'});
         }
 
         const jwtSecret = process.env.JWT_SECRET || 'secret';
-        const token = jwt.sign({ userId: userRecord.id }, jwtSecret, {
+        const token = jwt.sign({userId: userRecord.id}, jwtSecret, {
             expiresIn: '50d',
         });
 
-        return res.json({ 
+        return res.json({
             token,
             is_admin: !!userRecord.is_admin,
             username: userRecord.username
@@ -549,7 +549,7 @@ router.post('/login', async (req, res) => {
 
     } catch (err) {
         logger.error('Failed to log in user', err);
-        return res.status(500).json({ error: 'Login failed' });
+        return res.status(500).json({error: 'Login failed'});
     }
 });
 
@@ -571,7 +571,7 @@ router.get('/me', authenticateJWT, async (req: Request, res: Response) => {
             return res.status(401).json({error: 'User not found'});
         }
         res.json({
-            username: user[0].username, 
+            username: user[0].username,
             is_admin: !!user[0].is_admin,
             is_oidc: !!user[0].is_oidc
         });
@@ -636,6 +636,353 @@ router.patch('/registration-allowed', authenticateJWT, async (req, res) => {
     } catch (err) {
         logger.error('Failed to set registration allowed', err);
         res.status(500).json({error: 'Failed to set registration allowed'});
+    }
+});
+
+// Route: Delete user account
+// DELETE /users/delete-account
+router.delete('/delete-account', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    const {password} = req.body;
+
+    if (!isNonEmptyString(password)) {
+        return res.status(400).json({error: 'Password is required to delete account'});
+    }
+
+    try {
+        const user = await db.select().from(users).where(eq(users.id, userId));
+        if (!user || user.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        const userRecord = user[0];
+
+        if (userRecord.is_oidc) {
+            return res.status(403).json({error: 'Cannot delete external authentication accounts through this endpoint'});
+        }
+
+        const isMatch = await bcrypt.compare(password, userRecord.password_hash);
+        if (!isMatch) {
+            logger.warn(`Incorrect password provided for account deletion: ${userRecord.username}`);
+            return res.status(401).json({error: 'Incorrect password'});
+        }
+
+        if (userRecord.is_admin) {
+            const adminCount = db.$client.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').get();
+            if ((adminCount as any)?.count <= 1) {
+                return res.status(403).json({error: 'Cannot delete the last admin user'});
+            }
+        }
+
+        await db.delete(users).where(eq(users.id, userId));
+
+        logger.success(`User account deleted: ${userRecord.username}`);
+        res.json({message: 'Account deleted successfully'});
+
+    } catch (err) {
+        logger.error('Failed to delete user account', err);
+        res.status(500).json({error: 'Failed to delete account'});
+    }
+});
+
+// Route: Initiate password reset
+// POST /users/initiate-reset
+router.post('/initiate-reset', async (req, res) => {
+    const {username} = req.body;
+
+    if (!isNonEmptyString(username)) {
+        return res.status(400).json({error: 'Username is required'});
+    }
+
+    try {
+        const user = await db
+            .select()
+            .from(users)
+            .where(eq(users.username, username));
+
+        if (!user || user.length === 0) {
+            logger.warn(`Password reset attempted for non-existent user: ${username}`);
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        if (user[0].is_oidc) {
+            return res.status(403).json({error: 'Password reset not available for external authentication users'});
+        }
+
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+        db.$client.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(
+            `reset_code_${username}`,
+            JSON.stringify({code: resetCode, expiresAt: expiresAt.toISOString()})
+        );
+
+        logger.info(`Password reset code for user ${username}: ${resetCode} (expires at ${expiresAt.toLocaleString()})`);
+
+        res.json({message: 'Password reset code has been generated and logged. Check docker logs for the code.'});
+
+    } catch (err) {
+        logger.error('Failed to initiate password reset', err);
+        res.status(500).json({error: 'Failed to initiate password reset'});
+    }
+});
+
+// Route: Verify reset code
+// POST /users/verify-reset-code
+router.post('/verify-reset-code', async (req, res) => {
+    const {username, resetCode} = req.body;
+
+    if (!isNonEmptyString(username) || !isNonEmptyString(resetCode)) {
+        return res.status(400).json({error: 'Username and reset code are required'});
+    }
+
+    try {
+        const resetDataRow = db.$client.prepare("SELECT value FROM settings WHERE key = ?").get(`reset_code_${username}`);
+        if (!resetDataRow) {
+            return res.status(400).json({error: 'No reset code found for this user'});
+        }
+
+        const resetData = JSON.parse((resetDataRow as any).value);
+        const now = new Date();
+        const expiresAt = new Date(resetData.expiresAt);
+
+        if (now > expiresAt) {
+            db.$client.prepare("DELETE FROM settings WHERE key = ?").run(`reset_code_${username}`);
+            return res.status(400).json({error: 'Reset code has expired'});
+        }
+
+        if (resetData.code !== resetCode) {
+            return res.status(400).json({error: 'Invalid reset code'});
+        }
+
+        const tempToken = nanoid();
+        const tempTokenExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+        db.$client.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(
+            `temp_reset_token_${username}`,
+            JSON.stringify({token: tempToken, expiresAt: tempTokenExpiry.toISOString()})
+        );
+
+        res.json({message: 'Reset code verified', tempToken});
+
+    } catch (err) {
+        logger.error('Failed to verify reset code', err);
+        res.status(500).json({error: 'Failed to verify reset code'});
+    }
+});
+
+// Route: Complete password reset
+// POST /users/complete-reset
+router.post('/complete-reset', async (req, res) => {
+    const {username, tempToken, newPassword} = req.body;
+
+    if (!isNonEmptyString(username) || !isNonEmptyString(tempToken) || !isNonEmptyString(newPassword)) {
+        return res.status(400).json({error: 'Username, temporary token, and new password are required'});
+    }
+
+    try {
+        const tempTokenRow = db.$client.prepare("SELECT value FROM settings WHERE key = ?").get(`temp_reset_token_${username}`);
+        if (!tempTokenRow) {
+            return res.status(400).json({error: 'No temporary token found'});
+        }
+
+        const tempTokenData = JSON.parse((tempTokenRow as any).value);
+        const now = new Date();
+        const expiresAt = new Date(tempTokenData.expiresAt);
+
+        if (now > expiresAt) {
+            // Clean up expired token
+            db.$client.prepare("DELETE FROM settings WHERE key = ?").run(`temp_reset_token_${username}`);
+            return res.status(400).json({error: 'Temporary token has expired'});
+        }
+
+        if (tempTokenData.token !== tempToken) {
+            return res.status(400).json({error: 'Invalid temporary token'});
+        }
+
+        const saltRounds = parseInt(process.env.SALT || '10', 10);
+        const password_hash = await bcrypt.hash(newPassword, saltRounds);
+
+        await db.update(users)
+            .set({password_hash})
+            .where(eq(users.username, username));
+
+        db.$client.prepare("DELETE FROM settings WHERE key = ?").run(`reset_code_${username}`);
+        db.$client.prepare("DELETE FROM settings WHERE key = ?").run(`temp_reset_token_${username}`);
+
+        logger.success(`Password successfully reset for user: ${username}`);
+        res.json({message: 'Password has been successfully reset'});
+
+    } catch (err) {
+        logger.error('Failed to complete password reset', err);
+        res.status(500).json({error: 'Failed to complete password reset'});
+    }
+});
+
+// Route: List all users (admin only)
+// GET /users/list
+router.get('/list', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    try {
+        const user = await db.select().from(users).where(eq(users.id, userId));
+        if (!user || user.length === 0 || !user[0].is_admin) {
+            return res.status(403).json({error: 'Not authorized'});
+        }
+
+        const allUsers = await db.select({
+            id: users.id,
+            username: users.username,
+            is_admin: users.is_admin,
+            is_oidc: users.is_oidc
+        }).from(users);
+
+        res.json({users: allUsers});
+    } catch (err) {
+        logger.error('Failed to list users', err);
+        res.status(500).json({error: 'Failed to list users'});
+    }
+});
+
+// Route: Make user admin (admin only)
+// POST /users/make-admin
+router.post('/make-admin', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    const {username} = req.body;
+
+    if (!isNonEmptyString(username)) {
+        return res.status(400).json({error: 'Username is required'});
+    }
+
+    try {
+        const adminUser = await db.select().from(users).where(eq(users.id, userId));
+        if (!adminUser || adminUser.length === 0 || !adminUser[0].is_admin) {
+            return res.status(403).json({error: 'Not authorized'});
+        }
+
+        const targetUser = await db.select().from(users).where(eq(users.username, username));
+        if (!targetUser || targetUser.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        if (targetUser[0].is_admin) {
+            return res.status(400).json({error: 'User is already an admin'});
+        }
+
+        await db.update(users)
+            .set({is_admin: true})
+            .where(eq(users.username, username));
+
+        logger.success(`User ${username} made admin by ${adminUser[0].username}`);
+        res.json({message: `User ${username} is now an admin`});
+
+    } catch (err) {
+        logger.error('Failed to make user admin', err);
+        res.status(500).json({error: 'Failed to make user admin'});
+    }
+});
+
+// Route: Remove admin status (admin only)
+// POST /users/remove-admin
+router.post('/remove-admin', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    const {username} = req.body;
+
+    if (!isNonEmptyString(username)) {
+        return res.status(400).json({error: 'Username is required'});
+    }
+
+    try {
+        const adminUser = await db.select().from(users).where(eq(users.id, userId));
+        if (!adminUser || adminUser.length === 0 || !adminUser[0].is_admin) {
+            return res.status(403).json({error: 'Not authorized'});
+        }
+
+        if (adminUser[0].username === username) {
+            return res.status(400).json({error: 'Cannot remove your own admin status'});
+        }
+
+        const targetUser = await db.select().from(users).where(eq(users.username, username));
+        if (!targetUser || targetUser.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        if (!targetUser[0].is_admin) {
+            return res.status(400).json({error: 'User is not an admin'});
+        }
+
+        await db.update(users)
+            .set({is_admin: false})
+            .where(eq(users.username, username));
+
+        logger.success(`Admin status removed from ${username} by ${adminUser[0].username}`);
+        res.json({message: `Admin status removed from ${username}`});
+
+    } catch (err) {
+        logger.error('Failed to remove admin status', err);
+        res.status(500).json({error: 'Failed to remove admin status'});
+    }
+});
+
+// Route: Delete user (admin only)
+// DELETE /users/delete-user
+router.delete('/delete-user', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    const {username} = req.body;
+
+    if (!isNonEmptyString(username)) {
+        return res.status(400).json({error: 'Username is required'});
+    }
+
+    try {
+        const adminUser = await db.select().from(users).where(eq(users.id, userId));
+        if (!adminUser || adminUser.length === 0 || !adminUser[0].is_admin) {
+            return res.status(403).json({error: 'Not authorized'});
+        }
+
+        if (adminUser[0].username === username) {
+            return res.status(400).json({error: 'Cannot delete your own account'});
+        }
+
+        const targetUser = await db.select().from(users).where(eq(users.username, username));
+        if (!targetUser || targetUser.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        if (targetUser[0].is_admin) {
+            const adminCount = db.$client.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').get();
+            if ((adminCount as any)?.count <= 1) {
+                return res.status(403).json({error: 'Cannot delete the last admin user'});
+            }
+        }
+
+        const targetUserId = targetUser[0].id;
+
+        try {
+            db.$client.prepare('DELETE FROM config_editor_recent WHERE user_id = ?').run(targetUserId);
+            db.$client.prepare('DELETE FROM config_editor_pinned WHERE user_id = ?').run(targetUserId);
+            db.$client.prepare('DELETE FROM config_editor_shortcuts WHERE user_id = ?').run(targetUserId);
+            db.$client.prepare('DELETE FROM ssh_data WHERE user_id = ?').run(targetUserId);
+        } catch (cleanupError) {
+            logger.error(`Cleanup failed for user ${username}:`, cleanupError);
+        }
+
+        await db.delete(users).where(eq(users.id, targetUserId));
+
+        logger.success(`User ${username} deleted by admin ${adminUser[0].username}`);
+        res.json({message: `User ${username} deleted successfully`});
+
+    } catch (err) {
+        logger.error('Failed to delete user', err);
+
+        if (err && typeof err === 'object' && 'code' in err) {
+            if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+                res.status(400).json({error: 'Cannot delete user: User has associated data that cannot be removed'});
+            } else {
+                res.status(500).json({error: `Database error: ${err.code}`});
+            }
+        } else {
+            res.status(500).json({error: 'Failed to delete account'});
+        }
     }
 });
 

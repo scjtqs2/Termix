@@ -262,6 +262,20 @@ export async function updateSSHHost(hostId: number, hostData: SSHHostData): Prom
     }
 }
 
+export async function bulkImportSSHHosts(hosts: SSHHostData[]): Promise<{
+    message: string;
+    success: number;
+    failed: number;
+    errors: string[];
+}> {
+    try {
+        const response = await sshHostApi.post('/ssh/bulk-import', {hosts});
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 export async function deleteSSHHost(hostId: number): Promise<any> {
     try {
         const response = await sshHostApi.delete(`/ssh/db/host/${hostId}`);

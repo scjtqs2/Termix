@@ -40,6 +40,7 @@ Termix is an open-source, forever-free, self-hosted all-in-one server management
 - **Theming** - Modify themeing for all tools
 - **Improved SFTP Support** - Ability to manage files easier with the config editor by uploading, creating, and removing files
 - **Improved Terminal Support** - Add more terminal protocols such as VNC and RDP (anyone who has experience in integrating RDP into a web-application similar to Apache Guacamole, please contact me by creating an issue)
+- **Mobile Support** - Support a mobile app or version of the Termix website to manage servers from your phone
 
 # Installation
 Visit the Termix [Docs](https://docs.termix.site/docs) for more information on how to install Termix. Otherwise, view a sample docker-compose file here:
