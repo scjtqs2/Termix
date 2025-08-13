@@ -94,7 +94,6 @@ router.get('/db/host/internal', async (req: Request, res: Response) => {
     }
     try {
         const data = await db.select().from(sshData);
-        // Convert tags to array, booleans to bool, tunnelConnections to array
         const result = data.map((row: any) => ({
             ...row,
             tags: typeof row.tags === 'string' ? (row.tags ? row.tags.split(',').filter(Boolean) : []) : [],
@@ -116,9 +115,7 @@ router.get('/db/host/internal', async (req: Request, res: Response) => {
 router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Request, res: Response) => {
     let hostData: any;
 
-    // Check if this is a multipart form data request (file upload)
     if (req.headers['content-type']?.includes('multipart/form-data')) {
-        // Parse the JSON data from the 'data' field
         if (req.body.data) {
             try {
                 hostData = JSON.parse(req.body.data);
@@ -131,12 +128,10 @@ router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Reque
             return res.status(400).json({error: 'Missing data field'});
         }
 
-        // Add the file data if present
         if (req.file) {
             hostData.key = req.file.buffer.toString('utf8');
         }
     } else {
-        // Regular JSON request
         hostData = req.body;
     }
 
@@ -469,7 +464,6 @@ router.post('/config_editor/recent', authenticateJWT, async (req: Request, res: 
                 .set({lastOpened: new Date().toISOString()})
                 .where(and(...conditions));
         } else {
-            // Add new recent file
             await db.insert(configEditorRecent).values({
                 userId,
                 hostId,
@@ -695,6 +689,118 @@ router.delete('/config_editor/shortcuts', authenticateJWT, async (req: Request, 
         logger.error('Failed to remove shortcut', err);
         res.status(500).json({error: 'Failed to remove shortcut'});
     }
+});
+
+// Route: Bulk import SSH hosts from JSON (requires JWT)
+// POST /ssh/bulk-import
+router.post('/bulk-import', authenticateJWT, async (req: Request, res: Response) => {
+    const userId = (req as any).userId;
+    const { hosts } = req.body;
+
+    if (!Array.isArray(hosts) || hosts.length === 0) {
+        logger.warn('Invalid bulk import data - hosts array is required and must not be empty');
+        return res.status(400).json({error: 'Hosts array is required and must not be empty'});
+    }
+
+    if (hosts.length > 100) {
+        logger.warn(`Bulk import attempted with too many hosts: ${hosts.length}`);
+        return res.status(400).json({error: 'Maximum 100 hosts allowed per import'});
+    }
+
+    const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as string[]
+    };
+
+    for (let i = 0; i < hosts.length; i++) {
+        const hostData = hosts[i];
+        
+        try {
+            if (!isNonEmptyString(hostData.ip) || !isValidPort(hostData.port) || !isNonEmptyString(hostData.username)) {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: Missing or invalid required fields (ip, port, username)`);
+                continue;
+            }
+
+            if (hostData.authType !== 'password' && hostData.authType !== 'key') {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: Invalid authType. Must be 'password' or 'key'`);
+                continue;
+            }
+
+            if (hostData.authType === 'password' && !isNonEmptyString(hostData.password)) {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: Password required for password authentication`);
+                continue;
+            }
+
+            if (hostData.authType === 'key' && !isNonEmptyString(hostData.key)) {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: SSH key required for key authentication`);
+                continue;
+            }
+
+            if (hostData.enableTunnel && Array.isArray(hostData.tunnelConnections)) {
+                for (let j = 0; j < hostData.tunnelConnections.length; j++) {
+                    const conn = hostData.tunnelConnections[j];
+                    if (!isValidPort(conn.sourcePort) || !isValidPort(conn.endpointPort) || !isNonEmptyString(conn.endpointHost)) {
+                        results.failed++;
+                        results.errors.push(`Host ${i + 1}, Tunnel ${j + 1}: Invalid tunnel connection data`);
+                        break;
+                    }
+                }
+            }
+
+            const sshDataObj: any = {
+                userId: userId,
+                name: hostData.name || '',
+                folder: hostData.folder || '',
+                tags: Array.isArray(hostData.tags) ? hostData.tags.join(',') : (hostData.tags || ''),
+                ip: hostData.ip,
+                port: hostData.port,
+                username: hostData.username,
+                authType: hostData.authType,
+                pin: !!hostData.pin ? 1 : 0,
+                enableTerminal: !!hostData.enableTerminal ? 1 : 0,
+                enableTunnel: !!hostData.enableTunnel ? 1 : 0,
+                tunnelConnections: Array.isArray(hostData.tunnelConnections) ? JSON.stringify(hostData.tunnelConnections) : null,
+                enableConfigEditor: !!hostData.enableConfigEditor ? 1 : 0,
+                defaultPath: hostData.defaultPath || null,
+            };
+
+            if (hostData.authType === 'password') {
+                sshDataObj.password = hostData.password;
+                sshDataObj.key = null;
+                sshDataObj.keyPassword = null;
+                sshDataObj.keyType = null;
+            } else if (hostData.authType === 'key') {
+                sshDataObj.key = hostData.key;
+                sshDataObj.keyPassword = hostData.keyPassword || null;
+                sshDataObj.keyType = hostData.keyType || null;
+                sshDataObj.password = null;
+            }
+
+            await db.insert(sshData).values(sshDataObj);
+            results.success++;
+
+        } catch (err) {
+            results.failed++;
+            results.errors.push(`Host ${i + 1}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            logger.error(`Failed to import host ${i + 1}:`, err);
+        }
+    }
+
+    if (results.success > 0) {
+        logger.success(`Bulk import completed: ${results.success} successful, ${results.failed} failed`);
+    } else {
+        logger.warn(`Bulk import failed: ${results.failed} failed`);
+    }
+
+    res.json({
+        message: `Import completed: ${results.success} successful, ${results.failed} failed`,
+        ...results
+    });
 });
 
 export default router; 

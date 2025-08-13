@@ -96,21 +96,21 @@ interface ConfigEditorShortcut {
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const sshHostApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8081' : window.location.origin,
+    baseURL: isLocalhost ? 'http://localhost:8081' : '',
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
 const tunnelApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8083' : window.location.origin,
+    baseURL: isLocalhost ? 'http://localhost:8083' : '',
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
 const configEditorApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8084' : window.location.origin,
+    baseURL: isLocalhost ? 'http://localhost:8084' : '',
     headers: {
         'Content-Type': 'application/json',
     }
@@ -257,6 +257,20 @@ export async function updateSSHHost(hostId: number, hostData: SSHHostData): Prom
             const response = await sshHostApi.put(`/ssh/db/host/${hostId}`, submitData);
             return response.data;
         }
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function bulkImportSSHHosts(hosts: SSHHostData[]): Promise<{
+    message: string;
+    success: number;
+    failed: number;
+    errors: string[];
+}> {
+    try {
+        const response = await sshHostApi.post('/ssh/bulk-import', {hosts});
+        return response.data;
     } catch (error) {
         throw error;
     }

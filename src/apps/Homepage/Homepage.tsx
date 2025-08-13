@@ -3,15 +3,10 @@ import React, {useEffect, useState} from "react";
 import {HomepageAuth} from "@/apps/Homepage/HomepageAuth.tsx";
 import axios from "axios";
 import {HomepageUpdateLog} from "@/apps/Homepage/HompageUpdateLog.tsx";
-import {HomepageWelcomeCard} from "@/apps/Homepage/HomepageWelcomeCard.tsx";
+import {AlertManager} from "@/apps/Homepage/AlertManager.tsx";
 
 interface HomepageProps {
     onSelectView: (view: string) => void;
-}
-
-function setCookie(name: string, value: string, days = 7) {
-    const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
 }
 
 function getCookie(name: string) {
@@ -19,6 +14,11 @@ function getCookie(name: string) {
         const parts = v.split('=');
         return parts[0] === name ? decodeURIComponent(parts[1]) : r;
     }, "");
+}
+
+function setCookie(name: string, value: string, days = 7) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
 }
 
 const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
@@ -31,13 +31,12 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
     const [loggedIn, setLoggedIn] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [dbError, setDbError] = useState<string | null>(null);
-    const [showWelcomeCard, setShowWelcomeCard] = useState(true);
 
     useEffect(() => {
         const jwt = getCookie("jwt");
-        const welcomeHidden = getCookie("welcome_hidden");
 
         if (jwt) {
             setAuthLoading(true);
@@ -49,13 +48,14 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
                     setLoggedIn(true);
                     setIsAdmin(!!meRes.data.is_admin);
                     setUsername(meRes.data.username || null);
+                    setUserId(meRes.data.userId || null);
                     setDbError(null);
-                    setShowWelcomeCard(welcomeHidden !== "true");
                 })
                 .catch((err) => {
                     setLoggedIn(false);
                     setIsAdmin(false);
                     setUsername(null);
+                    setUserId(null);
                     setCookie("jwt", "", -1);
                     if (err?.response?.data?.error?.includes("Database")) {
                         setDbError("Could not connect to the database. Please try again later.");
@@ -68,11 +68,6 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
             setAuthLoading(false);
         }
     }, []);
-
-    const handleHideWelcomeCard = () => {
-        setShowWelcomeCard(false);
-        setCookie("welcome_hidden", "true", 365 * 10);
-    };
 
     return (
         <HomepageSidebar
@@ -87,6 +82,7 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
                         setLoggedIn={setLoggedIn}
                         setIsAdmin={setIsAdmin}
                         setUsername={setUsername}
+                        setUserId={setUserId}
                         loggedIn={loggedIn}
                         authLoading={authLoading}
                         dbError={dbError}
@@ -97,12 +93,11 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
                     />
                 </div>
 
-                {loggedIn && !authLoading && showWelcomeCard && (
-                    <div
-                        className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
-                        <HomepageWelcomeCard onHidePermanently={handleHideWelcomeCard}/>
-                    </div>
-                )}
+                {/* Alert Manager - replaces the old welcome card */}
+                <AlertManager
+                    userId={userId}
+                    loggedIn={loggedIn}
+                />
             </div>
         </HomepageSidebar>
     );

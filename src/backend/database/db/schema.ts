@@ -74,3 +74,10 @@ export const configEditorShortcuts = sqliteTable('config_editor_shortcuts', {
     path: text('path').notNull(),
     createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const dismissedAlerts = sqliteTable('dismissed_alerts', {
+    id: integer('id').primaryKey({autoIncrement: true}),
+    userId: text('user_id').notNull().references(() => users.id),
+    alertId: text('alert_id').notNull(),
+    dismissedAt: text('dismissed_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+});

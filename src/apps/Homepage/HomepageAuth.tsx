@@ -29,6 +29,7 @@ interface HomepageAuthProps extends React.ComponentProps<"div"> {
     setLoggedIn: (loggedIn: boolean) => void;
     setIsAdmin: (isAdmin: boolean) => void;
     setUsername: (username: string | null) => void;
+    setUserId: (userId: string | null) => void;
     loggedIn: boolean;
     authLoading: boolean;
     dbError: string | null;
@@ -40,15 +41,17 @@ export function HomepageAuth({
                                  setLoggedIn,
                                  setIsAdmin,
                                  setUsername,
+                                 setUserId,
                                  loggedIn,
                                  authLoading,
                                  dbError,
                                  setDbError,
                                  ...props
                              }: HomepageAuthProps) {
-    const [tab, setTab] = useState<"login" | "signup" | "external">("login");
+    const [tab, setTab] = useState<"login" | "signup" | "external" | "reset">("login");
     const [localUsername, setLocalUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [oidcLoading, setOidcLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,14 @@ export function HomepageAuth({
     const [firstUser, setFirstUser] = useState(false);
     const [registrationAllowed, setRegistrationAllowed] = useState(true);
     const [oidcConfigured, setOidcConfigured] = useState(false);
+
+    const [resetStep, setResetStep] = useState<"initiate" | "verify" | "newPassword">("initiate");
+    const [resetCode, setResetCode] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [tempToken, setTempToken] = useState("");
+    const [resetLoading, setResetLoading] = useState(false);
+    const [resetSuccess, setResetSuccess] = useState(false);
 
     useEffect(() => {
         setInternalLoggedIn(loggedIn);
@@ -101,11 +112,28 @@ export function HomepageAuth({
         e.preventDefault();
         setError(null);
         setLoading(true);
+
+        if (!localUsername.trim()) {
+            setError("Username is required");
+            setLoading(false);
+            return;
+        }
+
         try {
             let res, meRes;
             if (tab === "login") {
                 res = await API.post("/login", {username: localUsername, password});
             } else {
+                if (password !== signupConfirmPassword) {
+                    setError("Passwords do not match");
+                    setLoading(false);
+                    return;
+                }
+                if (password.length < 6) {
+                    setError("Password must be at least 6 characters long");
+                    setLoading(false);
+                    return;
+                }
                 await API.post("/create", {username: localUsername, password});
                 res = await API.post("/login", {username: localUsername, password});
             }
@@ -118,13 +146,18 @@ export function HomepageAuth({
             setLoggedIn(true);
             setIsAdmin(!!meRes.data.is_admin);
             setUsername(meRes.data.username || null);
+            setUserId(meRes.data.id || null);
             setDbError(null);
+            if (tab === "signup") {
+                setSignupConfirmPassword("");
+            }
         } catch (err: any) {
             setError(err?.response?.data?.error || "Unknown error");
             setInternalLoggedIn(false);
             setLoggedIn(false);
             setIsAdmin(false);
             setUsername(null);
+            setUserId(null);
             setCookie("jwt", "", -1);
             if (err?.response?.data?.error?.includes("Database")) {
                 setDbError("Could not connect to the database. Please try again later.");
@@ -134,6 +167,97 @@ export function HomepageAuth({
         } finally {
             setLoading(false);
         }
+    }
+
+    async function initiatePasswordReset() {
+        setError(null);
+        setResetLoading(true);
+        try {
+            await API.post("/initiate-reset", {username: localUsername});
+            setResetStep("verify");
+            setError(null);
+        } catch (err: any) {
+            setError(err?.response?.data?.error || "Failed to initiate password reset");
+        } finally {
+            setResetLoading(false);
+        }
+    }
+
+    async function verifyResetCode() {
+        setError(null);
+        setResetLoading(true);
+        try {
+            const response = await API.post("/verify-reset-code", {
+                username: localUsername,
+                resetCode: resetCode
+            });
+            setTempToken(response.data.tempToken);
+            setResetStep("newPassword");
+            setError(null);
+        } catch (err: any) {
+            setError(err?.response?.data?.error || "Failed to verify reset code");
+        } finally {
+            setResetLoading(false);
+        }
+    }
+
+    async function completePasswordReset() {
+        setError(null);
+        setResetLoading(true);
+
+        if (newPassword !== confirmPassword) {
+            setError("Passwords do not match");
+            setResetLoading(false);
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            setError("Password must be at least 6 characters long");
+            setResetLoading(false);
+            return;
+        }
+
+        try {
+            await API.post("/complete-reset", {
+                username: localUsername,
+                tempToken: tempToken,
+                newPassword: newPassword
+            });
+
+            setResetStep("initiate");
+            setResetCode("");
+            setNewPassword("");
+            setConfirmPassword("");
+            setTempToken("");
+            setError(null);
+
+            setResetSuccess(true);
+        } catch (err: any) {
+            setError(err?.response?.data?.error || "Failed to complete password reset");
+        } finally {
+            setResetLoading(false);
+        }
+    }
+
+    function resetPasswordState() {
+        setResetStep("initiate");
+        setResetCode("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setTempToken("");
+        setError(null);
+        setResetSuccess(false);
+        setSignupConfirmPassword("");
+    }
+
+    function clearFormFields() {
+        setPassword("");
+        setSignupConfirmPassword("");
+        setError(null);
+    }
+
+    async function resetPassword() {
+
     }
 
     async function handleOIDCLogin() {
@@ -178,6 +302,7 @@ export function HomepageAuth({
                     setLoggedIn(true);
                     setIsAdmin(!!meRes.data.is_admin);
                     setUsername(meRes.data.username || null);
+                    setUserId(meRes.data.id || null);
                     setDbError(null);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 })
@@ -187,6 +312,7 @@ export function HomepageAuth({
                     setLoggedIn(false);
                     setIsAdmin(false);
                     setUsername(null);
+                    setUserId(null);
                     setCookie("jwt", "", -1);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 })
@@ -301,7 +427,11 @@ export function HomepageAuth({
                                         ? "bg-primary text-primary-foreground shadow"
                                         : "bg-muted text-muted-foreground hover:bg-accent"
                                 )}
-                                onClick={() => setTab("login")}
+                                onClick={() => {
+                                    setTab("login");
+                                    if (tab === "reset") resetPasswordState();
+                                    if (tab === "signup") clearFormFields();
+                                }}
                                 aria-selected={tab === "login"}
                                 disabled={loading || firstUser}
                             >
@@ -315,7 +445,11 @@ export function HomepageAuth({
                                         ? "bg-primary text-primary-foreground shadow"
                                         : "bg-muted text-muted-foreground hover:bg-accent"
                                 )}
-                                onClick={() => setTab("signup")}
+                                onClick={() => {
+                                    setTab("signup");
+                                    if (tab === "reset") resetPasswordState();
+                                    if (tab === "login") clearFormFields();
+                                }}
                                 aria-selected={tab === "signup"}
                                 disabled={loading || !registrationAllowed}
                             >
@@ -330,7 +464,11 @@ export function HomepageAuth({
                                             ? "bg-primary text-primary-foreground shadow"
                                             : "bg-muted text-muted-foreground hover:bg-accent"
                                     )}
-                                    onClick={() => setTab("external")}
+                                    onClick={() => {
+                                        setTab("external");
+                                        if (tab === "reset") resetPasswordState();
+                                        if (tab === "login" || tab === "signup") clearFormFields();
+                                    }}
                                     aria-selected={tab === "external"}
                                     disabled={oidcLoading}
                                 >
@@ -342,23 +480,185 @@ export function HomepageAuth({
                             <h2 className="text-xl font-bold mb-1">
                                 {tab === "login" ? "Login to your account" :
                                     tab === "signup" ? "Create a new account" :
-                                        "Login with external provider"}
+                                        tab === "external" ? "Login with external provider" :
+                                            "Reset your password"}
                             </h2>
                         </div>
 
-                        {tab === "external" ? (
+                        {tab === "external" || tab === "reset" ? (
                             <div className="flex flex-col gap-5">
-                                <div className="text-center text-muted-foreground mb-4">
-                                    <p>Login using your configured external identity provider</p>
-                                </div>
-                                <Button
-                                    type="button"
-                                    className="w-full h-11 mt-2 text-base font-semibold"
-                                    disabled={oidcLoading}
-                                    onClick={handleOIDCLogin}
-                                >
-                                    {oidcLoading ? Spinner : "Login with External Provider"}
-                                </Button>
+                                {tab === "external" && (
+                                    <>
+                                        <div className="text-center text-muted-foreground mb-4">
+                                            <p>Login using your configured external identity provider</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            className="w-full h-11 mt-2 text-base font-semibold"
+                                            disabled={oidcLoading}
+                                            onClick={handleOIDCLogin}
+                                        >
+                                            {oidcLoading ? Spinner : "Login with External Provider"}
+                                        </Button>
+                                    </>
+                                )}
+                                {tab === "reset" && (
+                                    <>
+                                        {resetStep === "initiate" && (
+                                            <>
+                                                <div className="text-center text-muted-foreground mb-4">
+                                                    <p>Enter your username to receive a password reset code. The code
+                                                        will be logged in the docker container logs.</p>
+                                                </div>
+                                                <div className="flex flex-col gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="reset-username">Username</Label>
+                                                        <Input
+                                                            id="reset-username"
+                                                            type="text"
+                                                            required
+                                                            className="h-11 text-base"
+                                                            value={localUsername}
+                                                            onChange={e => setLocalUsername(e.target.value)}
+                                                            disabled={resetLoading}
+                                                        />
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        className="w-full h-11 text-base font-semibold"
+                                                        disabled={resetLoading || !localUsername.trim()}
+                                                        onClick={initiatePasswordReset}
+                                                    >
+                                                        {resetLoading ? Spinner : "Send Reset Code"}
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {resetStep === "verify" && (
+                                            <>
+                                                <div className="text-center text-muted-foreground mb-4">
+                                                    <p>Enter the 6-digit code from the docker container logs for
+                                                        user: <strong>{localUsername}</strong></p>
+                                                </div>
+                                                <div className="flex flex-col gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="reset-code">Reset Code</Label>
+                                                        <Input
+                                                            id="reset-code"
+                                                            type="text"
+                                                            required
+                                                            maxLength={6}
+                                                            className="h-11 text-base text-center text-lg tracking-widest"
+                                                            value={resetCode}
+                                                            onChange={e => setResetCode(e.target.value.replace(/\D/g, ''))}
+                                                            disabled={resetLoading}
+                                                            placeholder="000000"
+                                                        />
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        className="w-full h-11 text-base font-semibold"
+                                                        disabled={resetLoading || resetCode.length !== 6}
+                                                        onClick={verifyResetCode}
+                                                    >
+                                                        {resetLoading ? Spinner : "Verify Code"}
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="w-full h-11 text-base font-semibold"
+                                                        disabled={resetLoading}
+                                                        onClick={() => {
+                                                            setResetStep("initiate");
+                                                            setResetCode("");
+                                                        }}
+                                                    >
+                                                        Back
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {resetSuccess && (
+                                            <>
+                                                <Alert className="mb-4">
+                                                    <AlertTitle>Success!</AlertTitle>
+                                                    <AlertDescription>
+                                                        Your password has been successfully reset! You can now log in
+                                                        with your new password.
+                                                    </AlertDescription>
+                                                </Alert>
+                                                <Button
+                                                    type="button"
+                                                    className="w-full h-11 text-base font-semibold"
+                                                    onClick={() => {
+                                                        setTab("login");
+                                                        resetPasswordState();
+                                                    }}
+                                                >
+                                                    Go to Login
+                                                </Button>
+                                            </>
+                                        )}
+
+                                        {resetStep === "newPassword" && !resetSuccess && (
+                                            <>
+                                                <div className="text-center text-muted-foreground mb-4">
+                                                    <p>Enter your new password for
+                                                        user: <strong>{localUsername}</strong></p>
+                                                </div>
+                                                <div className="flex flex-col gap-4">
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="new-password">New Password</Label>
+                                                        <Input
+                                                            id="new-password"
+                                                            type="password"
+                                                            required
+                                                            className="h-11 text-base"
+                                                            value={newPassword}
+                                                            onChange={e => setNewPassword(e.target.value)}
+                                                            disabled={resetLoading}
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label htmlFor="confirm-password">Confirm Password</Label>
+                                                        <Input
+                                                            id="confirm-password"
+                                                            type="password"
+                                                            required
+                                                            className="h-11 text-base"
+                                                            value={confirmPassword}
+                                                            onChange={e => setConfirmPassword(e.target.value)}
+                                                            disabled={resetLoading}
+                                                        />
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        className="w-full h-11 text-base font-semibold"
+                                                        disabled={resetLoading || !newPassword || !confirmPassword}
+                                                        onClick={completePasswordReset}
+                                                    >
+                                                        {resetLoading ? Spinner : "Reset Password"}
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="w-full h-11 text-base font-semibold"
+                                                        disabled={resetLoading}
+                                                        onClick={() => {
+                                                            setResetStep("verify");
+                                                            setNewPassword("");
+                                                            setConfirmPassword("");
+                                                        }}
+                                                    >
+                                                        Back
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
@@ -380,10 +680,33 @@ export function HomepageAuth({
                                            value={password} onChange={e => setPassword(e.target.value)}
                                            disabled={loading || internalLoggedIn}/>
                                 </div>
+                                {tab === "signup" && (
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                                        <Input id="signup-confirm-password" type="password" required
+                                               className="h-11 text-base"
+                                               value={signupConfirmPassword}
+                                               onChange={e => setSignupConfirmPassword(e.target.value)}
+                                               disabled={loading || internalLoggedIn}/>
+                                    </div>
+                                )}
                                 <Button type="submit" className="w-full h-11 mt-2 text-base font-semibold"
                                         disabled={loading || internalLoggedIn}>
                                     {loading ? Spinner : (tab === "login" ? "Login" : "Sign Up")}
                                 </Button>
+                                {tab === "login" && (
+                                    <Button type="button" variant="outline"
+                                            className="w-full h-11 text-base font-semibold"
+                                            disabled={loading || internalLoggedIn}
+                                            onClick={() => {
+                                                setTab("reset");
+                                                resetPasswordState();
+                                                clearFormFields();
+                                            }}
+                                    >
+                                        Reset Password
+                                    </Button>
+                                )}
                             </form>
                         )}
                     </>
