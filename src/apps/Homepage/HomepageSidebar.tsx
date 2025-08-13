@@ -119,23 +119,37 @@ export function HomepageSidebar({
 
     React.useEffect(() => {
         if (adminSheetOpen) {
-            API.get("/registration-allowed").then(res => {
-                setAllowRegistration(res.data.allowed);
-            });
-
-            API.get("/oidc-config").then(res => {
-                if (res.data) {
-                    setOidcConfig(res.data);
-                }
-            }).catch((error) => {
-            });
-            fetchUsers();
+            const jwt = getCookie("jwt");
+            if (jwt && isAdmin) {
+                API.get("/oidc-config").then(res => {
+                    if (res.data) {
+                        setOidcConfig(res.data);
+                    }
+                }).catch((error) => {
+                });
+                fetchUsers();
+            }
         } else {
-            fetchAdminCount();
+            const jwt = getCookie("jwt");
+            if (jwt && isAdmin) {
+                fetchAdminCount();
+            }
         }
-    }, [adminSheetOpen]);
+    }, [adminSheetOpen, isAdmin]);
+
+    React.useEffect(() => {
+        if (!isAdmin) {
+            setAdminSheetOpen(false);
+            setUsers([]);
+            setAdminCount(0);
+        }
+    }, [isAdmin]);
 
     const handleToggle = async (checked: boolean) => {
+        if (!isAdmin) {
+            return;
+        }
+
         setRegLoading(true);
         const jwt = getCookie("jwt");
         try {
@@ -153,6 +167,11 @@ export function HomepageSidebar({
 
     const handleOIDCConfigSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!isAdmin) {
+            return;
+        }
+        
         setOidcLoading(true);
         setOidcError(null);
         setOidcSuccess(null);
@@ -214,8 +233,13 @@ export function HomepageSidebar({
     };
 
     const fetchUsers = async () => {
-        setUsersLoading(true);
         const jwt = getCookie("jwt");
+
+        if (!jwt || !isAdmin) {
+            return;
+        }
+        
+        setUsersLoading(true);
         try {
             const response = await API.get("/list", {
                 headers: {Authorization: `Bearer ${jwt}`}
@@ -233,6 +257,11 @@ export function HomepageSidebar({
 
     const fetchAdminCount = async () => {
         const jwt = getCookie("jwt");
+
+        if (!jwt || !isAdmin) {
+            return;
+        }
+        
         try {
             const response = await API.get("/list", {
                 headers: {Authorization: `Bearer ${jwt}`}
@@ -247,6 +276,10 @@ export function HomepageSidebar({
     const makeUserAdmin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newAdminUsername.trim()) return;
+
+        if (!isAdmin) {
+            return;
+        }
 
         setMakeAdminLoading(true);
         setMakeAdminError(null);
@@ -271,6 +304,10 @@ export function HomepageSidebar({
     const removeAdminStatus = async (username: string) => {
         if (!confirm(`Are you sure you want to remove admin status from ${username}?`)) return;
 
+        if (!isAdmin) {
+            return;
+        }
+
         const jwt = getCookie("jwt");
         try {
             await API.post("/remove-admin",
@@ -285,6 +322,10 @@ export function HomepageSidebar({
 
     const deleteUser = async (username: string) => {
         if (!confirm(`Are you sure you want to delete user ${username}? This action cannot be undone.`)) return;
+
+        if (!isAdmin) {
+            return;
+        }
 
         const jwt = getCookie("jwt");
         try {
@@ -375,7 +416,11 @@ export function HomepageSidebar({
                                         {isAdmin && (
                                             <DropdownMenuItem
                                                 className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none"
-                                                onSelect={() => setAdminSheetOpen(true)}>
+                                                onSelect={() => {
+                                                    if (isAdmin) {
+                                                        setAdminSheetOpen(true);
+                                                    }
+                                                }}>
                                                 <span>Admin Settings</span>
                                             </DropdownMenuItem>
                                         )}
@@ -400,9 +445,12 @@ export function HomepageSidebar({
                             </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarFooter>
-                    {/* Admin Settings Sheet (always rendered, only openable if isAdmin) */}
+                    {/* Admin Settings Sheet */}
                     {isAdmin && (
-                        <Sheet open={adminSheetOpen} onOpenChange={setAdminSheetOpen}>
+                        <Sheet open={adminSheetOpen && isAdmin} onOpenChange={(open) => {
+                            if (open && !isAdmin) return;
+                            setAdminSheetOpen(open);
+                        }}>
                             <SheetContent side="left" className="w-[700px] max-h-screen overflow-y-auto">
                                 <SheetHeader className="px-6 pb-4">
                                     <SheetTitle>Admin Settings</SheetTitle>
@@ -510,7 +558,7 @@ export function HomepageSidebar({
                                                             id="token_url"
                                                             value={oidcConfig.token_url}
                                                             onChange={(e) => handleOIDCConfigChange('token_url', e.target.value)}
-                                                            placeholder="http://100.98.3.50:9000/application/o/token/"
+                                                            placeholder="https://your-provider.com/application/o/token/"
                                                             required
                                                         />
                                                     </div>

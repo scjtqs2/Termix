@@ -121,6 +121,14 @@ sqlite.exec(`
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (host_id) REFERENCES ssh_data(id)
     );
+
+    CREATE TABLE IF NOT EXISTS dismissed_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        alert_id TEXT NOT NULL,
+        dismissed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
 `);
 
 const addColumnIfNotExists = (table: string, column: string, definition: string) => {

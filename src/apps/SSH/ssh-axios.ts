@@ -96,21 +96,21 @@ interface ConfigEditorShortcut {
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const sshHostApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8081' : window.location.origin,
+    baseURL: isLocalhost ? 'http://localhost:8081' : '',
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
 const tunnelApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8083' : window.location.origin,
+    baseURL: isLocalhost ? 'http://localhost:8083' : '',
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
 const configEditorApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8084' : window.location.origin,
+    baseURL: isLocalhost ? 'http://localhost:8084' : '',
     headers: {
         'Content-Type': 'application/json',
     }

@@ -571,6 +571,7 @@ router.get('/me', authenticateJWT, async (req: Request, res: Response) => {
             return res.status(401).json({error: 'User not found'});
         }
         res.json({
+            userId: user[0].id,
             username: user[0].username,
             is_admin: !!user[0].is_admin,
             is_oidc: !!user[0].is_oidc

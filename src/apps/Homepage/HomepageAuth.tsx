@@ -29,6 +29,7 @@ interface HomepageAuthProps extends React.ComponentProps<"div"> {
     setLoggedIn: (loggedIn: boolean) => void;
     setIsAdmin: (isAdmin: boolean) => void;
     setUsername: (username: string | null) => void;
+    setUserId: (userId: string | null) => void;
     loggedIn: boolean;
     authLoading: boolean;
     dbError: string | null;
@@ -40,6 +41,7 @@ export function HomepageAuth({
                                  setLoggedIn,
                                  setIsAdmin,
                                  setUsername,
+                                 setUserId,
                                  loggedIn,
                                  authLoading,
                                  dbError,
@@ -144,6 +146,7 @@ export function HomepageAuth({
             setLoggedIn(true);
             setIsAdmin(!!meRes.data.is_admin);
             setUsername(meRes.data.username || null);
+            setUserId(meRes.data.id || null);
             setDbError(null);
             if (tab === "signup") {
                 setSignupConfirmPassword("");
@@ -154,6 +157,7 @@ export function HomepageAuth({
             setLoggedIn(false);
             setIsAdmin(false);
             setUsername(null);
+            setUserId(null);
             setCookie("jwt", "", -1);
             if (err?.response?.data?.error?.includes("Database")) {
                 setDbError("Could not connect to the database. Please try again later.");
@@ -298,6 +302,7 @@ export function HomepageAuth({
                     setLoggedIn(true);
                     setIsAdmin(!!meRes.data.is_admin);
                     setUsername(meRes.data.username || null);
+                    setUserId(meRes.data.id || null);
                     setDbError(null);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 })
@@ -307,6 +312,7 @@ export function HomepageAuth({
                     setLoggedIn(false);
                     setIsAdmin(false);
                     setUsername(null);
+                    setUserId(null);
                     setCookie("jwt", "", -1);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 })

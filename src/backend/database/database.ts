@@ -2,6 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import userRoutes from './routes/users.js';
 import sshRoutes from './routes/ssh.js';
+import alertRoutes from './routes/alerts.js';
 import chalk from 'chalk';
 import cors from 'cors';
 import fetch from 'node-fetch';
@@ -101,10 +102,10 @@ interface GitHubRelease {
 async function fetchGitHubAPI(endpoint: string, cacheKey: string): Promise<any> {
     const cachedData = githubCache.get(cacheKey);
     if (cachedData) {
-        return { 
-            data: cachedData, 
-            cached: true, 
-            cache_age: Date.now() - cachedData.timestamp 
+        return {
+            data: cachedData,
+            cached: true,
+            cache_age: Date.now() - cachedData.timestamp
         };
     }
 
@@ -124,10 +125,10 @@ async function fetchGitHubAPI(endpoint: string, cacheKey: string): Promise<any> 
         const data = await response.json();
 
         githubCache.set(cacheKey, data);
-        
-        return { 
-            data: data, 
-            cached: false 
+
+        return {
+            data: data,
+            cached: false
         };
     } catch (error) {
         logger.error(`Failed to fetch from GitHub API: ${endpoint}`, error);
@@ -227,12 +228,16 @@ app.get('/releases/rss', async (req, res) => {
         res.json(response);
     } catch (error) {
         logger.error('Failed to generate RSS format', error)
-        res.status(500).json({ error: 'Failed to generate RSS format', details: error instanceof Error ? error.message : 'Unknown error' });
+        res.status(500).json({
+            error: 'Failed to generate RSS format',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 });
 
 app.use('/users', userRoutes);
 app.use('/ssh', sshRoutes);
+app.use('/alerts', alertRoutes);
 
 app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
     logger.error('Unhandled error:', err);
@@ -240,4 +245,5 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
 });
 
 const PORT = 8081;
-app.listen(PORT, () => {});
+app.listen(PORT, () => {
+});
