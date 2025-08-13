@@ -7,7 +7,21 @@ import {Input} from "@/components/ui/input";
 import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@/components/ui/accordion";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import {getSSHHosts, deleteSSHHost, bulkImportSSHHosts} from "@/apps/SSH/ssh-axios";
-import {Edit, Trash2, Server, Folder, Tag, Pin, Terminal, Network, FileEdit, Search, Upload, Info} from "lucide-react";
+import {
+    Edit,
+    Trash2,
+    Server,
+    Folder,
+    Tag,
+    Pin,
+    Terminal,
+    Network,
+    FileEdit,
+    Search,
+    Upload,
+    Info
+} from "lucide-react";
+import {Separator} from "@/components/ui/separator.tsx";
 
 interface SSHHost {
     id: number;
@@ -564,6 +578,8 @@ EXAMPLE STRUCTURE:
                     >
                         Format Guide
                     </Button>
+
+                    <div className="w-px h-6 bg-border mx-2" />
 
                     <Button onClick={fetchHosts} variant="outline" size="sm">
                         Refresh
