@@ -681,7 +681,7 @@ export function HomepageSidebar({
                                                                             {user.username}
                                                                             {user.is_admin && (
                                                                                 <span
-                                                                                    className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                                                    className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">
                                                                                     Admin
                                                                                 </span>
                                                                             )}
@@ -771,7 +771,7 @@ export function HomepageSidebar({
                                                                         <TableCell className="px-4 font-medium">
                                                                             {admin.username}
                                                                             <span
-                                                                                className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                                                className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">
                                                                                 Admin
                                                                             </span>
                                                                         </TableCell>
