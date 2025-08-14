@@ -6,7 +6,7 @@ import {ScrollArea} from "@/components/ui/scroll-area";
 import {Input} from "@/components/ui/input";
 import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@/components/ui/accordion";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
-import {getSSHHosts, deleteSSHHost, bulkImportSSHHosts} from "@/apps/SSH/ssh-axios";
+import {getSSHHosts, deleteSSHHost, bulkImportSSHHosts} from "@/ui/SSH/ssh-axios";
 import {
     Edit,
     Trash2,

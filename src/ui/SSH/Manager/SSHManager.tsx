@@ -1,9 +1,9 @@
 import React, {useState} from "react";
-import {SSHManagerSidebar} from "@/apps/SSH/Manager/SSHManagerSidebar.tsx";
-import {SSHManagerHostViewer} from "@/apps/SSH/Manager/SSHManagerHostViewer.tsx"
+import {SSHManagerHostViewer} from "@/ui/SSH/Manager/SSHManagerHostViewer.tsx"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs.tsx";
 import {Separator} from "@/components/ui/separator.tsx";
-import {SSHManagerHostEditor} from "@/apps/SSH/Manager/SSHManagerHostEditor.tsx";
+import {SSHManagerHostEditor} from "@/ui/SSH/Manager/SSHManagerHostEditor.tsx";
+import {useSidebar} from "@/components/ui/sidebar.tsx";
 
 interface ConfigEditorProps {
     onSelectView: (view: string) => void;
@@ -35,6 +35,7 @@ interface SSHHost {
 export function SSHManager({onSelectView}: ConfigEditorProps): React.ReactElement {
     const [activeTab, setActiveTab] = useState("host_viewer");
     const [editingHost, setEditingHost] = useState<SSHHost | null>(null);
+    const {state: sidebarState} = useSidebar();
 
     const handleEditHost = (host: SSHHost) => {
         setEditingHost(host);
@@ -55,29 +56,25 @@ export function SSHManager({onSelectView}: ConfigEditorProps): React.ReactElemen
 
     return (
         <div>
-            <SSHManagerSidebar
-                onSelectView={onSelectView}
-            />
-
-            <div className="flex w-screen h-screen overflow-hidden">
-                <div className="w-[256px]"/>
-
+            <div className="flex w-full h-screen overflow-hidden">
                 <div
-                    className="flex-1 bg-[#18181b] m-[35px] text-white p-4 rounded-md w-[1200px] border h-[calc(100vh-70px)] flex flex-col min-h-0">
+                    className={`flex-1 bg-[#18181b] m-[8px] text-white p-4 pt-0 rounded-lg border border-[#303032] flex flex-col min-h-0 ${
+                        sidebarState === 'collapsed' ? 'ml-6' : ''
+                    }`}>
                     <Tabs value={activeTab} onValueChange={handleTabChange}
                           className="flex-1 flex flex-col h-full min-h-0">
-                        <TabsList>
+                        <TabsList className="mt-1.5">
                             <TabsTrigger value="host_viewer">Host Viewer</TabsTrigger>
                             <TabsTrigger value="add_host">
                                 {editingHost ? "Edit Host" : "Add Host"}
                             </TabsTrigger>
                         </TabsList>
                         <TabsContent value="host_viewer" className="flex-1 flex flex-col h-full min-h-0">
-                            <Separator className="p-0.25 mt-1 mb-1"/>
+                            <Separator className="p-0.25 -mt-0.5 mb-1"/>
                             <SSHManagerHostViewer onEditHost={handleEditHost}/>
                         </TabsContent>
                         <TabsContent value="add_host" className="flex-1 flex flex-col h-full min-h-0">
-                            <Separator className="p-0.25 mt-1 mb-1"/>
+                            <Separator className="p-0.25 -mt-0.5 mb-1"/>
                             <div className="flex flex-col h-full min-h-0">
                                 <SSHManagerHostEditor
                                     editingHost={editingHost}

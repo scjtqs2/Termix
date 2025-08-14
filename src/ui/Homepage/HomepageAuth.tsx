@@ -1,10 +1,9 @@
 import React, {useState, useEffect} from "react";
-import {cn} from "@/lib/utils";
-import {Button} from "@/components/ui/button";
-import {Input} from "@/components/ui/input";
-import {Label} from "@/components/ui/label";
-import {Alert, AlertTitle, AlertDescription} from "@/components/ui/alert";
-import {Separator} from "@/components/ui/separator";
+import {cn} from "@/lib/utils.ts";
+import {Button} from "@/components/ui/button.tsx";
+import {Input} from "@/components/ui/input.tsx";
+import {Label} from "@/components/ui/label.tsx";
+import {Alert, AlertTitle, AlertDescription} from "@/components/ui/alert.tsx";
 import axios from "axios";
 
 function setCookie(name: string, value: string, days = 7) {

@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect} from "react";
-import {TerminalSidebar} from "@/apps/SSH/Terminal/TerminalSidebar.tsx";
+import {TerminalSidebar} from "@/ui/SSH/Terminal/TerminalSidebar.tsx";
 import {TerminalComponent} from "./TerminalComponent.tsx";
-import {TerminalTopbar} from "@/apps/SSH/Terminal/TerminalTopbar.tsx";
+import {TerminalTopbar} from "@/ui/SSH/Terminal/TerminalTopbar.tsx";
 import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
 import * as ResizablePrimitive from "react-resizable-panels";
 import {ChevronDown, ChevronRight} from "lucide-react";

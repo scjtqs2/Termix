@@ -1,9 +1,8 @@
-import {HomepageSidebar} from "@/apps/Homepage/HomepageSidebar.tsx";
 import React, {useEffect, useState} from "react";
-import {HomepageAuth} from "@/apps/Homepage/HomepageAuth.tsx";
+import {HomepageAuth} from "@/ui/Homepage/HomepageAuth.tsx";
 import axios from "axios";
-import {HomepageUpdateLog} from "@/apps/Homepage/HompageUpdateLog.tsx";
-import {AlertManager} from "@/apps/Homepage/AlertManager.tsx";
+import {HomepageUpdateLog} from "@/ui/Homepage/HompageUpdateLog.tsx";
+import {HomepageAlertManager} from "@/ui/Homepage/HomepageAlertManager.tsx";
 
 interface HomepageProps {
     onSelectView: (view: string) => void;
@@ -70,35 +69,27 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
     }, []);
 
     return (
-        <HomepageSidebar
-            onSelectView={onSelectView}
-            disabled={!loggedIn || authLoading}
-            isAdmin={isAdmin}
-            username={loggedIn ? username : null}
-        >
-            <div className="w-full min-h-svh grid place-items-center">
-                <div className="flex flex-row items-center justify-center gap-8">
-                    <HomepageAuth
-                        setLoggedIn={setLoggedIn}
-                        setIsAdmin={setIsAdmin}
-                        setUsername={setUsername}
-                        setUserId={setUserId}
-                        loggedIn={loggedIn}
-                        authLoading={authLoading}
-                        dbError={dbError}
-                        setDbError={setDbError}
-                    />
-                    <HomepageUpdateLog
-                        loggedIn={loggedIn}
-                    />
-                </div>
-
-                {/* Alert Manager - replaces the old welcome card */}
-                <AlertManager
-                    userId={userId}
+        <div className="w-full min-h-svh grid place-items-center">
+            <div className="flex flex-row items-center justify-center gap-8">
+                <HomepageAuth
+                    setLoggedIn={setLoggedIn}
+                    setIsAdmin={setIsAdmin}
+                    setUsername={setUsername}
+                    setUserId={setUserId}
+                    loggedIn={loggedIn}
+                    authLoading={authLoading}
+                    dbError={dbError}
+                    setDbError={setDbError}
+                />
+                <HomepageUpdateLog
                     loggedIn={loggedIn}
                 />
             </div>
-        </HomepageSidebar>
+
+            <HomepageAlertManager
+                userId={userId}
+                loggedIn={loggedIn}
+            />
+        </div>
     );
 }

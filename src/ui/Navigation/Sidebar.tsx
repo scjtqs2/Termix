@@ -1,9 +1,9 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {
     Computer,
     Server,
     File,
-    Hammer, ChevronUp, User2, HardDrive, Trash2, Users, Shield, Settings
+    Hammer, ChevronUp, User2, HardDrive, Trash2, Users, Shield, Settings, Menu, ChevronRight
 } from "lucide-react";
 
 import {
@@ -14,7 +14,7 @@ import {
     SidebarGroupLabel,
     SidebarMenu,
     SidebarMenuButton,
-    SidebarMenuItem, SidebarProvider, SidebarInset,
+    SidebarMenuItem, SidebarProvider, SidebarInset, SidebarHeader,
 } from "@/components/ui/sidebar.tsx"
 
 import {
@@ -74,7 +74,7 @@ const API = axios.create({
     baseURL: apiBase,
 });
 
-export function HomepageSidebar({
+export function Sidebar({
                                     onSelectView,
                                     getView,
                                     disabled,
@@ -116,6 +116,8 @@ export function HomepageSidebar({
     const [makeAdminLoading, setMakeAdminLoading] = React.useState(false);
     const [makeAdminError, setMakeAdminError] = React.useState<string | null>(null);
     const [makeAdminSuccess, setMakeAdminSuccess] = React.useState<string | null>(null);
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
     React.useEffect(() => {
         if (adminSheetOpen) {
@@ -341,14 +343,23 @@ export function HomepageSidebar({
 
     return (
         <div className="min-h-svh">
-            <SidebarProvider>
-                <Sidebar>
+            <SidebarProvider open={isSidebarOpen}>
+                <Sidebar variant="floating">
+                    <SidebarHeader>
+                        <SidebarGroupLabel className="text-lg font-bold text-white">
+                            Termix
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                className="w-[28px] h-[28px] absolute right-5"
+                            >
+                                <Menu className="h-4 w-4"/>
+                            </Button>
+                        </SidebarGroupLabel>
+                    </SidebarHeader>
+                    <Separator className="p-0.25"/>
                     <SidebarContent>
                         <SidebarGroup>
-                            <SidebarGroupLabel className="text-lg font-bold text-white flex items-center gap-2">
-                                Termix
-                            </SidebarGroupLabel>
-                            <Separator className="p-0.25 mt-1 mb-1"/>
                             <SidebarGroupContent>
                                 <SidebarMenu>
                                     <SidebarMenuItem key={"SSH Manager"}>
@@ -893,6 +904,14 @@ export function HomepageSidebar({
                     {children}
                 </SidebarInset>
             </SidebarProvider>
+
+            {!isSidebarOpen && (
+                <div
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="absolute top-0 left-0 w-[10px] h-full bg-[#18181b] cursor-pointer z-20 flex items-center justify-center">
+                    <ChevronRight size={10} />
+                </div>
+            )}
         </div>
     )
 }

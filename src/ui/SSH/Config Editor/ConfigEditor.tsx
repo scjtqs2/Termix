@@ -1,10 +1,10 @@
 import React, {useState, useEffect, useRef} from "react";
-import {ConfigEditorSidebar} from "@/apps/SSH/Config Editor/ConfigEditorSidebar.tsx";
-import {ConfigTabList} from "@/apps/SSH/Config Editor/ConfigTabList.tsx";
-import {ConfigHomeView} from "@/apps/SSH/Config Editor/ConfigHomeView.tsx";
-import {ConfigCodeEditor} from "@/apps/SSH/Config Editor/ConfigCodeEditor.tsx";
+import {ConfigEditorSidebar} from "@/ui/SSH/Config Editor/ConfigEditorSidebar.tsx";
+import {ConfigTabList} from "@/ui/SSH/Config Editor/ConfigTabList.tsx";
+import {ConfigHomeView} from "@/ui/SSH/Config Editor/ConfigHomeView.tsx";
+import {ConfigCodeEditor} from "@/ui/SSH/Config Editor/ConfigCodeEditor.tsx";
 import {Button} from '@/components/ui/button.tsx';
-import {ConfigTopbar} from "@/apps/SSH/Config Editor/ConfigTopbar.tsx";
+import {ConfigTopbar} from "@/ui/SSH/Config Editor/ConfigTopbar.tsx";
 import {cn} from '@/lib/utils.ts';
 import {
     getConfigEditorRecent,
@@ -20,7 +20,7 @@ import {
     writeSSHFile,
     getSSHStatus,
     connectSSH
-} from '@/apps/SSH/ssh-axios.ts';
+} from '@/ui/SSH/ssh-axios.ts';
 
 interface Tab {
     id: string | number;

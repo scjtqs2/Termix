@@ -1,4 +1,4 @@
-import {TerminalTabList} from "@/apps/SSH/Terminal/TerminalTabList.tsx";
+import {TerminalTabList} from "@/ui/SSH/Terminal/TerminalTabList.tsx";
 import React from "react";
 import {ChevronUp} from "lucide-react";
 

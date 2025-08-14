@@ -19,7 +19,7 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs.tsx
 import React, {useEffect, useRef, useState} from "react";
 import {Switch} from "@/components/ui/switch.tsx";
 import {Alert, AlertDescription} from "@/components/ui/alert.tsx";
-import {createSSHHost, updateSSHHost, getSSHHosts} from '@/apps/SSH/ssh-axios';
+import {createSSHHost, updateSSHHost, getSSHHosts} from '@/ui/SSH/ssh-axios';
 
 interface SSHHost {
     id: number;
@@ -388,7 +388,7 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
         <div className="flex-1 flex flex-col h-full min-h-0 w-full">
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0 h-full">
-                    <ScrollArea className="flex-1 min-h-0 w-full my-1">
+                    <ScrollArea className="flex-1 min-h-0 w-full my-1 pb-2">
                         <Tabs defaultValue="general" className="w-full">
                             <TabsList>
                                 <TabsTrigger value="general">General</TabsTrigger>
@@ -396,7 +396,7 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
                                 <TabsTrigger value="tunnel">Tunnel</TabsTrigger>
                                 <TabsTrigger value="config_editor">Config Editor</TabsTrigger>
                             </TabsList>
-                            <TabsContent value="general">
+                            <TabsContent value="general" className="pt-2">
                                 <FormLabel className="mb-3 font-bold">Connection Details</FormLabel>
                                 <div className="grid grid-cols-12 gap-4">
                                     <FormField
@@ -1025,9 +1025,18 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
                             </TabsContent>
                         </Tabs>
                     </ScrollArea>
-                    <footer className="shrink-0 w-full">
-                        <Separator className="p-0.25 mt-1 mb-3"/>
-                        <Button type="submit" variant="outline">{editingHost ? "Update Host" : "Add Host"}</Button>
+                    <footer className="shrink-0 w-full pb-0">
+                        <Separator className="p-0.25"/>
+                        <Button 
+                            className="" 
+                            type="submit"
+                            variant="outline"
+                            style={{
+                                transform: 'translateY(8px)'
+                            }}
+                        >
+                            {editingHost ? "Update Host" : "Add Host"}
+                        </Button>
                     </footer>
                 </form>
             </Form>

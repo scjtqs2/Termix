@@ -22,7 +22,7 @@ import {
     getConfigEditorPinned,
     addConfigEditorPinned,
     removeConfigEditorPinned
-} from '@/apps/SSH/ssh-axios.ts';
+} from '@/ui/SSH/ssh-axios.ts';
 
 interface SSHHost {
     id: number;

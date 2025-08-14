@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react";
-import {AlertCard} from "./AlertCard";
-import {Button} from "@/components/ui/button";
+import {HomepageAlertCard} from "./HomepageAlertCard.tsx";
+import {Button} from "@/components/ui/button.tsx";
 import axios from "axios";
 
 interface TermixAlert {
@@ -25,7 +25,7 @@ const API = axios.create({
     baseURL: apiBase,
 });
 
-export function AlertManager({userId, loggedIn}: AlertManagerProps): React.ReactElement {
+export function HomepageAlertManager({userId, loggedIn}: AlertManagerProps): React.ReactElement {
     const [alerts, setAlerts] = useState<TermixAlert[]>([]);
     const [currentAlertIndex, setCurrentAlertIndex] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -154,14 +154,12 @@ export function AlertManager({userId, loggedIn}: AlertManagerProps): React.React
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
             <div className="relative w-full max-w-2xl mx-4">
-                {/* Current Alert */}
-                <AlertCard
+                <HomepageAlertCard
                     alert={currentAlert}
                     onDismiss={handleDismissAlert}
                     onClose={handleCloseCurrentAlert}
                 />
 
-                {/* Navigation Controls */}
                 {hasMultipleAlerts && (
                     <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 flex items-center gap-2">
                         <Button
@@ -188,7 +186,6 @@ export function AlertManager({userId, loggedIn}: AlertManagerProps): React.React
                     </div>
                 )}
 
-                {/* Error Display */}
                 {error && (
                     <div className="absolute -bottom-20 left-1/2 transform -translate-x-1/2">
                         <div className="bg-destructive text-destructive-foreground px-3 py-1 rounded text-sm">

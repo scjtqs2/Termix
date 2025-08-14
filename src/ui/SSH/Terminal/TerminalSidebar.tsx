@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/accordion.tsx";
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
 import {Input} from "@/components/ui/input.tsx";
-import {getSSHHosts} from "@/apps/SSH/ssh-axios";
+import {getSSHHosts} from "@/ui/SSH/ssh-axios";
 import {Checkbox} from "@/components/ui/checkbox.tsx";
 
 interface SSHHost {
