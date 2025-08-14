@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from "react"
-import { LeftSidebar } from "@/ui/Navigation/LeftSidebar.tsx"
-import { Homepage } from "@/ui/Homepage/Homepage.tsx"
-import { Terminal } from "@/ui/SSH/Terminal/Terminal.tsx"
-import { SSHTunnel } from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
-import { ConfigEditor } from "@/ui/SSH/Config Editor/ConfigEditor.tsx"
-import { SSHManager } from "@/ui/SSH/Manager/SSHManager.tsx"
+import React, {useState, useEffect} from "react"
+import {LeftSidebar} from "@/ui/Navigation/LeftSidebar.tsx"
+import {Homepage} from "@/ui/Homepage/Homepage.tsx"
+import {Terminal} from "@/ui/SSH/Terminal/Terminal.tsx"
+import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
+import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx"
+import {SSHManager} from "@/ui/SSH/Manager/SSHManager.tsx"
 import axios from "axios"
+import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 
 const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
-const API = axios.create({ baseURL: apiBase });
+const API = axios.create({baseURL: apiBase});
 
 function getCookie(name: string) {
     return document.cookie.split('; ').reduce((r, v) => {
@@ -51,12 +52,12 @@ function App() {
                 setAuthLoading(false);
             }
         }
-        
+
         checkAuth()
 
         const handleStorageChange = () => checkAuth()
         window.addEventListener('storage', handleStorageChange)
-        
+
         return () => window.removeEventListener('storage', handleStorageChange)
     }, [])
 
@@ -71,38 +72,41 @@ function App() {
     }
 
     return (
-        <LeftSidebar
-            onSelectView={handleSelectView}
-            disabled={!isAuthenticated || authLoading}
-            isAdmin={isAdmin}
-            username={username}
-        >
-            {mountedViews.has("homepage") && (
-                <div style={{display: view === "homepage" ? "block" : "none"}}>
-                    <Homepage onSelectView={handleSelectView} />
-                </div>
-            )}
-            {mountedViews.has("ssh_manager") && (
-                <div style={{display: view === "ssh_manager" ? "block" : "none"}}>
-                    <SSHManager onSelectView={handleSelectView} />
-                </div>
-            )}
-            {mountedViews.has("terminal") && (
-                <div style={{display: view === "terminal" ? "block" : "none"}}>
-                    <Terminal onSelectView={handleSelectView} />
-                </div>
-            )}
-            {mountedViews.has("tunnel") && (
-                <div style={{display: view === "tunnel" ? "block" : "none"}}>
-                    <SSHTunnel onSelectView={handleSelectView} />
-                </div>
-            )}
-            {mountedViews.has("config_editor") && (
-                <div style={{display: view === "config_editor" ? "block" : "none"}}>
-                    <ConfigEditor onSelectView={handleSelectView} />
-                </div>
-            )}
-        </LeftSidebar>
+        <div>
+            <LeftSidebar
+                onSelectView={handleSelectView}
+                disabled={!isAuthenticated || authLoading}
+                isAdmin={isAdmin}
+                username={username}
+            >
+                {mountedViews.has("homepage") && (
+                    <div style={{display: view === "homepage" ? "block" : "none"}}>
+                        <Homepage onSelectView={handleSelectView}/>
+                    </div>
+                )}
+                {mountedViews.has("ssh_manager") && (
+                    <div style={{display: view === "ssh_manager" ? "block" : "none"}}>
+                        <SSHManager onSelectView={handleSelectView}/>
+                    </div>
+                )}
+                {mountedViews.has("terminal") && (
+                    <div style={{display: view === "terminal" ? "block" : "none"}}>
+                        <Terminal onSelectView={handleSelectView}/>
+                    </div>
+                )}
+                {mountedViews.has("tunnel") && (
+                    <div style={{display: view === "tunnel" ? "block" : "none"}}>
+                        <SSHTunnel onSelectView={handleSelectView}/>
+                    </div>
+                )}
+                {mountedViews.has("config_editor") && (
+                    <div style={{display: view === "config_editor" ? "block" : "none"}}>
+                        <ConfigEditor onSelectView={handleSelectView}/>
+                    </div>
+                )}
+                <TopNavbar/>
+            </LeftSidebar>
+        </div>
     )
 }
 

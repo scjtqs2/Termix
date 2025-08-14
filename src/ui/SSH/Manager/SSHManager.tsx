@@ -58,7 +58,7 @@ export function SSHManager({onSelectView}: ConfigEditorProps): React.ReactElemen
         <div>
             <div className="flex w-full h-screen overflow-hidden">
                 <div
-                    className={`flex-1 bg-[#18181b] m-[8px] text-white p-4 pt-0 rounded-lg border border-[#303032] flex flex-col min-h-0 ${
+                    className={`flex-1 bg-[#18181b] m-[8px] text-white p-4 pt-0 rounded-lg border mt-18.5 border-[#303032] flex flex-col min-h-0 ${
                         sidebarState === 'collapsed' ? 'ml-6' : ''
                     }`}>
                     <Tabs value={activeTab} onValueChange={handleTabChange}
