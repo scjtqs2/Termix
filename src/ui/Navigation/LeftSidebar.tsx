@@ -74,7 +74,7 @@ const API = axios.create({
     baseURL: apiBase,
 });
 
-export function Sidebar({
+export function LeftSidebar({
                                     onSelectView,
                                     getView,
                                     disabled,

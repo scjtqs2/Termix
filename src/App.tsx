@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Sidebar } from "@/ui/Navigation/Sidebar.tsx"
+import { LeftSidebar } from "@/ui/Navigation/LeftSidebar.tsx"
 import { Homepage } from "@/ui/Homepage/Homepage.tsx"
 import { Terminal } from "@/ui/SSH/Terminal/Terminal.tsx"
 import { SSHTunnel } from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
@@ -71,7 +71,7 @@ function App() {
     }
 
     return (
-        <Sidebar
+        <LeftSidebar
             onSelectView={handleSelectView}
             disabled={!isAuthenticated || authLoading}
             isAdmin={isAdmin}
@@ -102,7 +102,7 @@ function App() {
                     <ConfigEditor onSelectView={handleSelectView} />
                 </div>
             )}
-        </Sidebar>
+        </LeftSidebar>
     )
 }
 
