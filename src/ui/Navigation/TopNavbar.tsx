@@ -10,6 +10,17 @@ interface TopNavbarProps {
 
 export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): React.ReactElement {
     const {state} = useSidebar();
+    
+    // Debug logging
+    console.log("TopNavbar - Sidebar state:", state);
+    console.log("TopNavbar - State type:", typeof state);
+    console.log("TopNavbar - State === 'collapsed':", state === "collapsed");
+    
+    // Adjust pixel values to get exactly 15px margins
+    // Current left margin when expanded is 15px (perfect), when collapsed is 38px (need to reduce by 23px)
+    // Current right margin is 15px (perfect)
+    const leftPosition = state === "collapsed" ? "26px" : "264px";
+    console.log("TopNavbar - Calculated left position:", leftPosition);
 
     return (
         <div>
@@ -17,8 +28,12 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                 className="fixed z-10 h-[50px] bg-[#18181b] border-2 border-[#303032] rounded-lg transition-all duration-200 ease-linear flex flex-row"
                 style={{
                     top: isTopbarOpen ? "0.5rem" : "-3rem",
-                    left: state === "collapsed" ? "calc(1.5rem + 0.5rem)" : "calc(16rem + 0.5rem)",
-                    right: "0.5rem"
+                    left: leftPosition,
+                    right: "17px",
+                    position: "fixed",
+                    transform: "none",
+                    margin: "0",
+                    padding: "0"
                 }}
             >
                 <div className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-3rem)]">
