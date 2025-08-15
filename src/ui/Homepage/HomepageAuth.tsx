@@ -33,6 +33,7 @@ interface HomepageAuthProps extends React.ComponentProps<"div"> {
     authLoading: boolean;
     dbError: string | null;
     setDbError: (error: string | null) => void;
+    onAuthSuccess: (authData: { isAdmin: boolean; username: string | null; userId: string | null }) => void;
 }
 
 export function HomepageAuth({
@@ -45,6 +46,7 @@ export function HomepageAuth({
                                  authLoading,
                                  dbError,
                                  setDbError,
+                                 onAuthSuccess,
                                  ...props
                              }: HomepageAuthProps) {
     const [tab, setTab] = useState<"login" | "signup" | "external" | "reset">("login");
@@ -147,6 +149,14 @@ export function HomepageAuth({
             setUsername(meRes.data.username || null);
             setUserId(meRes.data.id || null);
             setDbError(null);
+            // Call onAuthSuccess to update App state
+            onAuthSuccess({
+                isAdmin: !!meRes.data.is_admin,
+                username: meRes.data.username || null,
+                userId: meRes.data.id || null
+            });
+            // Update internal state immediately
+            setInternalLoggedIn(true);
             if (tab === "signup") {
                 setSignupConfirmPassword("");
             }
@@ -255,10 +265,6 @@ export function HomepageAuth({
         setError(null);
     }
 
-    async function resetPassword() {
-
-    }
-
     async function handleOIDCLogin() {
         setError(null);
         setOidcLoading(true);
@@ -303,6 +309,14 @@ export function HomepageAuth({
                     setUsername(meRes.data.username || null);
                     setUserId(meRes.data.id || null);
                     setDbError(null);
+                    // Call onAuthSuccess to update App state
+                    onAuthSuccess({
+                        isAdmin: !!meRes.data.is_admin,
+                        username: meRes.data.username || null,
+                        userId: meRes.data.id || null
+                    });
+                    // Update internal state immediately
+                    setInternalLoggedIn(true);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 })
                 .catch(err => {
@@ -331,12 +345,13 @@ export function HomepageAuth({
     return (
         <div
             className={cn(
+                "",
                 className
             )}
             {...props}
         >
             <div
-                className={`w-[420px] max-w-full bg-background rounded-xl shadow-lg p-6 flex flex-col ${internalLoggedIn ? '' : 'border border-border'}`}>
+                className={`w-[420px] max-w-full bg-background/95 backdrop-blur-md rounded-xl shadow-2xl p-6 flex flex-col relative ${internalLoggedIn ? '' : 'ring-1 ring-border/50'} focus-within:ring-2 focus-within:ring-primary/50 transition-all duration-200`}>
                 {dbError && (
                     <Alert variant="destructive" className="mb-4">
                         <AlertTitle>Error</AlertTitle>
@@ -369,16 +384,16 @@ export function HomepageAuth({
                         </AlertDescription>
                     </Alert>
                 )}
-                {(internalLoggedIn || (authLoading && getCookie("jwt"))) && (
+                {(internalLoggedIn || getCookie("jwt")) && (
                     <div className="flex flex-col items-center gap-4">
-                        <Alert className="my-2">
-                            <AlertTitle>Logged in!</AlertTitle>
-                            <AlertDescription>
+                        <div className="my-2 text-center bg-muted/50 border border-border rounded-lg p-4 w-full">
+                            <h3 className="text-lg font-semibold mb-2">Logged in!</h3>
+                            <p className="text-muted-foreground">
                                 You are logged in! Use the sidebar to access all available tools. To get started,
                                 create an SSH Host in the SSH Manager tab. Once created, you can connect to that
                                 host using the other apps in the sidebar.
-                            </AlertDescription>
-                        </Alert>
+                            </p>
+                        </div>
 
                         <div className="flex flex-row items-center gap-2">
                             <Button
@@ -607,17 +622,18 @@ export function HomepageAuth({
                                                     <p>Enter your new password for
                                                         user: <strong>{localUsername}</strong></p>
                                                 </div>
-                                                <div className="flex flex-col gap-4">
+                                                <div className="flex flex-col gap-5">
                                                     <div className="flex flex-col gap-2">
                                                         <Label htmlFor="new-password">New Password</Label>
                                                         <Input
                                                             id="new-password"
                                                             type="password"
                                                             required
-                                                            className="h-11 text-base"
+                                                            className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                                                             value={newPassword}
                                                             onChange={e => setNewPassword(e.target.value)}
                                                             disabled={resetLoading}
+                                                            autoComplete="new-password"
                                                         />
                                                     </div>
                                                     <div className="flex flex-col gap-2">
@@ -626,10 +642,11 @@ export function HomepageAuth({
                                                             id="confirm-password"
                                                             type="password"
                                                             required
-                                                            className="h-11 text-base"
+                                                            className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                                                             value={confirmPassword}
                                                             onChange={e => setConfirmPassword(e.target.value)}
                                                             disabled={resetLoading}
+                                                            autoComplete="new-password"
                                                         />
                                                     </div>
                                                     <Button

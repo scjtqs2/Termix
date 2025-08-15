@@ -18,13 +18,19 @@ function getCookie(name: string) {
     }, "");
 }
 
+function setCookie(name: string, value: string, days = 7) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+}
+
 function App() {
-    const [view, setView] = React.useState<string>("homepage")
-    const [mountedViews, setMountedViews] = React.useState<Set<string>>(new Set(["homepage"]))
+    const [view, setView] = useState<string>("homepage")
+    const [mountedViews, setMountedViews] = useState<Set<string>>(new Set(["homepage"]))
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [username, setUsername] = useState<string | null>(null)
     const [isAdmin, setIsAdmin] = useState(false)
     const [authLoading, setAuthLoading] = useState(true)
+    const [isTopbarOpen, setIsTopbarOpen] = useState<boolean>(true)
 
     useEffect(() => {
         const checkAuth = () => {
@@ -71,41 +77,102 @@ function App() {
         setView(nextView)
     }
 
+    const handleAuthSuccess = (authData: { isAdmin: boolean; username: string | null; userId: string | null }) => {
+        setIsAuthenticated(true)
+        setIsAdmin(authData.isAdmin)
+        setUsername(authData.username)
+    }
+
     return (
         <div>
-            <LeftSidebar
-                onSelectView={handleSelectView}
-                disabled={!isAuthenticated || authLoading}
-                isAdmin={isAdmin}
-                username={username}
-            >
-                {mountedViews.has("homepage") && (
-                    <div style={{display: view === "homepage" ? "block" : "none"}}>
-                        <Homepage onSelectView={handleSelectView}/>
+            {/* Enhanced background overlay - detailed pattern when not authenticated */}
+            {!isAuthenticated && !authLoading && (
+                <div 
+                    className="fixed inset-0 bg-gradient-to-br from-background via-muted/20 to-background z-[9999]"
+                    aria-hidden="true"
+                >
+                    {/* Diagonal stripes pattern */}
+                    <div className="absolute inset-0 opacity-20">
+                        <div className="absolute inset-0" style={{
+                            backgroundImage: `repeating-linear-gradient(
+                                45deg,
+                                transparent,
+                                transparent 20px,
+                                hsl(var(--primary) / 0.4) 20px,
+                                hsl(var(--primary) / 0.4) 40px
+                            )`
+                        }} />
                     </div>
-                )}
-                {mountedViews.has("ssh_manager") && (
-                    <div style={{display: view === "ssh_manager" ? "block" : "none"}}>
-                        <SSHManager onSelectView={handleSelectView}/>
+                    
+                    {/* Subtle grid pattern */}
+                    <div className="absolute inset-0 opacity-10">
+                        <div className="absolute inset-0" style={{
+                            backgroundImage: `linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
+                                            linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px)`,
+                            backgroundSize: '40px 40px'
+                        }} />
                     </div>
-                )}
-                {mountedViews.has("terminal") && (
-                    <div style={{display: view === "terminal" ? "block" : "none"}}>
-                        <Terminal onSelectView={handleSelectView}/>
-                    </div>
-                )}
-                {mountedViews.has("tunnel") && (
-                    <div style={{display: view === "tunnel" ? "block" : "none"}}>
-                        <SSHTunnel onSelectView={handleSelectView}/>
-                    </div>
-                )}
-                {mountedViews.has("config_editor") && (
-                    <div style={{display: view === "config_editor" ? "block" : "none"}}>
-                        <ConfigEditor onSelectView={handleSelectView}/>
-                    </div>
-                )}
-                <TopNavbar/>
-            </LeftSidebar>
+                    
+                    {/* Radial gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-background/60" />
+                </div>
+            )}
+            
+            {/* Show login form directly when not authenticated */}
+            {!isAuthenticated && !authLoading && (
+                <div className="fixed inset-0 flex items-center justify-center z-[10000]">
+                    <Homepage 
+                        onSelectView={handleSelectView}
+                        isAuthenticated={isAuthenticated}
+                        authLoading={authLoading}
+                        onAuthSuccess={handleAuthSuccess}
+                        isTopbarOpen={isTopbarOpen}
+                    />
+                </div>
+            )}
+            
+            {/* Show sidebar layout only when authenticated */}
+            {isAuthenticated && (
+                <LeftSidebar
+                    onSelectView={handleSelectView}
+                    disabled={!isAuthenticated || authLoading}
+                    isAdmin={isAdmin}
+                    username={username}
+                >
+                    {mountedViews.has("homepage") && (
+                        <div style={{display: view === "homepage" ? "block" : "none"}}>
+                            <Homepage 
+                                onSelectView={handleSelectView}
+                                isAuthenticated={isAuthenticated}
+                                authLoading={authLoading}
+                                onAuthSuccess={handleAuthSuccess}
+                                isTopbarOpen={isTopbarOpen}
+                            />
+                        </div>
+                    )}
+                    {mountedViews.has("ssh_manager") && (
+                        <div style={{display: view === "ssh_manager" ? "block" : "none"}}>
+                            <SSHManager onSelectView={handleSelectView}/>
+                        </div>
+                    )}
+                    {mountedViews.has("terminal") && (
+                        <div style={{display: view === "terminal" ? "block" : "none"}}>
+                            <Terminal onSelectView={handleSelectView}/>
+                        </div>
+                    )}
+                    {mountedViews.has("tunnel") && (
+                        <div style={{display: view === "tunnel" ? "block" : "none"}}>
+                            <SSHTunnel onSelectView={handleSelectView}/>
+                        </div>
+                    )}
+                    {mountedViews.has("config_editor") && (
+                        <div style={{display: view === "config_editor" ? "block" : "none"}}>
+                            <ConfigEditor onSelectView={handleSelectView}/>
+                        </div>
+                    )}
+                    <TopNavbar isTopbarOpen={isTopbarOpen} setIsTopbarOpen={setIsTopbarOpen}/>
+                </LeftSidebar>
+            )}
         </div>
     )
 }

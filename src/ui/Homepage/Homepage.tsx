@@ -6,6 +6,10 @@ import {HomepageAlertManager} from "@/ui/Homepage/HomepageAlertManager.tsx";
 
 interface HomepageProps {
     onSelectView: (view: string) => void;
+    isAuthenticated: boolean;
+    authLoading: boolean;
+    onAuthSuccess: (authData: { isAdmin: boolean; username: string | null; userId: string | null }) => void;
+    isTopbarOpen?: boolean;
 }
 
 function getCookie(name: string) {
@@ -26,51 +30,51 @@ const API = axios.create({
     baseURL: apiBase,
 });
 
-export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
-    const [loggedIn, setLoggedIn] = useState(false);
+export function Homepage({onSelectView, isAuthenticated, authLoading, onAuthSuccess, isTopbarOpen = true}: HomepageProps): React.ReactElement {
+    const [loggedIn, setLoggedIn] = useState(isAuthenticated);
     const [isAdmin, setIsAdmin] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
-    const [authLoading, setAuthLoading] = useState(true);
     const [dbError, setDbError] = useState<string | null>(null);
 
+    // Update local state when props change
     useEffect(() => {
-        const jwt = getCookie("jwt");
+        setLoggedIn(isAuthenticated);
+    }, [isAuthenticated]);
 
-        if (jwt) {
-            setAuthLoading(true);
-            Promise.all([
-                API.get("/me", {headers: {Authorization: `Bearer ${jwt}`}}),
-                API.get("/db-health")
-            ])
-                .then(([meRes]) => {
-                    setLoggedIn(true);
-                    setIsAdmin(!!meRes.data.is_admin);
-                    setUsername(meRes.data.username || null);
-                    setUserId(meRes.data.userId || null);
-                    setDbError(null);
-                })
-                .catch((err) => {
-                    setLoggedIn(false);
-                    setIsAdmin(false);
-                    setUsername(null);
-                    setUserId(null);
-                    setCookie("jwt", "", -1);
-                    if (err?.response?.data?.error?.includes("Database")) {
-                        setDbError("Could not connect to the database. Please try again later.");
-                    } else {
+    useEffect(() => {
+        if (isAuthenticated) {
+            const jwt = getCookie("jwt");
+            if (jwt) {
+                Promise.all([
+                    API.get("/me", {headers: {Authorization: `Bearer ${jwt}`}}),
+                    API.get("/db-health")
+                ])
+                    .then(([meRes]) => {
+                        setIsAdmin(!!meRes.data.is_admin);
+                        setUsername(meRes.data.username || null);
+                        setUserId(meRes.data.userId || null);
                         setDbError(null);
-                    }
-                })
-                .finally(() => setAuthLoading(false));
-        } else {
-            setAuthLoading(false);
+                    })
+                    .catch((err) => {
+                        setIsAdmin(false);
+                        setUsername(null);
+                        setUserId(null);
+                        if (err?.response?.data?.error?.includes("Database")) {
+                            setDbError("Could not connect to the database. Please try again later.");
+                        } else {
+                            setDbError(null);
+                        }
+                    });
+            }
         }
-    }, []);
+    }, [isAuthenticated]);
 
     return (
-        <div className="w-full min-h-svh grid place-items-center">
-            <div className="flex flex-row items-center justify-center gap-8">
+        <div className={`w-full min-h-svh grid place-items-center relative transition-[padding-top] duration-200 ease-linear ${
+            isTopbarOpen ? 'pt-[66px]' : 'pt-2'
+        }`}>
+            <div className="flex flex-row items-center justify-center gap-8 relative z-[10000]">
                 <HomepageAuth
                     setLoggedIn={setLoggedIn}
                     setIsAdmin={setIsAdmin}
@@ -80,6 +84,7 @@ export function Homepage({onSelectView}: HomepageProps): React.ReactElement {
                     authLoading={authLoading}
                     dbError={dbError}
                     setDbError={setDbError}
+                    onAuthSuccess={onAuthSuccess}
                 />
                 <HomepageUpdateLog
                     loggedIn={loggedIn}

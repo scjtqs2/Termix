@@ -46,6 +46,32 @@ import {
     TableRow,
 } from "@/components/ui/table.tsx";
 import axios from "axios";
+import {Card} from "@/components/ui/card.tsx";
+import {FolderCard} from "@/ui/Navigation/Hosts/FolderCard.tsx";
+import {getSSHHosts} from "@/ui/SSH/ssh-axios";
+
+interface SSHHost {
+    id: number;
+    name: string;
+    ip: string;
+    port: number;
+    username: string;
+    folder: string;
+    tags: string[];
+    pin: boolean;
+    authType: string;
+    password?: string;
+    key?: string;
+    keyPassword?: string;
+    keyType?: string;
+    enableTerminal: boolean;
+    enableTunnel: boolean;
+    enableConfigEditor: boolean;
+    defaultPath: string;
+    tunnelConnections: any[];
+    createdAt: string;
+    updatedAt: string;
+}
 
 interface SidebarProps {
     onSelectView: (view: string) => void;
@@ -119,6 +145,14 @@ export function LeftSidebar({
 
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
+    // SSH Hosts state management
+    const [hosts, setHosts] = useState<SSHHost[]>([]);
+    const [hostsLoading, setHostsLoading] = useState(false);
+    const [hostsError, setHostsError] = useState<string | null>(null);
+    const prevHostsRef = React.useRef<SSHHost[]>([]);
+    const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
     React.useEffect(() => {
         if (adminSheetOpen) {
             const jwt = getCookie("jwt");
@@ -146,6 +180,117 @@ export function LeftSidebar({
             setAdminCount(0);
         }
     }, [isAdmin]);
+
+    // SSH Hosts data fetching
+    const fetchHosts = React.useCallback(async () => {
+        try {
+            const newHosts = await getSSHHosts();
+            const terminalHosts = newHosts.filter(host => host.enableTerminal);
+
+            const prevHosts = prevHostsRef.current;
+            
+            // Create a stable map of existing hosts by ID for comparison
+            const existingHostsMap = new Map(prevHosts.map(h => [h.id, h]));
+            const newHostsMap = new Map(terminalHosts.map(h => [h.id, h]));
+            
+            // Check if there are any meaningful changes
+            let hasChanges = false;
+            
+            // Check for new hosts, removed hosts, or changed hosts
+            if (terminalHosts.length !== prevHosts.length) {
+                hasChanges = true;
+            } else {
+                for (const [id, newHost] of newHostsMap) {
+                    const existingHost = existingHostsMap.get(id);
+                    if (!existingHost) {
+                        hasChanges = true;
+                        break;
+                    }
+                    
+                    // Only check fields that affect the display
+                    if (
+                        newHost.name !== existingHost.name ||
+                        newHost.folder !== existingHost.folder ||
+                        newHost.ip !== existingHost.ip ||
+                        newHost.port !== existingHost.port ||
+                        newHost.username !== existingHost.username ||
+                        newHost.pin !== existingHost.pin ||
+                        newHost.enableTerminal !== existingHost.enableTerminal ||
+                        JSON.stringify(newHost.tags) !== JSON.stringify(existingHost.tags)
+                    ) {
+                        hasChanges = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (hasChanges) {
+                // Use a small delay to batch updates and reduce jittering
+                setTimeout(() => {
+                    setHosts(terminalHosts);
+                    prevHostsRef.current = terminalHosts;
+                }, 50);
+            }
+        } catch (err: any) {
+            setHostsError('Failed to load hosts');
+        }
+    }, []);
+
+    React.useEffect(() => {
+        fetchHosts();
+        const interval = setInterval(fetchHosts, 10000);
+        return () => clearInterval(interval);
+    }, [fetchHosts]);
+
+    // Search debouncing
+    React.useEffect(() => {
+        const handler = setTimeout(() => setDebouncedSearch(search), 200);
+        return () => clearTimeout(handler);
+    }, [search]);
+
+    // Filter and organize hosts with stable references
+    const filteredHosts = React.useMemo(() => {
+        if (!debouncedSearch.trim()) return hosts;
+        const q = debouncedSearch.trim().toLowerCase();
+        return hosts.filter(h => {
+            const searchableText = [
+                h.name || '',
+                h.username,
+                h.ip,
+                h.folder || '',
+                ...(h.tags || []),
+                h.authType,
+                h.defaultPath || ''
+            ].join(' ').toLowerCase();
+            return searchableText.includes(q);
+        });
+    }, [hosts, debouncedSearch]);
+
+    const hostsByFolder = React.useMemo(() => {
+        const map: Record<string, SSHHost[]> = {};
+        filteredHosts.forEach(h => {
+            const folder = h.folder && h.folder.trim() ? h.folder : 'No Folder';
+            if (!map[folder]) map[folder] = [];
+            map[folder].push(h);
+        });
+        return map;
+    }, [filteredHosts]);
+
+    const sortedFolders = React.useMemo(() => {
+        const folders = Object.keys(hostsByFolder);
+        folders.sort((a, b) => {
+            if (a === 'No Folder') return -1;
+            if (b === 'No Folder') return 1;
+            return a.localeCompare(b);
+        });
+        return folders;
+    }, [hostsByFolder]);
+
+    const getSortedHosts = React.useCallback((arr: SSHHost[]) => {
+        const pinned = arr.filter(h => h.pin).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const rest = arr.filter(h => !h.pin).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        return [...pinned, ...rest];
+    }, []);
 
     const handleToggle = async (checked: boolean) => {
         if (!isAdmin) {
@@ -344,7 +489,7 @@ export function LeftSidebar({
     return (
         <div className="min-h-svh">
             <SidebarProvider open={isSidebarOpen}>
-                <Sidebar variant="floating">
+                <Sidebar variant="floating" className="">
                     <SidebarHeader>
                         <SidebarGroupLabel className="text-lg font-bold text-white">
                             Termix
@@ -359,48 +504,53 @@ export function LeftSidebar({
                     </SidebarHeader>
                     <Separator className="p-0.25"/>
                     <SidebarContent>
-                        <SidebarGroup>
-                            <SidebarGroupContent>
-                                <SidebarMenu>
-                                    <SidebarMenuItem key={"SSH Manager"}>
-                                        <SidebarMenuButton onClick={() => onSelectView("ssh_manager")}
-                                                           disabled={disabled}>
-                                            <HardDrive/>
-                                            <span>SSH Manager</span>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                    <div className="ml-5">
-                                        <SidebarMenuItem key={"Terminal"}>
-                                            <SidebarMenuButton onClick={() => onSelectView("terminal")}
-                                                               disabled={disabled}>
-                                                <Computer/>
-                                                <span>Terminal</span>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                        <SidebarMenuItem key={"Tunnel"}>
-                                            <SidebarMenuButton onClick={() => onSelectView("tunnel")}
-                                                               disabled={disabled}>
-                                                <Server/>
-                                                <span>Tunnel</span>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                        <SidebarMenuItem key={"Config Editor"}>
-                                            <SidebarMenuButton onClick={() => onSelectView("config_editor")}
-                                                               disabled={disabled}>
-                                                <File/>
-                                                <span>Config Editor</span>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
+                        <SidebarGroup className="!m-0 !p-0 !-mb-2">
+                            <Button className="m-2 flex flex-row font-semibold" variant="outline">
+                                <HardDrive strokeWidth="2.5"/>
+                                Host Manager
+                            </Button>
+                        </SidebarGroup>
+                        <Separator className="p-0.25"/>
+                        <SidebarGroup className="flex flex-col gap-y-2 !-mt-2">
+                            {/* Search Input */}
+                            <div className="bg-[#131316] rounded-lg">
+                                <Input
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    placeholder="Search hosts by any info..."
+                                    className="w-full h-8 text-sm border-2 border-[#272728] rounded-lg"
+                                    autoComplete="off"
+                                />
+                            </div>
+                            
+                            {/* Error Display */}
+                            {hostsError && (
+                                <div className="px-4 pb-2">
+                                    <div className="text-xs text-red-500 bg-red-500/10 rounded px-2 py-1 border border-red-500/20">
+                                        {hostsError}
                                     </div>
-                                    <SidebarMenuItem key={"Tools"}>
-                                        <SidebarMenuButton onClick={() => window.open("https://dashix.dev", "_blank")}
-                                                           disabled={disabled}>
-                                            <Hammer/>
-                                            <span>Tools</span>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                </SidebarMenu>
-                            </SidebarGroupContent>
+                                </div>
+                            )}
+
+                            {/* Loading State */}
+                            {hostsLoading && (
+                                <div className="px-4 pb-2">
+                                    <div className="text-xs text-muted-foreground text-center">
+                                        Loading hosts...
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Hosts by Folder */}
+                            {sortedFolders.map((folder, idx) => (
+                                <FolderCard
+                                    key={`folder-${folder}-${hostsByFolder[folder]?.length || 0}`}
+                                    folderName={folder}
+                                    hosts={getSortedHosts(hostsByFolder[folder])}
+                                    isFirst={idx === 0}
+                                    isLast={idx === sortedFolders.length - 1}
+                                />
+                            ))}
                         </SidebarGroup>
                     </SidebarContent>
                     <Separator className="p-0.25 mt-1 mb-1"/>
@@ -908,7 +1058,7 @@ export function LeftSidebar({
             {!isSidebarOpen && (
                 <div
                     onClick={() => setIsSidebarOpen(true)}
-                    className="absolute top-0 left-0 w-[10px] h-full bg-[#18181b] cursor-pointer z-20 flex items-center justify-center">
+                    className="absolute top-0 left-0 w-[10px] h-full bg-[#18181b] cursor-pointer z-20 flex items-center justify-center rounded-tr-md rounded-br-md">
                     <ChevronRight size={10} />
                 </div>
             )}

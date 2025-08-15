@@ -121,19 +121,6 @@ export function HomepageAlertManager({userId, loggedIn}: AlertManagerProps): Rea
         return null;
     }
 
-    if (loading) {
-        return (
-            <div className="fixed top-4 right-4 z-50">
-                <div className="bg-background border rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                        <span className="text-sm text-muted-foreground">Loading alerts...</span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     if (alerts.length === 0) {
         return null;
     }
@@ -152,7 +139,7 @@ export function HomepageAlertManager({userId, loggedIn}: AlertManagerProps): Rea
     const hasMultipleAlerts = alerts.length > 1;
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
+        <div className="fixed inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-[99999]">
             <div className="relative w-full max-w-2xl mx-4">
                 <HomepageAlertCard
                     alert={currentAlert}
