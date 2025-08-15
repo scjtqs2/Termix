@@ -2,6 +2,7 @@ import React from "react";
 import {useSidebar} from "@/components/ui/sidebar";
 import {Button} from "@/components/ui/button.tsx";
 import {ChevronDown, ChevronUpIcon} from "lucide-react";
+import {Tab} from "@/ui/Navigation/Tabs/Tab.tsx";
 
 interface TopNavbarProps {
     isTopbarOpen: boolean;
@@ -10,17 +11,7 @@ interface TopNavbarProps {
 
 export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): React.ReactElement {
     const {state} = useSidebar();
-    
-    // Debug logging
-    console.log("TopNavbar - Sidebar state:", state);
-    console.log("TopNavbar - State type:", typeof state);
-    console.log("TopNavbar - State === 'collapsed':", state === "collapsed");
-    
-    // Adjust pixel values to get exactly 15px margins
-    // Current left margin when expanded is 15px (perfect), when collapsed is 38px (need to reduce by 23px)
-    // Current right margin is 15px (perfect)
     const leftPosition = state === "collapsed" ? "26px" : "264px";
-    console.log("TopNavbar - Calculated left position:", leftPosition);
 
     return (
         <div>
@@ -36,8 +27,8 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                     padding: "0"
                 }}
             >
-                <div className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-3rem)]">
-                    test
+                <div className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-3rem)] flex items-center overflow-x-scroll gap-2">
+                    <Tab/>
                 </div>
 
                 <div className="flex items-center justify-center flex-1">
