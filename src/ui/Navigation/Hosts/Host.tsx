@@ -37,16 +37,14 @@ export function Host({ host }: HostProps): React.ReactElement {
     const tags = Array.isArray(host.tags) ? host.tags : [];
     const hasTags = tags.length > 0;
     
+    const title = host.name?.trim() ? host.name : `${host.username}@${host.ip}:${host.port}`;
+
     const handleTerminalClick = () => {
-        console.log('Terminal button clicked for host:', host);
-        const title = host.name?.trim() ? host.name : `${host.username}@${host.ip}:${host.port}`;
-        console.log('Creating terminal tab with title:', title);
-        const tabId = addTab({
-            type: 'terminal',
-            title,
-            hostConfig: host,
-        });
-        console.log('Created terminal tab with ID:', tabId);
+        addTab({ type: 'terminal', title, hostConfig: host });
+    };
+
+    const handleServerClick = () => {
+        addTab({ type: 'server', title, hostConfig: host });
     };
     
     return (
@@ -59,7 +57,7 @@ export function Host({ host }: HostProps): React.ReactElement {
                     {host.name || host.ip}
                 </p>
                 <ButtonGroup className="flex-shrink-0">
-                    <Button variant="outline" className="!px-2 border-1 border-[#303032]">
+                    <Button variant="outline" className="!px-2 border-1 border-[#303032]" onClick={handleServerClick}>
                         <Server/>
                     </Button>
                     <Button 

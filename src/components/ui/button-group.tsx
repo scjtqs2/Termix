@@ -1,4 +1,4 @@
-import { Children, ReactElement, cloneElement } from 'react';
+import { Children, ReactElement, cloneElement, isValidElement } from 'react';
 
 import { ButtonProps } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 interface ButtonGroupProps {
   className?: string;
   orientation?: 'horizontal' | 'vertical';
-  children: ReactElement<ButtonProps>[];
+  children: ReactElement<ButtonProps>[] | React.ReactNode;
 }
 
 export const ButtonGroup = ({
@@ -14,9 +14,14 @@ export const ButtonGroup = ({
   orientation = 'horizontal',
   children,
 }: ButtonGroupProps) => {
-  const totalButtons = Children.count(children);
   const isHorizontal = orientation === 'horizontal';
   const isVertical = orientation === 'vertical';
+
+  // Normalize and filter only valid React elements
+  const childArray = Children.toArray(children).filter((child): child is ReactElement<ButtonProps> =>
+    isValidElement(child)
+  );
+  const totalButtons = childArray.length;
 
   return (
     <div
@@ -29,7 +34,7 @@ export const ButtonGroup = ({
         className
       )}
     >
-      {Children.map(children, (child, index) => {
+      {childArray.map((child, index) => {
         const isFirst = index === 0;
         const isLast = index === totalButtons - 1;
 

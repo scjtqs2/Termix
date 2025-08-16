@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useRef, ReactNode } from 'r
 
 export interface Tab {
     id: number;
-    type: 'home' | 'terminal' | 'ssh_manager';
+    type: 'home' | 'terminal' | 'ssh_manager' | 'server';
     title: string;
     hostConfig?: any;
     terminalRef?: React.RefObject<any>;

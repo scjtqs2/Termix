@@ -51,11 +51,13 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                         const isActive = tab.id === currentTab;
                         const isSplit = Array.isArray(allSplitScreenTab) && allSplitScreenTab.includes(tab.id);
                         const isTerminal = tab.type === 'terminal';
+                        const isServer = tab.type === 'server';
                         const isSshManager = tab.type === 'ssh_manager';
-                        // Old logic port:
-                        const isSplitButtonDisabled = (isActive && !isSplitScreenActive) || ((allSplitScreenTab?.length || 0) >= 3 && !isSplit);
+                        // Split availability
+                        const isSplittable = isTerminal || isServer;
                         // Disable split entirely when on Home or SSH Manager
-                        const disableSplit = isSplitButtonDisabled || isActive || currentTabIsHome || currentTabIsSshManager || isSshManager;
+                        const isSplitButtonDisabled = (isActive && !isSplitScreenActive) || ((allSplitScreenTab?.length || 0) >= 3 && !isSplit);
+                        const disableSplit = !isSplittable || isSplitButtonDisabled || isActive || currentTabIsHome || currentTabIsSshManager;
                         const disableActivate = isSplit || ((tab.type === 'home' || tab.type === 'ssh_manager') && isSplitScreenActive);
                         const disableClose = (isSplitScreenActive && isActive) || isSplit;
                         return (
@@ -65,10 +67,10 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                 title={tab.title}
                                 isActive={isActive}
                                 onActivate={() => handleTabActivate(tab.id)}
-                                onClose={isTerminal || isSshManager ? () => handleTabClose(tab.id) : undefined}
-                                onSplit={isTerminal ? () => handleTabSplit(tab.id) : undefined}
-                                canSplit={isTerminal}
-                                canClose={isTerminal || isSshManager}
+                                onClose={isTerminal || isServer || isSshManager ? () => handleTabClose(tab.id) : undefined}
+                                onSplit={isSplittable ? () => handleTabSplit(tab.id) : undefined}
+                                canSplit={isSplittable}
+                                canClose={isTerminal || isServer || isSshManager}
                                 disableActivate={disableActivate}
                                 disableSplit={disableSplit}
                                 disableClose={disableClose}
@@ -81,7 +83,7 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                     <Button
                         variant="outline"
                         onClick={() => setIsTopbarOpen(false)}
-                        className="w-[28px] h-[28]"
+                        className="w-[28px] h-[28px]"
                     >
                         <ChevronUpIcon/>
                     </Button>

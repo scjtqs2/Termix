@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import {TerminalComponent} from "./TerminalComponent.tsx";
+import {Server as ServerView} from "@/ui/SSH/Server/Server.tsx";
 import {useTabs} from "@/contexts/TabContext";
 import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
 import * as ResizablePrimitive from "react-resizable-panels";
 import { useSidebar } from "@/components/ui/sidebar";
+import {LucideRefreshCcw, LucideRefreshCw, RefreshCcw, RefreshCcwDot} from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
 
 interface TerminalViewProps {
     isTopbarOpen?: boolean;
@@ -13,12 +16,13 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
     const {tabs, currentTab, allSplitScreenTab} = useTabs() as any;
     const { state: sidebarState } = useSidebar();
 
-    const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal');
+    const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal' || tab.type === 'server');
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const [panelRects, setPanelRects] = useState<Record<string, DOMRect | null>>({});
     const [ready, setReady] = useState<boolean>(true);
+    const [resetKey, setResetKey] = useState<number>(0);
 
     const updatePanelRects = () => {
         const next: Record<string, DOMRect | null> = {};
@@ -79,7 +83,7 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
     useEffect(() => {
         scheduleMeasureAndFit();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [allSplitScreenTab.length, isTopbarOpen, sidebarState]);
+    }, [allSplitScreenTab.length, isTopbarOpen, sidebarState, resetKey]);
 
     useEffect(() => {
         const roContainer = containerRef.current ? new ResizeObserver(() => {
@@ -145,20 +149,47 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
                     return (
                         <div key={t.id} style={finalStyle}>
                             <div className="absolute inset-0 rounded-md" style={{background:'#18181b'}}>
-                                <TerminalComponent
-                                    ref={t.terminalRef}
-                                    hostConfig={t.hostConfig}
-                                    isVisible={effectiveVisible}
-                                    title={t.title}
-                                    showTitle={false}
-                                    splitScreen={allSplitScreenTab.length>0}
-                                />
+                                {t.type === 'terminal' ? (
+                                    <TerminalComponent
+                                        ref={t.terminalRef}
+                                        hostConfig={t.hostConfig}
+                                        isVisible={effectiveVisible}
+                                        title={t.title}
+                                        showTitle={false}
+                                        splitScreen={allSplitScreenTab.length>0}
+                                    />
+                                ) : (
+                                    <ServerView
+                                        hostConfig={t.hostConfig}
+                                        title={t.title}
+                                        isVisible={effectiveVisible}
+                                        isTopbarOpen={isTopbarOpen}
+                                        embedded
+                                    />
+                                )}
                             </div>
                         </div>
                     );
                 })}
             </div>
         );
+    };
+
+    const ResetButton = ({ onClick }: { onClick: () => void }) => (
+        <Button
+            type="button"
+            variant="ghost"
+            onClick={onClick}
+            aria-label="Reset split sizes"
+            className="absolute top-0 right-0 h-[28px] w-[28px] !rounded-none border-l-1 border-b-1 border-[#222224] bg-[#1b1b1e] hover:bg-[#232327] text-white flex items-center justify-center p-0"
+        >
+            <RefreshCcw className="h-4 w-4" />
+        </Button>
+    );
+
+    const handleReset = () => {
+        setResetKey((k) => k + 1);
+        requestAnimationFrame(() => scheduleMeasureAndFit());
     };
 
     const renderSplitOverlays = () => {
@@ -174,16 +205,19 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
             const [a,b] = layoutTabs as any[];
             return (
                 <div style={{ position:'absolute', inset:0, zIndex:10, pointerEvents:'none' }}>
-                    <ResizablePrimitive.PanelGroup direction="horizontal" className="h-full w-full" {...commonGroupProps}>
+                    <ResizablePrimitive.PanelGroup key={resetKey} direction="horizontal" className="h-full w-full" {...commonGroupProps}>
                         <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${a.id}`} order={1}>
                             <div ref={el => { panelRefs.current[String(a.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',background:'transparent',position:'relative'}}>
-                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{a.title}</div>
+                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>{a.title}</div>
                             </div>
                         </ResizablePanel>
                         <ResizableHandle style={handleStyle}/>
                         <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${b.id}`} order={2}>
                             <div ref={el => { panelRefs.current[String(b.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',background:'transparent',position:'relative'}}>
-                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{b.title}</div>
+                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>
+                                    {b.title}
+                                    <ResetButton onClick={handleReset} />
+                                </div>
                             </div>
                         </ResizablePanel>
                     </ResizablePrimitive.PanelGroup>
@@ -194,18 +228,21 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
             const [a,b,c] = layoutTabs as any[];
             return (
                 <div style={{ position:'absolute', inset:0, zIndex:10, pointerEvents:'none' }}>
-                    <ResizablePrimitive.PanelGroup direction="vertical" className="h-full w-full" id="main-vertical" {...commonGroupProps}>
+                    <ResizablePrimitive.PanelGroup key={resetKey} direction="vertical" className="h-full w-full" id="main-vertical" {...commonGroupProps}>
                         <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id="top-panel" order={1}>
-                            <ResizablePanelGroup direction="horizontal" className="h-full w-full" id="top-horizontal" {...commonGroupProps}>
+                            <ResizablePanelGroup key={`top-${resetKey}`} direction="horizontal" className="h-full w-full" id="top-horizontal" {...commonGroupProps}>
                                 <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${a.id}`} order={1}>
                                     <div ref={el => { panelRefs.current[String(a.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
-                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{a.title}</div>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>{a.title}</div>
                                     </div>
                                 </ResizablePanel>
                                 <ResizableHandle style={handleStyle}/>
                                 <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${b.id}`} order={2}>
                                     <div ref={el => { panelRefs.current[String(b.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
-                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{b.title}</div>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>
+                                            {b.title}
+                                            <ResetButton onClick={handleReset} />
+                                        </div>
                                     </div>
                                 </ResizablePanel>
                             </ResizablePanelGroup>
@@ -213,7 +250,7 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
                         <ResizableHandle style={handleStyle}/>
                         <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id="bottom-panel" order={2}>
                             <div ref={el => { panelRefs.current[String(c.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
-                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{c.title}</div>
+                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>{c.title}</div>
                             </div>
                         </ResizablePanel>
                     </ResizablePrimitive.PanelGroup>
@@ -224,34 +261,37 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
             const [a,b,c,d] = layoutTabs as any[];
             return (
                 <div style={{ position:'absolute', inset:0, zIndex:10, pointerEvents:'none' }}>
-                    <ResizablePrimitive.PanelGroup direction="vertical" className="h-full w-full" id="main-vertical" {...commonGroupProps}>
+                    <ResizablePrimitive.PanelGroup key={resetKey} direction="vertical" className="h-full w-full" id="main-vertical" {...commonGroupProps}>
                         <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id="top-panel" order={1}>
-                            <ResizablePanelGroup direction="horizontal" className="h-full w-full" id="top-horizontal" {...commonGroupProps}>
-                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${a.id}`} order={1}>
+                            <ResizablePanelGroup key={`top-${resetKey}`} direction="horizontal" className="h-full w-full" id="top-horizontal" {...commonGroupProps}>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id={`panel-${a.id}`} order={1}>
                                     <div ref={el => { panelRefs.current[String(a.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
-                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{a.title}</div>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>{a.title}</div>
                                     </div>
                                 </ResizablePanel>
                                 <ResizableHandle style={handleStyle}/>
-                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w_full" id={`panel-${b.id}`} order={2}>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id={`panel-${b.id}`} order={2}>
                                     <div ref={el => { panelRefs.current[String(b.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
-                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{b.title}</div>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>
+                                            {b.title}
+                                            <ResetButton onClick={handleReset} />
+                                        </div>
                                     </div>
                                 </ResizablePanel>
                             </ResizablePanelGroup>
                         </ResizablePanel>
                         <ResizableHandle style={handleStyle}/>
                         <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id="bottom-panel" order={2}>
-                            <ResizablePanelGroup direction="horizontal" className="h-full w-full" id="bottom-horizontal" {...commonGroupProps}>
+                            <ResizablePanelGroup key={`bottom-${resetKey}`} direction="horizontal" className="h-full w-full" id="bottom-horizontal" {...commonGroupProps}>
                                 <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id={`panel-${c.id}`} order={1}>
                                     <div ref={el => { panelRefs.current[String(c.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
-                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{c.title}</div>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>{c.title}</div>
                                     </div>
                                 </ResizablePanel>
                                 <ResizableHandle style={handleStyle}/>
                                 <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id={`panel-${d.id}`} order={2}>
                                     <div ref={el => { panelRefs.current[String(d.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
-                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{d.title}</div>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11, position:'relative'}}>{d.title}</div>
                                     </div>
                                 </ResizablePanel>
                             </ResizablePanelGroup>
