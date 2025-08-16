@@ -3,6 +3,7 @@ import {Status, StatusIndicator} from "@/components/ui/shadcn-io/status";
 import {Button} from "@/components/ui/button.tsx";
 import {ButtonGroup} from "@/components/ui/button-group.tsx";
 import {Server, Terminal} from "lucide-react";
+import {useTabs} from "@/contexts/TabContext";
 
 interface SSHHost {
     id: number;
@@ -32,8 +33,21 @@ interface HostProps {
 }
 
 export function Host({ host }: HostProps): React.ReactElement {
+    const { addTab } = useTabs();
     const tags = Array.isArray(host.tags) ? host.tags : [];
     const hasTags = tags.length > 0;
+    
+    const handleTerminalClick = () => {
+        console.log('Terminal button clicked for host:', host);
+        const title = host.name?.trim() ? host.name : `${host.username}@${host.ip}:${host.port}`;
+        console.log('Creating terminal tab with title:', title);
+        const tabId = addTab({
+            type: 'terminal',
+            title,
+            hostConfig: host,
+        });
+        console.log('Created terminal tab with ID:', tabId);
+    };
     
     return (
         <div>
@@ -48,7 +62,11 @@ export function Host({ host }: HostProps): React.ReactElement {
                     <Button variant="outline" className="!px-2 border-1 border-[#303032]">
                         <Server/>
                     </Button>
-                    <Button variant="outline" className="!px-2 border-1 border-[#303032]">
+                    <Button 
+                        variant="outline" 
+                        className="!px-2 border-1 border-[#303032]"
+                        onClick={handleTerminalClick}
+                    >
                         <Terminal/>
                     </Button>
                 </ButtonGroup>

@@ -344,14 +344,9 @@ export function HomepageAuth({
 
     return (
         <div
-            className={cn(
-                "",
-                className
-            )}
+            className={`w-[420px] max-w-full p-6 flex flex-col ${className || ''}`}
             {...props}
         >
-            <div
-                className={`w-[420px] max-w-full bg-background/95 backdrop-blur-md rounded-xl shadow-2xl p-6 flex flex-col relative ${internalLoggedIn ? '' : 'ring-1 ring-border/50'} focus-within:ring-2 focus-within:ring-primary/50 transition-all duration-200`}>
                 {dbError && (
                     <Alert variant="destructive" className="mb-4">
                         <AlertTitle>Error</AlertTitle>
@@ -383,52 +378,6 @@ export function HomepageAuth({
                             administrator.
                         </AlertDescription>
                     </Alert>
-                )}
-                {(internalLoggedIn || getCookie("jwt")) && (
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="my-2 text-center bg-muted/50 border border-border rounded-lg p-4 w-full">
-                            <h3 className="text-lg font-semibold mb-2">Logged in!</h3>
-                            <p className="text-muted-foreground">
-                                You are logged in! Use the sidebar to access all available tools. To get started,
-                                create an SSH Host in the SSH Manager tab. Once created, you can connect to that
-                                host using the other apps in the sidebar.
-                            </p>
-                        </div>
-
-                        <div className="flex flex-row items-center gap-2">
-                            <Button
-                                variant="link"
-                                className="text-sm"
-                                onClick={() => window.open('https://github.com/LukeGus/Termix', '_blank')}
-                            >
-                                GitHub
-                            </Button>
-                            <div className="w-px h-4 bg-border"></div>
-                            <Button
-                                variant="link"
-                                className="text-sm"
-                                onClick={() => window.open('https://github.com/LukeGus/Termix/issues/new', '_blank')}
-                            >
-                                Feedback
-                            </Button>
-                            <div className="w-px h-4 bg-border"></div>
-                            <Button
-                                variant="link"
-                                className="text-sm"
-                                onClick={() => window.open('https://discord.com/invite/jVQGdvHDrf', '_blank')}
-                            >
-                                Discord
-                            </Button>
-                            <div className="w-px h-4 bg-border"></div>
-                            <Button
-                                variant="link"
-                                className="text-sm"
-                                onClick={() => window.open('https://github.com/sponsors/LukeGus', '_blank')}
-                            >
-                                Fund
-                            </Button>
-                        </div>
-                    </div>
                 )}
                 {(!internalLoggedIn && (!authLoading || !getCookie("jwt"))) && (
                     <>
@@ -734,6 +683,5 @@ export function HomepageAuth({
                     </Alert>
                 )}
             </div>
-        </div>
     );
 }

@@ -1,0 +1,288 @@
+import React, { useEffect, useRef, useState } from "react";
+import {TerminalComponent} from "./TerminalComponent.tsx";
+import {useTabs} from "@/contexts/TabContext";
+import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
+import * as ResizablePrimitive from "react-resizable-panels";
+import { useSidebar } from "@/components/ui/sidebar";
+
+interface TerminalViewProps {
+    isTopbarOpen?: boolean;
+}
+
+export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.ReactElement {
+    const {tabs, currentTab, allSplitScreenTab} = useTabs() as any;
+    const { state: sidebarState } = useSidebar();
+
+    const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal');
+
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const [panelRects, setPanelRects] = useState<Record<string, DOMRect | null>>({});
+    const [ready, setReady] = useState<boolean>(true);
+
+    const updatePanelRects = () => {
+        const next: Record<string, DOMRect | null> = {};
+        Object.entries(panelRefs.current).forEach(([id, el]) => {
+            if (el) next[id] = el.getBoundingClientRect();
+        });
+        setPanelRects(next);
+    };
+
+    const fitActiveAndNotify = () => {
+        const visibleIds: number[] = [];
+        if (allSplitScreenTab.length === 0) {
+            if (currentTab) visibleIds.push(currentTab);
+        } else {
+            const splitIds = allSplitScreenTab as number[];
+            visibleIds.push(currentTab, ...splitIds.filter((i) => i !== currentTab));
+        }
+        terminalTabs.forEach((t: any) => {
+            if (visibleIds.includes(t.id)) {
+                const ref = t.terminalRef?.current;
+                if (ref?.fit) ref.fit();
+                if (ref?.notifyResize) ref.notifyResize();
+                if (ref?.refresh) ref.refresh();
+            }
+        });
+    };
+
+    // Coalesce layout → measure → fit callbacks
+    const layoutScheduleRef = useRef<number | null>(null);
+    const scheduleMeasureAndFit = () => {
+        if (layoutScheduleRef.current) cancelAnimationFrame(layoutScheduleRef.current);
+        layoutScheduleRef.current = requestAnimationFrame(() => {
+            updatePanelRects();
+            layoutScheduleRef.current = requestAnimationFrame(() => {
+                fitActiveAndNotify();
+            });
+        });
+    };
+
+    // Hide terminals until layout → rects → fit applied to prevent first-frame wrapping
+    const hideThenFit = () => {
+        setReady(false);
+        requestAnimationFrame(() => {
+            updatePanelRects();
+            requestAnimationFrame(() => {
+                fitActiveAndNotify();
+                setReady(true);
+            });
+        });
+    };
+
+    useEffect(() => {
+        hideThenFit();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTab, terminalTabs.length, allSplitScreenTab.join(',')]);
+
+    // When split layout toggles on/off, topbar toggles, or sidebar state changes → measure+fit
+    useEffect(() => {
+        scheduleMeasureAndFit();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allSplitScreenTab.length, isTopbarOpen, sidebarState]);
+
+    useEffect(() => {
+        const roContainer = containerRef.current ? new ResizeObserver(() => {
+            updatePanelRects();
+            fitActiveAndNotify();
+        }) : null;
+        if (containerRef.current && roContainer) roContainer.observe(containerRef.current);
+        return () => roContainer?.disconnect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        const onWinResize = () => { updatePanelRects(); fitActiveAndNotify(); };
+        window.addEventListener('resize', onWinResize);
+        return () => window.removeEventListener('resize', onWinResize);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const HEADER_H = 28;
+
+    const renderTerminalsLayer = () => {
+        const styles: Record<number, React.CSSProperties> = {};
+        const splitTabs = terminalTabs.filter((tab: any) => allSplitScreenTab.includes(tab.id));
+        const mainTab = terminalTabs.find((tab: any) => tab.id === currentTab);
+        const layoutTabs = [mainTab, ...splitTabs.filter((t:any)=> t && t.id !== (mainTab && (mainTab as any).id))].filter(Boolean) as any[];
+
+        if (allSplitScreenTab.length === 0 && mainTab) {
+            styles[mainTab.id] = { position:'absolute', top:2, left:2, right:2, bottom:2, zIndex: 20, display: 'block', pointerEvents:'auto', opacity: ready ? 1 : 0 };
+        } else {
+            layoutTabs.forEach((t: any) => {
+                const rect = panelRects[String(t.id)];
+                const parentRect = containerRef.current?.getBoundingClientRect();
+                if (rect && parentRect) {
+                    styles[t.id] = {
+                        position:'absolute',
+                        top: (rect.top - parentRect.top) + HEADER_H + 2,
+                        left: (rect.left - parentRect.left) + 2,
+                        width: rect.width - 4,
+                        height: rect.height - HEADER_H - 4,
+                        zIndex: 20,
+                        display: 'block',
+                        pointerEvents:'auto',
+                        opacity: ready ? 1 : 0,
+                    };
+                }
+            });
+        }
+
+        return (
+            <div style={{position:'absolute', inset:0, zIndex:1}}>
+                {terminalTabs.map((t:any) => {
+                    const hasStyle = !!styles[t.id];
+                    const isVisible = hasStyle || (allSplitScreenTab.length===0 && t.id===currentTab);
+
+                    // Visible style from computed positions; otherwise keep mounted but hidden and non-interactive
+                    const finalStyle: React.CSSProperties = hasStyle
+                        ? {...styles[t.id], overflow:'hidden'}
+                        : {
+                            position:'absolute', inset:0, visibility:'hidden', pointerEvents:'none', zIndex:0,
+                          } as React.CSSProperties;
+
+                    const effectiveVisible = isVisible && ready;
+                    return (
+                        <div key={t.id} style={finalStyle}>
+                            <div className="absolute inset-0 rounded-md" style={{background:'#18181b'}}>
+                                <TerminalComponent
+                                    ref={t.terminalRef}
+                                    hostConfig={t.hostConfig}
+                                    isVisible={effectiveVisible}
+                                    title={t.title}
+                                    showTitle={false}
+                                    splitScreen={allSplitScreenTab.length>0}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    const renderSplitOverlays = () => {
+        const splitTabs = terminalTabs.filter((tab: any) => allSplitScreenTab.includes(tab.id));
+        const mainTab = terminalTabs.find((tab: any) => tab.id === currentTab);
+        const layoutTabs = [mainTab, ...splitTabs.filter((t:any)=> t && t.id !== (mainTab && (mainTab as any).id))].filter(Boolean) as any[];
+        if (allSplitScreenTab.length === 0) return null;
+
+        const handleStyle = { pointerEvents:'auto', zIndex:12, background:'#303032' } as React.CSSProperties;
+        const commonGroupProps = { onLayout: scheduleMeasureAndFit, onResize: scheduleMeasureAndFit } as any;
+
+        if (layoutTabs.length === 2) {
+            const [a,b] = layoutTabs as any[];
+            return (
+                <div style={{ position:'absolute', inset:0, zIndex:10, pointerEvents:'none' }}>
+                    <ResizablePrimitive.PanelGroup direction="horizontal" className="h-full w-full" {...commonGroupProps}>
+                        <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${a.id}`} order={1}>
+                            <div ref={el => { panelRefs.current[String(a.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',background:'transparent',position:'relative'}}>
+                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{a.title}</div>
+                            </div>
+                        </ResizablePanel>
+                        <ResizableHandle style={handleStyle}/>
+                        <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${b.id}`} order={2}>
+                            <div ref={el => { panelRefs.current[String(b.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',background:'transparent',position:'relative'}}>
+                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{b.title}</div>
+                            </div>
+                        </ResizablePanel>
+                    </ResizablePrimitive.PanelGroup>
+                </div>
+            );
+        }
+        if (layoutTabs.length === 3) {
+            const [a,b,c] = layoutTabs as any[];
+            return (
+                <div style={{ position:'absolute', inset:0, zIndex:10, pointerEvents:'none' }}>
+                    <ResizablePrimitive.PanelGroup direction="vertical" className="h-full w-full" id="main-vertical" {...commonGroupProps}>
+                        <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id="top-panel" order={1}>
+                            <ResizablePanelGroup direction="horizontal" className="h-full w-full" id="top-horizontal" {...commonGroupProps}>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${a.id}`} order={1}>
+                                    <div ref={el => { panelRefs.current[String(a.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{a.title}</div>
+                                    </div>
+                                </ResizablePanel>
+                                <ResizableHandle style={handleStyle}/>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${b.id}`} order={2}>
+                                    <div ref={el => { panelRefs.current[String(b.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{b.title}</div>
+                                    </div>
+                                </ResizablePanel>
+                            </ResizablePanelGroup>
+                        </ResizablePanel>
+                        <ResizableHandle style={handleStyle}/>
+                        <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id="bottom-panel" order={2}>
+                            <div ref={el => { panelRefs.current[String(c.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+                                <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{c.title}</div>
+                            </div>
+                        </ResizablePanel>
+                    </ResizablePrimitive.PanelGroup>
+                </div>
+            );
+        }
+        if (layoutTabs.length === 4) {
+            const [a,b,c,d] = layoutTabs as any[];
+            return (
+                <div style={{ position:'absolute', inset:0, zIndex:10, pointerEvents:'none' }}>
+                    <ResizablePrimitive.PanelGroup direction="vertical" className="h-full w-full" id="main-vertical" {...commonGroupProps}>
+                        <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id="top-panel" order={1}>
+                            <ResizablePanelGroup direction="horizontal" className="h-full w-full" id="top-horizontal" {...commonGroupProps}>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w-full" id={`panel-${a.id}`} order={1}>
+                                    <div ref={el => { panelRefs.current[String(a.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{a.title}</div>
+                                    </div>
+                                </ResizablePanel>
+                                <ResizableHandle style={handleStyle}/>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h-full w_full" id={`panel-${b.id}`} order={2}>
+                                    <div ref={el => { panelRefs.current[String(b.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{b.title}</div>
+                                    </div>
+                                </ResizablePanel>
+                            </ResizablePanelGroup>
+                        </ResizablePanel>
+                        <ResizableHandle style={handleStyle}/>
+                        <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id="bottom-panel" order={2}>
+                            <ResizablePanelGroup direction="horizontal" className="h-full w-full" id="bottom-horizontal" {...commonGroupProps}>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id={`panel-${c.id}`} order={1}>
+                                    <div ref={el => { panelRefs.current[String(c.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{c.title}</div>
+                                    </div>
+                                </ResizablePanel>
+                                <ResizableHandle style={handleStyle}/>
+                                <ResizablePanel defaultSize={50} minSize={20} className="!overflow-hidden h_full w_full" id={`panel-${d.id}`} order={2}>
+                                    <div ref={el => { panelRefs.current[String(d.id)] = el; }} style={{height:'100%',width:'100%',display:'flex',flexDirection:'column',position:'relative'}}>
+                                        <div style={{background:'#1b1b1e',color:'#fff',fontSize:13,height:HEADER_H,lineHeight:`${HEADER_H}px`,padding:'0 10px',borderBottom:'1px solid #222224',letterSpacing:1,margin:0,pointerEvents:'auto',zIndex:11}}>{d.title}</div>
+                                    </div>
+                                </ResizablePanel>
+                            </ResizablePanelGroup>
+                        </ResizablePanel>
+                    </ResizablePrimitive.PanelGroup>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    const topMarginPx = isTopbarOpen ? 74 : 26;
+    const leftMarginPx = sidebarState === 'collapsed' ? 26 : 8;
+    const bottomMarginPx = 15;
+
+    return (
+        <div
+            ref={containerRef}
+            className="border-2 border-[#303032] rounded-lg overflow-hidden overflow-x-hidden"
+            style={{
+                position:'relative',
+                background:'#18181b',
+                marginLeft: leftMarginPx,
+                marginRight: 17,
+                marginTop: topMarginPx,
+                marginBottom: bottomMarginPx,
+                height: `calc(100vh - ${topMarginPx + bottomMarginPx}px)`,
+            }}
+        >
+            {renderTerminalsLayer()}
+            {renderSplitOverlays()}
+        </div>
+    );
+}

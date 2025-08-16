@@ -131,3 +131,25 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Thin scrollbar utility for scrollable containers */
+.thin-scrollbar {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: #303032 transparent; /* Firefox */
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+    height: 6px; /* horizontal */
+    width: 6px; /* vertical, if any */
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #303032;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}

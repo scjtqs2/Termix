@@ -3,6 +3,7 @@ import {HomepageAuth} from "@/ui/Homepage/HomepageAuth.tsx";
 import axios from "axios";
 import {HomepageUpdateLog} from "@/ui/Homepage/HompageUpdateLog.tsx";
 import {HomepageAlertManager} from "@/ui/Homepage/HomepageAlertManager.tsx";
+import {Button} from "@/components/ui/button.tsx";
 
 interface HomepageProps {
     onSelectView: (view: string) => void;
@@ -30,7 +31,13 @@ const API = axios.create({
     baseURL: apiBase,
 });
 
-export function Homepage({onSelectView, isAuthenticated, authLoading, onAuthSuccess, isTopbarOpen = true}: HomepageProps): React.ReactElement {
+export function Homepage({
+                             onSelectView,
+                             isAuthenticated,
+                             authLoading,
+                             onAuthSuccess,
+                             isTopbarOpen = true
+                         }: HomepageProps): React.ReactElement {
     const [loggedIn, setLoggedIn] = useState(isAuthenticated);
     const [isAdmin, setIsAdmin] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
@@ -71,9 +78,10 @@ export function Homepage({onSelectView, isAuthenticated, authLoading, onAuthSucc
     }, [isAuthenticated]);
 
     return (
-        <div className={`w-full min-h-svh grid place-items-center relative transition-[padding-top] duration-200 ease-linear ${
-            isTopbarOpen ? 'pt-[66px]' : 'pt-2'
-        }`}>
+        <div
+            className={`w-full min-h-svh grid place-items-center relative transition-[padding-top] duration-200 ease-linear ${
+                isTopbarOpen ? 'pt-[66px]' : 'pt-2'
+            }`}>
             <div className="flex flex-row items-center justify-center gap-8 relative z-[10000]">
                 <HomepageAuth
                     setLoggedIn={setLoggedIn}
@@ -86,9 +94,60 @@ export function Homepage({onSelectView, isAuthenticated, authLoading, onAuthSucc
                     setDbError={setDbError}
                     onAuthSuccess={onAuthSuccess}
                 />
-                <HomepageUpdateLog
-                    loggedIn={loggedIn}
-                />
+
+                <div className="flex flex-row items-center justify-center gap-8">
+                    {loggedIn && (
+                        <div className="flex flex-col items-center gap-4 w-[350px]">
+                            <div
+                                className="my-2 text-center bg-muted/50 border-2 border-[#303032] rounded-lg p-4 w-full">
+                                <h3 className="text-lg font-semibold mb-2">Logged in!</h3>
+                                <p className="text-muted-foreground">
+                                    You are logged in! Use the sidebar to access all available tools. To get started,
+                                    create an SSH Host in the SSH Manager tab. Once created, you can connect to that
+                                    host using the other apps in the sidebar.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-row items-center gap-2">
+                                <Button
+                                    variant="link"
+                                    className="text-sm"
+                                    onClick={() => window.open('https://github.com/LukeGus/Termix', '_blank')}
+                                >
+                                    GitHub
+                                </Button>
+                                <div className="w-px h-4 bg-border"></div>
+                                <Button
+                                    variant="link"
+                                    className="text-sm"
+                                    onClick={() => window.open('https://github.com/LukeGus/Termix/issues/new', '_blank')}
+                                >
+                                    Feedback
+                                </Button>
+                                <div className="w-px h-4 bg-border"></div>
+                                <Button
+                                    variant="link"
+                                    className="text-sm"
+                                    onClick={() => window.open('https://discord.com/invite/jVQGdvHDrf', '_blank')}
+                                >
+                                    Discord
+                                </Button>
+                                <div className="w-px h-4 bg-border"></div>
+                                <Button
+                                    variant="link"
+                                    className="text-sm"
+                                    onClick={() => window.open('https://github.com/sponsors/LukeGus', '_blank')}
+                                >
+                                    Fund
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    <HomepageUpdateLog
+                        loggedIn={loggedIn}
+                    />
+                </div>
             </div>
 
             <HomepageAlertManager

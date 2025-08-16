@@ -1,10 +1,11 @@
 import React, {useState, useEffect} from "react"
 import {LeftSidebar} from "@/ui/Navigation/LeftSidebar.tsx"
 import {Homepage} from "@/ui/Homepage/Homepage.tsx"
-import {Terminal} from "@/ui/SSH/Terminal/Terminal.tsx"
+import {TerminalView} from "@/ui/SSH/Terminal/TerminalView.tsx"
 import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
 import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx"
 import {SSHManager} from "@/ui/SSH/Manager/SSHManager.tsx"
+import {TabProvider, useTabs} from "@/contexts/TabContext"
 import axios from "axios"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 
@@ -23,7 +24,7 @@ function setCookie(name: string, value: string, days = 7) {
     document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
 }
 
-function App() {
+function AppContent() {
     const [view, setView] = useState<string>("homepage")
     const [mountedViews, setMountedViews] = useState<Set<string>>(new Set(["homepage"]))
     const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -31,6 +32,7 @@ function App() {
     const [isAdmin, setIsAdmin] = useState(false)
     const [authLoading, setAuthLoading] = useState(true)
     const [isTopbarOpen, setIsTopbarOpen] = useState<boolean>(true)
+    const {currentTab, tabs} = useTabs();
 
     useEffect(() => {
         const checkAuth = () => {
@@ -82,6 +84,17 @@ function App() {
         setIsAdmin(authData.isAdmin)
         setUsername(authData.username)
     }
+
+    // Determine what to show based on current tab
+    const currentTabData = tabs.find(tab => tab.id === currentTab);
+    const showTerminalView = currentTabData?.type === 'terminal';
+    const showHome = currentTabData?.type === 'home';
+    const showSshManager = currentTabData?.type === 'ssh_manager';
+    
+    console.log('Current tab:', currentTab);
+    console.log('Current tab data:', currentTabData);
+    console.log('Show terminal view:', showTerminalView);
+    console.log('All tabs:', tabs);
 
     return (
         <div>
@@ -139,20 +152,61 @@ function App() {
                     isAdmin={isAdmin}
                     username={username}
                 >
-                    {mountedViews.has("homepage") && (
-                        <div style={{display: view === "homepage" ? "block" : "none"}}>
-                            <Homepage 
-                                onSelectView={handleSelectView}
-                                isAuthenticated={isAuthenticated}
-                                authLoading={authLoading}
-                                onAuthSuccess={handleAuthSuccess}
-                                isTopbarOpen={isTopbarOpen}
-                            />
-                        </div>
-                    )}
+                    {/* Always render TerminalView to maintain terminal persistence */}
+                    <div
+                        className="h-screen w-full"
+                        style={{
+                            visibility: showTerminalView ? "visible" : "hidden",
+                            pointerEvents: showTerminalView ? "auto" : "none",
+                            height: showTerminalView ? "100vh" : 0,
+                            width: showTerminalView ? "100%" : 0,
+                            position: showTerminalView ? "static" : "absolute",
+                            overflow: "hidden",
+                        }}
+                    >
+                        <TerminalView isTopbarOpen={isTopbarOpen} />
+                    </div>
+                    
+                    {/* Always render Homepage to keep it mounted */}
+                    <div
+                        className="h-screen w-full"
+                        style={{
+                            visibility: showHome ? "visible" : "hidden",
+                            pointerEvents: showHome ? "auto" : "none",
+                            height: showHome ? "100vh" : 0,
+                            width: showHome ? "100%" : 0,
+                            position: showHome ? "static" : "absolute",
+                            overflow: "hidden",
+                        }}
+                    >
+                        <Homepage 
+                            onSelectView={handleSelectView}
+                            isAuthenticated={isAuthenticated}
+                            authLoading={authLoading}
+                            onAuthSuccess={handleAuthSuccess}
+                            isTopbarOpen={isTopbarOpen}
+                        />
+                    </div>
+
+                    {/* Always render SSH Manager but toggle visibility for persistence */}
+                    <div
+                        className="h-screen w-full"
+                        style={{
+                            visibility: showSshManager ? "visible" : "hidden",
+                            pointerEvents: showSshManager ? "auto" : "none",
+                            height: showSshManager ? "100vh" : 0,
+                            width: showSshManager ? "100%" : 0,
+                            position: showSshManager ? "static" : "absolute",
+                            overflow: "hidden",
+                        }}
+                    >
+                        <SSHManager onSelectView={handleSelectView} isTopbarOpen={isTopbarOpen} />
+                    </div>
+                    
+                    {/* Legacy views - keep for compatibility (exclude homepage to avoid duplicate mounts) */}
                     {mountedViews.has("ssh_manager") && (
                         <div style={{display: view === "ssh_manager" ? "block" : "none"}}>
-                            <SSHManager onSelectView={handleSelectView}/>
+                            <SSHManager onSelectView={handleSelectView} isTopbarOpen={isTopbarOpen}/>
                         </div>
                     )}
                     {mountedViews.has("terminal") && (
@@ -175,6 +229,14 @@ function App() {
             )}
         </div>
     )
+}
+
+function App() {
+    return (
+        <TabProvider>
+            <AppContent />
+        </TabProvider>
+    );
 }
 
 export default App

@@ -49,6 +49,7 @@ import axios from "axios";
 import {Card} from "@/components/ui/card.tsx";
 import {FolderCard} from "@/ui/Navigation/Hosts/FolderCard.tsx";
 import {getSSHHosts} from "@/ui/SSH/ssh-axios";
+import { useTabs } from "@/contexts/TabContext";
 
 interface SSHHost {
     id: number;
@@ -144,6 +145,16 @@ export function LeftSidebar({
     const [makeAdminSuccess, setMakeAdminSuccess] = React.useState<string | null>(null);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
+    // Tabs context for opening SSH Manager tab
+    const { tabs: tabList, addTab, setCurrentTab, allSplitScreenTab } = useTabs() as any;
+    const isSplitScreenActive = Array.isArray(allSplitScreenTab) && allSplitScreenTab.length > 0;
+    const sshManagerTab = tabList.find((t) => t.type === 'ssh_manager');
+    const openSshManagerTab = () => {
+        if (sshManagerTab || isSplitScreenActive) return;
+        const id = addTab({ type: 'ssh_manager', title: 'SSH Manager' } as any);
+        setCurrentTab(id);
+    };
 
     // SSH Hosts state management
     const [hosts, setHosts] = useState<SSHHost[]>([]);
@@ -505,7 +516,7 @@ export function LeftSidebar({
                     <Separator className="p-0.25"/>
                     <SidebarContent>
                         <SidebarGroup className="!m-0 !p-0 !-mb-2">
-                            <Button className="m-2 flex flex-row font-semibold" variant="outline">
+                            <Button className="m-2 flex flex-row font-semibold" variant="outline" onClick={openSshManagerTab} disabled={!!sshManagerTab || isSplitScreenActive} title={sshManagerTab ? 'SSH Manager already open' : isSplitScreenActive ? 'Disabled during split screen' : undefined}>
                                 <HardDrive strokeWidth="2.5"/>
                                 Host Manager
                             </Button>
@@ -632,7 +643,7 @@ export function LeftSidebar({
                                                 <Users className="h-4 w-4"/>
                                                 Users
                                             </TabsTrigger>
-                                            <TabsTrigger value="admins" className="flex items-center gap-2">
+                                            <TabsTrigger value="admins" className="h-4 w-4">
                                                 <Shield className="h-4 w-4"/>
                                                 Admins
                                             </TabsTrigger>
@@ -759,7 +770,7 @@ export function LeftSidebar({
                                                         <Input
                                                             id="scopes"
                                                             value={oidcConfig.scopes}
-                                                            onChange={(e) => handleOIDCConfigChange('scopes', e.target.value)}
+                                                            onChange={(e) => handleOIDCConfigChange('scopes', (e.target as HTMLInputElement).value)}
                                                             placeholder="openid email profile"
                                                             required
                                                         />

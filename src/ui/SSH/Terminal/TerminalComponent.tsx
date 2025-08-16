@@ -17,6 +17,7 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
     {hostConfig, isVisible, splitScreen = false},
     ref
 ) {
+    console.log('TerminalComponent rendered with:', { hostConfig, isVisible, splitScreen });
     const {instance: terminal, ref: xtermRef} = useXTerm();
     const fitAddonRef = useRef<FitAddon | null>(null);
     const webSocketRef = useRef<WebSocket | null>(null);
@@ -24,6 +25,39 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
     const wasDisconnectedBySSH = useRef(false);
     const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const [visible, setVisible] = useState(false);
+    const isVisibleRef = useRef<boolean>(false);
+
+    // Debounce/stabilize resize notifications
+    const lastSentSizeRef = useRef<{cols:number; rows:number} | null>(null);
+    const pendingSizeRef = useRef<{cols:number; rows:number} | null>(null);
+    const notifyTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const DEBOUNCE_MS = 140;
+
+    useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
+
+    function hardRefresh() {
+        try {
+            if (terminal && typeof (terminal as any).refresh === 'function') {
+                (terminal as any).refresh(0, terminal.rows - 1);
+            }
+        } catch (_) {}
+    }
+
+    function scheduleNotify(cols: number, rows: number) {
+        if (!(cols > 0 && rows > 0)) return;
+        pendingSizeRef.current = {cols, rows};
+        if (notifyTimerRef.current) clearTimeout(notifyTimerRef.current);
+        notifyTimerRef.current = setTimeout(() => {
+            const next = pendingSizeRef.current;
+            const last = lastSentSizeRef.current;
+            if (!next) return;
+            if (last && last.cols === next.cols && last.rows === next.rows) return;
+            if (webSocketRef.current?.readyState === WebSocket.OPEN) {
+                webSocketRef.current.send(JSON.stringify({type: 'resize', data: next}));
+                lastSentSizeRef.current = next;
+            }
+        }, DEBOUNCE_MS);
+    }
 
     useImperativeHandle(ref, () => ({
         disconnect: () => {
@@ -35,13 +69,26 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
         },
         fit: () => {
             fitAddonRef.current?.fit();
+            if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+            hardRefresh();
         },
         sendInput: (data: string) => {
             if (webSocketRef.current?.readyState === 1) {
                 webSocketRef.current.send(JSON.stringify({type: 'input', data}));
             }
-        }
-    }), []);
+        },
+        notifyResize: () => {
+            try {
+                const cols = terminal?.cols ?? undefined;
+                const rows = terminal?.rows ?? undefined;
+                if (typeof cols === 'number' && typeof rows === 'number') {
+                    scheduleNotify(cols, rows);
+                    hardRefresh();
+                }
+            } catch (_) {}
+        },
+        refresh: () => hardRefresh(),
+    }), [terminal]);
 
     useEffect(() => {
         window.addEventListener('resize', handleWindowResize);
@@ -49,7 +96,10 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
     }, []);
 
     function handleWindowResize() {
+        if (!isVisibleRef.current) return;
         fitAddonRef.current?.fit();
+        if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+        hardRefresh();
     }
 
     function getCookie(name: string) {
@@ -69,8 +119,7 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
                 await navigator.clipboard.writeText(text);
                 return;
             }
-        } catch (_) {
-        }
+        } catch (_) {}
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';
@@ -78,11 +127,7 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
         document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();
-        try {
-            document.execCommand('copy');
-        } finally {
-            document.body.removeChild(textarea);
-        }
+        try { document.execCommand('copy'); } finally { document.body.removeChild(textarea); }
     }
 
     async function readTextFromClipboard(): Promise<string> {
@@ -90,8 +135,7 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
             if (navigator.clipboard && navigator.clipboard.readText) {
                 return await navigator.clipboard.readText();
             }
-        } catch (_) {
-        }
+        } catch (_) {}
         return '';
     }
 
@@ -104,10 +148,7 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
             scrollback: 10000,
             fontSize: 14,
             fontFamily: '"JetBrains Mono Nerd Font", "MesloLGS NF", "FiraCode Nerd Font", "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace',
-            theme: {
-                background: '#09090b',
-                foreground: '#f7f7f7',
-            },
+            theme: { background: '#18181b', foreground: '#f7f7f7' },
             allowTransparency: true,
             convertEol: true,
             windowsMode: false,
@@ -134,130 +175,103 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
         const element = xtermRef.current;
         const handleContextMenu = async (e: MouseEvent) => {
             if (!getUseRightClickCopyPaste()) return;
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             try {
                 if (terminal.hasSelection()) {
                     const selection = terminal.getSelection();
-                    if (selection) {
-                        await writeTextToClipboard(selection);
-                        terminal.clearSelection();
-                    }
+                    if (selection) { await writeTextToClipboard(selection); terminal.clearSelection(); }
                 } else {
                     const pasteText = await readTextFromClipboard();
-                    if (pasteText) {
-                        terminal.paste(pasteText);
-                    }
+                    if (pasteText) terminal.paste(pasteText);
                 }
-            } catch (_) {
-            }
+            } catch (_) {}
         };
-        if (element) {
-            element.addEventListener('contextmenu', handleContextMenu);
-        }
+        element?.addEventListener('contextmenu', handleContextMenu);
 
         const resizeObserver = new ResizeObserver(() => {
             if (resizeTimeout.current) clearTimeout(resizeTimeout.current);
             resizeTimeout.current = setTimeout(() => {
+                if (!isVisibleRef.current) return;
                 fitAddonRef.current?.fit();
-                const cols = terminal.cols;
-                const rows = terminal.rows;
-                if (webSocketRef.current?.readyState === WebSocket.OPEN) {
-                    webSocketRef.current.send(JSON.stringify({type: 'resize', data: {cols, rows}}));
-                }
+                if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+                hardRefresh();
             }, 100);
         });
 
         resizeObserver.observe(xtermRef.current);
-        setTimeout(() => {
-            fitAddon.fit();
-            setVisible(true);
 
-            const cols = terminal.cols;
-            const rows = terminal.rows;
-            const wsUrl = window.location.hostname === 'localhost'
-                ? 'ws://localhost:8082'
-                : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ssh/websocket/`;
+        const readyFonts = (document as any).fonts?.ready instanceof Promise ? (document as any).fonts.ready : Promise.resolve();
+        readyFonts.then(() => {
+            setTimeout(() => {
+                fitAddon.fit();
+                setTimeout(() => {
+                    fitAddon.fit();
+                    if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+                    hardRefresh();
+                    setVisible(true);
+                }, 0);
 
-            const ws = new WebSocket(wsUrl);
-            webSocketRef.current = ws;
-            wasDisconnectedBySSH.current = false;
+                const cols = terminal.cols;
+                const rows = terminal.rows;
+                const wsUrl = window.location.hostname === 'localhost' ? 'ws://localhost:8082' : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ssh/websocket/`;
 
-            ws.addEventListener('open', () => {
-                ws.send(JSON.stringify({type: 'connectToHost', data: {cols, rows, hostConfig}}));
-                terminal.onData((data) => {
-                    ws.send(JSON.stringify({type: 'input', data}));
+                const ws = new WebSocket(wsUrl);
+                webSocketRef.current = ws;
+                wasDisconnectedBySSH.current = false;
+
+                ws.addEventListener('open', () => {
+                    ws.send(JSON.stringify({type: 'connectToHost', data: {cols, rows, hostConfig}}));
+                    terminal.onData((data) => { ws.send(JSON.stringify({type: 'input', data})); });
+                    pingIntervalRef.current = setInterval(() => { if (ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({type: 'ping'})); } }, 30000);
                 });
 
-                pingIntervalRef.current = setInterval(() => {
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({type: 'ping'}));
-                    }
-                }, 30000);
-            });
+                ws.addEventListener('message', (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'data') terminal.write(msg.data);
+                        else if (msg.type === 'error') terminal.writeln(`\r\n[ERROR] ${msg.message}`);
+                        else if (msg.type === 'connected') { }
+                        else if (msg.type === 'disconnected') { wasDisconnectedBySSH.current = true; terminal.writeln(`\r\n[${msg.message || 'Disconnected'}]`); }
+                    } catch (error) { console.error('Error parsing WebSocket message:', error); }
+                });
 
-            ws.addEventListener('message', (event) => {
-                try {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'data') {
-                        terminal.write(msg.data);
-                    } else if (msg.type === 'error') {
-                        terminal.writeln(`\r\n[ERROR] ${msg.message}`);
-                    } else if (msg.type === 'connected') {
-                    } else if (msg.type === 'disconnected') {
-                        wasDisconnectedBySSH.current = true;
-                        terminal.writeln(`\r\n[${msg.message || 'Disconnected'}]`);
-                    }
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                }
-            });
-
-            ws.addEventListener('close', () => {
-                if (!wasDisconnectedBySSH.current) {
-                    terminal.writeln('\r\n[Connection closed]');
-                }
-            });
-
-            ws.addEventListener('error', () => {
-                terminal.writeln('\r\n[Connection error]');
-            });
-        }, 300);
+                ws.addEventListener('close', () => { if (!wasDisconnectedBySSH.current) terminal.writeln('\r\n[Connection closed]'); });
+                ws.addEventListener('error', () => { terminal.writeln('\r\n[Connection error]'); });
+            }, 300);
+        });
 
         return () => {
             resizeObserver.disconnect();
-            if (element) {
-                element.removeEventListener('contextmenu', handleContextMenu);
-            }
+            element?.removeEventListener('contextmenu', handleContextMenu);
+            if (notifyTimerRef.current) clearTimeout(notifyTimerRef.current);
             if (resizeTimeout.current) clearTimeout(resizeTimeout.current);
-            if (pingIntervalRef.current) {
-                clearInterval(pingIntervalRef.current);
-                pingIntervalRef.current = null;
-            }
+            if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
             webSocketRef.current?.close();
         };
     }, [xtermRef, terminal, hostConfig]);
 
     useEffect(() => {
         if (isVisible && fitAddonRef.current) {
-            fitAddonRef.current.fit();
+            setTimeout(() => {
+                fitAddonRef.current?.fit();
+                if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+                hardRefresh();
+            }, 0);
         }
     }, [isVisible]);
 
+    // Ensure a fit when split mode toggles to account for new pane geometry
+    useEffect(() => {
+        if (!fitAddonRef.current) return;
+        setTimeout(() => {
+            fitAddonRef.current?.fit();
+            if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+            hardRefresh();
+        }, 0);
+    }, [splitScreen]);
+
     return (
-        <div
-            ref={xtermRef}
-            style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                marginLeft: 2,
-                opacity: visible && isVisible ? 1 : 0,
-                overflow: 'hidden',
-            }}
-        />
+        <div ref={xtermRef} className="h-full w-full m-1" style={{ opacity: visible && isVisible ? 1 : 0, overflow: 'hidden' }} />
     );
 });
 
