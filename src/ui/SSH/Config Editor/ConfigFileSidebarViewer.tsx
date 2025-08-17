@@ -64,7 +64,7 @@ export function ConfigFileSidebarViewer({
     return (
         <div className="flex flex-col h-full">
             {/* SSH Connections */}
-            <div className="p-2 bg-[#18181b] border-b border-[#23232a]">
+            <div className="p-2 bg-[#18181b] border-b-2 border-[#303032]">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground font-semibold">SSH Connections</span>
                     <Button size="icon" variant="outline" onClick={onAddSSH} className="ml-2 h-7 w-7">
@@ -119,7 +119,7 @@ export function ConfigFileSidebarViewer({
                     <div className="flex flex-col gap-1">
                         {files.map((item) => (
                             <Card key={item.path}
-                                  className="flex items-center gap-2 px-2 py-1 bg-[#18181b] border border-[#23232a] rounded">
+                                  className="flex items-center gap-2 px-2 py-1 bg-[#18181b] border-2 border-[#303032] rounded">
                                 <div className="flex items-center gap-2 flex-1 cursor-pointer"
                                      onClick={() => item.type === 'directory' ? onOpenFolder(item) : onOpenFile(item)}>
                                     {item.type === 'directory' ? <Folder className="w-4 h-4 text-blue-400"/> :

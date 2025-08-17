@@ -21,7 +21,7 @@ export function ConfigTabList({tabs, activeTab, setActiveTab, closeTab, onHomeCl
             <Button
                 onClick={onHomeClick}
                 variant="outline"
-                className={`h-7 mr-[0.5rem] rounded-md flex items-center ${activeTab === 'home' ? '!bg-[#1d1d1f] !text-white !border-[#2d2d30] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
+                className={`h-7 mr-[0.5rem] rounded-md flex items-center ${activeTab === 'home' ? '!bg-[#1d1d1f] !text-white !border-2 !border-[#303032] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
             >
                 <Home className="w-4 h-4"/>
             </Button>
@@ -36,7 +36,7 @@ export function ConfigTabList({tabs, activeTab, setActiveTab, closeTab, onHomeCl
                             <Button
                                 onClick={() => setActiveTab(tab.id)}
                                 variant="outline"
-                                className={`h-7 rounded-r-none ${isActive ? '!bg-[#1d1d1f] !text-white !border-[#2d2d30] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
+                                className={`h-7 rounded-r-none ${isActive ? '!bg-[#1d1d1f] !text-white !border-2 !border-[#303032] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
                             >
                                 {tab.title}
                             </Button>

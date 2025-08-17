@@ -1,7 +1,7 @@
 import React from "react";
 import {ButtonGroup} from "@/components/ui/button-group.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {Home, SeparatorVertical, X, Terminal as TerminalIcon, Server as ServerIcon} from "lucide-react";
+import {Home, SeparatorVertical, X, Terminal as TerminalIcon, Server as ServerIcon, Folder as FolderIcon} from "lucide-react";
 
 interface TabProps {
     tabType: string;
@@ -31,8 +31,9 @@ export function Tab({tabType, title, isActive, onActivate, onClose, onSplit, can
         );
     }
 
-    if (tabType === "terminal" || tabType === "server") {
+    if (tabType === "terminal" || tabType === "server" || tabType === "config") {
         const isServer = tabType === 'server';
+        const isConfig = tabType === 'config';
         return (
             <ButtonGroup>
                 <Button
@@ -41,8 +42,8 @@ export function Tab({tabType, title, isActive, onActivate, onClose, onSplit, can
                     onClick={onActivate}
                     disabled={disableActivate}
                 >
-                    {isServer ? <ServerIcon className="mr-1 h-4 w-4"/> : <TerminalIcon className="mr-1 h-4 w-4"/>}
-                    {title || (isServer ? 'Server' : 'Terminal')}
+                    {isServer ? <ServerIcon className="mr-1 h-4 w-4"/> : isConfig ? <FolderIcon className="mr-1 h-4 w-4"/> : <TerminalIcon className="mr-1 h-4 w-4"/>}
+                    {title || (isServer ? 'Server' : isConfig ? 'Config' : 'Terminal')}
                 </Button>
                 {canSplit && (
                     <Button

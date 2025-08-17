@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useRef, type ReactNode } fr
 
 export interface Tab {
     id: number;
-    type: 'home' | 'terminal' | 'ssh_manager' | 'server' | 'admin';
+    type: 'home' | 'terminal' | 'ssh_manager' | 'server' | 'admin' | 'config';
     title: string;
     hostConfig?: any;
     terminalRef?: React.RefObject<any>;
@@ -42,7 +42,7 @@ export function TabProvider({ children }: TabProviderProps) {
     const nextTabId = useRef(2);
 
     function computeUniqueTitle(tabType: Tab['type'], desiredTitle: string | undefined): string {
-        const defaultTitle = tabType === 'server' ? 'Server' : 'Terminal';
+        const defaultTitle = tabType === 'server' ? 'Server' : (tabType === 'config' ? 'Config' : 'Terminal');
         const baseTitle = (desiredTitle || defaultTitle).trim();
         // Extract base name without trailing " (n)"
         const match = baseTitle.match(/^(.*) \((\d+)\)$/);
@@ -72,7 +72,7 @@ export function TabProvider({ children }: TabProviderProps) {
 
     const addTab = (tabData: Omit<Tab, 'id'>): number => {
         const id = nextTabId.current++;
-        const needsUniqueTitle = tabData.type === 'terminal' || tabData.type === 'server';
+        const needsUniqueTitle = tabData.type === 'terminal' || tabData.type === 'server' || tabData.type === 'config';
         const effectiveTitle = needsUniqueTitle ? computeUniqueTitle(tabData.type, tabData.title) : (tabData.title || '');
         const newTab: Tab = { 
             ...tabData, 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {TerminalComponent} from "../SSH/Terminal/TerminalComponent.tsx";
 import {Server as ServerView} from "@/ui/SSH/Server/Server.tsx";
+import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx";
 import {useTabs} from "@/contexts/TabContext.tsx";
 import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
 import * as ResizablePrimitive from "react-resizable-panels";
@@ -16,7 +17,7 @@ export function AppView({ isTopbarOpen = true }: TerminalViewProps): React.React
     const {tabs, currentTab, allSplitScreenTab} = useTabs() as any;
     const { state: sidebarState } = useSidebar();
 
-    const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal' || tab.type === 'server');
+    const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal' || tab.type === 'server' || tab.type === 'config');
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -158,13 +159,18 @@ export function AppView({ isTopbarOpen = true }: TerminalViewProps): React.React
                                         showTitle={false}
                                         splitScreen={allSplitScreenTab.length>0}
                                     />
-                                ) : (
+                                ) : t.type === 'server' ? (
                                     <ServerView
                                         hostConfig={t.hostConfig}
                                         title={t.title}
                                         isVisible={effectiveVisible}
                                         isTopbarOpen={isTopbarOpen}
                                         embedded
+                                    />
+                                ) : (
+                                    <ConfigEditor
+                                        embedded
+                                        initialHost={t.hostConfig}
                                     />
                                 )}
                             </div>

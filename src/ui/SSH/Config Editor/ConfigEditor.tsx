@@ -59,7 +59,7 @@ interface SSHHost {
     updatedAt: string;
 }
 
-export function ConfigEditor({onSelectView}: { onSelectView: (view: string) => void }): React.ReactElement {
+export function ConfigEditor({onSelectView, embedded = false, initialHost = null}: { onSelectView?: (view: string) => void, embedded?: boolean, initialHost?: SSHHost | null }): React.ReactElement {
     const [tabs, setTabs] = useState<Tab[]>([]);
     const [activeTab, setActiveTab] = useState<string | number>('home');
     const [recent, setRecent] = useState<any[]>([]);
@@ -70,6 +70,22 @@ export function ConfigEditor({onSelectView}: { onSelectView: (view: string) => v
     const [isSaving, setIsSaving] = useState(false);
 
     const sidebarRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (initialHost && (!currentHost || currentHost.id !== initialHost.id)) {
+            setCurrentHost(initialHost);
+            // Defer to ensure sidebar is mounted
+            setTimeout(() => {
+                try {
+                    const path = initialHost.defaultPath || '/';
+                    if (sidebarRef.current && sidebarRef.current.openFolder) {
+                        sidebarRef.current.openFolder(initialHost, path);
+                    }
+                } catch (e) {
+                }
+            }, 0);
+        }
+    }, [initialHost]);
 
     useEffect(() => {
         if (currentHost) {
@@ -428,22 +444,19 @@ export function ConfigEditor({onSelectView}: { onSelectView: (view: string) => v
         }
     };
 
-    const handleHostChange = (host: SSHHost | null) => {
-        setCurrentHost(host);
-        setTabs([]);
-        setActiveTab('home');
-    };
+    // Host is locked; no external host change from UI
+    const handleHostChange = (_host: SSHHost | null) => {};
 
     if (!currentHost) {
         return (
-            <div style={{position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden'}}>
-                <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100vh', zIndex: 20}}>
+            <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
+                <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100%', zIndex: 20}}>
                     <ConfigEditorSidebar
-                        onSelectView={onSelectView}
+                        onSelectView={onSelectView || (() => {})}
                         onOpenFile={handleOpenFile}
                         tabs={tabs}
                         ref={sidebarRef}
-                        onHostChange={handleHostChange}
+                        host={initialHost as SSHHost}
                     />
                 </div>
                 <div style={{
@@ -467,23 +480,23 @@ export function ConfigEditor({onSelectView}: { onSelectView: (view: string) => v
     }
 
     return (
-        <div style={{position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden'}}>
-            <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100vh', zIndex: 20}}>
+        <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
+            <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100%', zIndex: 20}}>
                 <ConfigEditorSidebar
-                    onSelectView={onSelectView}
+                    onSelectView={onSelectView || (() => {})}
                     onOpenFile={handleOpenFile}
                     tabs={tabs}
                     ref={sidebarRef}
-                    onHostChange={handleHostChange}
+                    host={currentHost as SSHHost}
                 />
             </div>
             <div style={{position: 'absolute', top: 0, left: 256, right: 0, height: 44, zIndex: 30}}>
-                <div className="flex items-center w-full bg-[#18181b] border-b border-[#222224] h-11 relative px-4"
+                <div className="flex items-center w-full bg-[#18181b] border-b-2 border-[#303032] h-11 relative px-4"
                      style={{height: 44}}>
                     {/* Tab list scrollable area */}
                     <div className="flex-1 min-w-0 h-full flex items-center">
                         <div
-                            className="h-9 w-full bg-[#09090b] border border-[#23232a] rounded-md flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent"
+                            className="h-9 w-full bg-[#09090b] border-2 border-[#303032] rounded-md flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent"
                             style={{minWidth: 0}}>
                             <ConfigTopbar
                                 tabs={tabs.map(t => ({id: t.id, title: t.title}))}

@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import {Cpu, HardDrive, MemoryStick} from "lucide-react";
 import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx";
 import { getServerStatusById, getServerMetricsById, ServerMetrics } from "@/ui/SSH/ssh-axios";
+import { useTabs } from "@/contexts/TabContext";
 
 interface ServerProps {
 	hostConfig?: any;
@@ -18,6 +19,7 @@ interface ServerProps {
 
 export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = true, embedded = false }: ServerProps): React.ReactElement {
 	const { state: sidebarState } = useSidebar();
+	const { addTab } = useTabs() as any;
 	const [serverStatus, setServerStatus] = React.useState<'online' | 'offline'>('offline');
 	const [metrics, setMetrics] = React.useState<ServerMetrics | null>(null);
 
@@ -95,7 +97,22 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 						</Status>
 					</div>
 					<div className="flex items-center">
-						<Button variant="outline">File Manager</Button>
+						<Button
+							variant="outline"
+							onClick={() => {
+								if (!hostConfig) return;
+								const titleBase = hostConfig?.name && hostConfig.name.trim() !== ''
+									? hostConfig.name.trim()
+									: `${hostConfig.username}@${hostConfig.ip}`;
+								addTab({
+									type: 'config',
+									title: titleBase,
+									hostConfig: hostConfig,
+								});
+							}}
+						>
+							File Manager
+						</Button>
 					</div>
 				</div>
 				<Separator className="p-0.25 w-full"/>

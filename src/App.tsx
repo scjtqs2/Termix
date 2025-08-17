@@ -88,7 +88,7 @@ function AppContent() {
 
     // Determine what to show based on current tab
     const currentTabData = tabs.find(tab => tab.id === currentTab);
-    const showTerminalView = currentTabData?.type === 'terminal' || currentTabData?.type === 'server';
+    const showTerminalView = currentTabData?.type === 'terminal' || currentTabData?.type === 'server' || currentTabData?.type === 'config';
     const showHome = currentTabData?.type === 'home';
     const showSshManager = currentTabData?.type === 'ssh_manager';
     const showAdmin = currentTabData?.type === 'admin';
