@@ -6,7 +6,7 @@ import {ScrollArea} from "@/components/ui/scroll-area";
 import {Input} from "@/components/ui/input";
 import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@/components/ui/accordion";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
-import {getSSHHosts, deleteSSHHost, bulkImportSSHHosts} from "@/ui/SSH/ssh-axios";
+import {getSSHHosts, deleteSSHHost, bulkImportSSHHosts} from "@/ui/main-axios.ts";
 import {
     Edit,
     Trash2,
@@ -46,7 +46,7 @@ interface SSHManagerHostViewerProps {
     onEditHost?: (host: SSHHost) => void;
 }
 
-export function SSHManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
+export function HostManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
     const [hosts, setHosts] = useState<SSHHost[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

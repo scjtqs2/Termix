@@ -129,7 +129,7 @@ const configEditorApi = axios.create({
 })
 
 const statsApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8085' : '/ssh/stats',
+    baseURL: isLocalhost ? 'http://localhost:8085' : '',
     headers: {
         'Content-Type': 'application/json',
     }
@@ -364,7 +364,7 @@ export async function cancelTunnel(tunnelName: string): Promise<any> {
 
 export async function getConfigEditorRecent(hostId: number): Promise<ConfigEditorFile[]> {
     try {
-        const response = await sshHostApi.get(`/ssh/config_editor/recent?hostId=${hostId}`);
+        const response = await sshHostApi.get(`/ssh/file_manager/recent?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
         return [];
@@ -379,7 +379,7 @@ export async function addConfigEditorRecent(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.post('/ssh/config_editor/recent', file);
+        const response = await sshHostApi.post('/ssh/file_manager/recent', file);
         return response.data;
     } catch (error) {
         throw error;
@@ -394,7 +394,7 @@ export async function removeConfigEditorRecent(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/ssh/config_editor/recent', {data: file});
+        const response = await sshHostApi.delete('/ssh/file_manager/recent', {data: file});
         return response.data;
     } catch (error) {
         throw error;
@@ -403,7 +403,7 @@ export async function removeConfigEditorRecent(file: {
 
 export async function getConfigEditorPinned(hostId: number): Promise<ConfigEditorFile[]> {
     try {
-        const response = await sshHostApi.get(`/ssh/config_editor/pinned?hostId=${hostId}`);
+        const response = await sshHostApi.get(`/ssh/file_manager/pinned?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
         return [];
@@ -418,7 +418,7 @@ export async function addConfigEditorPinned(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.post('/ssh/config_editor/pinned', file);
+        const response = await sshHostApi.post('/ssh/file_manager/pinned', file);
         return response.data;
     } catch (error) {
         throw error;
@@ -433,7 +433,7 @@ export async function removeConfigEditorPinned(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/ssh/config_editor/pinned', {data: file});
+        const response = await sshHostApi.delete('/ssh/file_manager/pinned', {data: file});
         return response.data;
     } catch (error) {
         throw error;
@@ -442,7 +442,7 @@ export async function removeConfigEditorPinned(file: {
 
 export async function getConfigEditorShortcuts(hostId: number): Promise<ConfigEditorShortcut[]> {
     try {
-        const response = await sshHostApi.get(`/ssh/config_editor/shortcuts?hostId=${hostId}`);
+        const response = await sshHostApi.get(`/ssh/file_manager/shortcuts?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
         return [];
@@ -457,7 +457,7 @@ export async function addConfigEditorShortcut(shortcut: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.post('/ssh/config_editor/shortcuts', shortcut);
+        const response = await sshHostApi.post('/ssh/file_manager/shortcuts', shortcut);
         return response.data;
     } catch (error) {
         throw error;
@@ -472,7 +472,7 @@ export async function removeConfigEditorShortcut(shortcut: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/ssh/config_editor/shortcuts', {data: shortcut});
+        const response = await sshHostApi.delete('/ssh/file_manager/shortcuts', {data: shortcut});
         return response.data;
     } catch (error) {
         throw error;
@@ -488,7 +488,7 @@ export async function connectSSH(sessionId: string, config: {
     keyPassword?: string;
 }): Promise<any> {
     try {
-        const response = await configEditorApi.post('/ssh/config_editor/ssh/connect', {
+        const response = await configEditorApi.post('/ssh/file_manager/ssh/connect', {
             sessionId,
             ...config
         });
@@ -500,7 +500,7 @@ export async function connectSSH(sessionId: string, config: {
 
 export async function disconnectSSH(sessionId: string): Promise<any> {
     try {
-        const response = await configEditorApi.post('/ssh/config_editor/ssh/disconnect', {sessionId});
+        const response = await configEditorApi.post('/ssh/file_manager/ssh/disconnect', {sessionId});
         return response.data;
     } catch (error) {
         throw error;
@@ -509,7 +509,7 @@ export async function disconnectSSH(sessionId: string): Promise<any> {
 
 export async function getSSHStatus(sessionId: string): Promise<{ connected: boolean }> {
     try {
-        const response = await configEditorApi.get('/ssh/config_editor/ssh/status', {
+        const response = await configEditorApi.get('/ssh/file_manager/ssh/status', {
             params: {sessionId}
         });
         return response.data;
@@ -520,7 +520,7 @@ export async function getSSHStatus(sessionId: string): Promise<{ connected: bool
 
 export async function listSSHFiles(sessionId: string, path: string): Promise<any[]> {
     try {
-        const response = await configEditorApi.get('/ssh/config_editor/ssh/listFiles', {
+        const response = await configEditorApi.get('/ssh/file_manager/ssh/listFiles', {
             params: {sessionId, path}
         });
         return response.data || [];
@@ -531,7 +531,7 @@ export async function listSSHFiles(sessionId: string, path: string): Promise<any
 
 export async function readSSHFile(sessionId: string, path: string): Promise<{ content: string; path: string }> {
     try {
-        const response = await configEditorApi.get('/ssh/config_editor/ssh/readFile', {
+        const response = await configEditorApi.get('/ssh/file_manager/ssh/readFile', {
             params: {sessionId, path}
         });
         return response.data;
@@ -542,7 +542,7 @@ export async function readSSHFile(sessionId: string, path: string): Promise<{ co
 
 export async function writeSSHFile(sessionId: string, path: string, content: string): Promise<any> {
     try {
-        const response = await configEditorApi.post('/ssh/config_editor/ssh/writeFile', {
+        const response = await configEditorApi.post('/ssh/file_manager/ssh/writeFile', {
             sessionId,
             path,
             content

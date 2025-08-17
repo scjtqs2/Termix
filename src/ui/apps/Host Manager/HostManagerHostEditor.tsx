@@ -19,7 +19,7 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs.tsx
 import React, {useEffect, useRef, useState} from "react";
 import {Switch} from "@/components/ui/switch.tsx";
 import {Alert, AlertDescription} from "@/components/ui/alert.tsx";
-import {createSSHHost, updateSSHHost, getSSHHosts} from '@/ui/SSH/ssh-axios';
+import {createSSHHost, updateSSHHost, getSSHHosts} from '@/ui/main-axios.ts';
 
 interface SSHHost {
     id: number;
@@ -49,7 +49,7 @@ interface SSHManagerHostEditorProps {
     onFormSubmit?: () => void;
 }
 
-export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHostEditorProps) {
+export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHostEditorProps) {
     const [hosts, setHosts] = useState<SSHHost[]>([]);
     const [folders, setFolders] = useState<string[]>([]);
     const [sshConfigurations, setSshConfigurations] = useState<string[]>([]);
@@ -396,7 +396,7 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
                                 <TabsTrigger value="general">General</TabsTrigger>
                                 <TabsTrigger value="terminal">Terminal</TabsTrigger>
                                 <TabsTrigger value="tunnel">Tunnel</TabsTrigger>
-                                <TabsTrigger value="config_editor">Config Editor</TabsTrigger>
+                                <TabsTrigger value="file_manager">File Manager</TabsTrigger>
                             </TabsList>
                             <TabsContent value="general" className="pt-2">
                                 <FormLabel className="mb-3 font-bold">Connection Details</FormLabel>
@@ -986,13 +986,13 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
                                     </>
                                 )}
                             </TabsContent>
-                            <TabsContent value="config_editor">
+                            <TabsContent value="file_manager">
                                 <FormField
                                     control={form.control}
                                     name="enableConfigEditor"
                                     render={({field}) => (
                                         <FormItem>
-                                            <FormLabel>Enable Config Editor</FormLabel>
+                                            <FormLabel>Enable File Manager</FormLabel>
                                             <FormControl>
                                                 <Switch
                                                     checked={field.value}
@@ -1000,7 +1000,7 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
                                                 />
                                             </FormControl>
                                             <FormDescription>
-                                                Enable/disable host visibility in Config Editor tab.
+                                                Enable/disable host visibility in File Manager tab.
                                             </FormDescription>
                                         </FormItem>
                                     )}
@@ -1018,7 +1018,7 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
                                                         <Input placeholder="/home" {...field} />
                                                     </FormControl>
                                                     <FormDescription>Set default directory shown when connected via
-                                                        Config Editor</FormDescription>
+                                                        File Manager</FormDescription>
                                                 </FormItem>
                                             )}
                                         />

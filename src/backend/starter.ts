@@ -2,9 +2,9 @@
 //  node ./dist/backend/starter.js
 
 import './database/database.js'
-import './ssh/ssh.js';
-import './ssh/ssh_tunnel.js';
-import './ssh/config_editor.js';
+import './ssh/terminal.js';
+import './ssh/tunnel.js';
+import './ssh/file-manager.ts';
 import './ssh/server-stats.js';
 import chalk from 'chalk';
 

@@ -11,7 +11,7 @@ interface ConfigCodeEditorProps {
     onContentChange: (value: string) => void;
 }
 
-export function ConfigCodeEditor({content, fileName, onContentChange}: ConfigCodeEditorProps) {
+export function FileManagerFileEditor({content, fileName, onContentChange}: ConfigCodeEditorProps) {
     function getLanguageName(filename: string): string {
         if (!filename || typeof filename !== 'string') {
             return 'text';

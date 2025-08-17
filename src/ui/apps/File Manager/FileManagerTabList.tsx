@@ -15,7 +15,7 @@ interface ConfigTabListProps {
     onHomeClick: () => void;
 }
 
-export function ConfigTabList({tabs, activeTab, setActiveTab, closeTab, onHomeClick}: ConfigTabListProps) {
+export function FileManagerTabList({tabs, activeTab, setActiveTab, closeTab, onHomeClick}: ConfigTabListProps) {
     return (
         <div className="inline-flex items-center h-full px-[0.5rem] overflow-x-auto">
             <Button

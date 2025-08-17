@@ -1,10 +1,10 @@
 import React, {useState, useEffect, useRef} from "react";
-import {ConfigEditorSidebar} from "@/ui/SSH/Config Editor/ConfigEditorSidebar.tsx";
-import {ConfigTabList} from "@/ui/SSH/Config Editor/ConfigTabList.tsx";
-import {ConfigHomeView} from "@/ui/SSH/Config Editor/ConfigHomeView.tsx";
-import {ConfigCodeEditor} from "@/ui/SSH/Config Editor/ConfigCodeEditor.tsx";
+import {FileManagerLeftSidebar} from "@/ui/apps/File Manager/FileManagerLeftSidebar.tsx";
+import {FileManagerTabList} from "@/ui/apps/File Manager/FileManagerTabList.tsx";
+import {FileManagerHomeView} from "@/ui/apps/File Manager/FileManagerHomeView.tsx";
+import {FileManagerFileEditor} from "@/ui/apps/File Manager/FileManagerFileEditor.tsx";
 import {Button} from '@/components/ui/button.tsx';
-import {ConfigTopbar} from "@/ui/SSH/Config Editor/ConfigTopbar.tsx";
+import {FIleManagerTopNavbar} from "@/ui/apps/File Manager/FIleManagerTopNavbar.tsx";
 import {cn} from '@/lib/utils.ts';
 import {
     getConfigEditorRecent,
@@ -20,7 +20,7 @@ import {
     writeSSHFile,
     getSSHStatus,
     connectSSH
-} from '@/ui/SSH/ssh-axios.ts';
+} from '@/ui/main-axios.ts';
 
 interface Tab {
     id: string | number;
@@ -59,7 +59,7 @@ interface SSHHost {
     updatedAt: string;
 }
 
-export function ConfigEditor({onSelectView, embedded = false, initialHost = null}: { onSelectView?: (view: string) => void, embedded?: boolean, initialHost?: SSHHost | null }): React.ReactElement {
+export function FileManager({onSelectView, embedded = false, initialHost = null}: { onSelectView?: (view: string) => void, embedded?: boolean, initialHost?: SSHHost | null }): React.ReactElement {
     const [tabs, setTabs] = useState<Tab[]>([]);
     const [activeTab, setActiveTab] = useState<string | number>('home');
     const [recent, setRecent] = useState<any[]>([]);
@@ -451,7 +451,7 @@ export function ConfigEditor({onSelectView, embedded = false, initialHost = null
         return (
             <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
                 <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100%', zIndex: 20}}>
-                    <ConfigEditorSidebar
+                    <FileManagerLeftSidebar
                         onSelectView={onSelectView || (() => {})}
                         onOpenFile={handleOpenFile}
                         tabs={tabs}
@@ -482,7 +482,7 @@ export function ConfigEditor({onSelectView, embedded = false, initialHost = null
     return (
         <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
             <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100%', zIndex: 20}}>
-                <ConfigEditorSidebar
+                <FileManagerLeftSidebar
                     onSelectView={onSelectView || (() => {})}
                     onOpenFile={handleOpenFile}
                     tabs={tabs}
@@ -498,7 +498,7 @@ export function ConfigEditor({onSelectView, embedded = false, initialHost = null
                         <div
                             className="h-9 w-full bg-[#09090b] border-2 border-[#303032] rounded-md flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent"
                             style={{minWidth: 0}}>
-                            <ConfigTopbar
+                            <FIleManagerTopNavbar
                                 tabs={tabs.map(t => ({id: t.id, title: t.title}))}
                                 activeTab={activeTab}
                                 setActiveTab={setActiveTab}
@@ -544,7 +544,7 @@ export function ConfigEditor({onSelectView, embedded = false, initialHost = null
                 flexDirection: 'column'
             }}>
                 {activeTab === 'home' ? (
-                    <ConfigHomeView
+                    <FileManagerHomeView
                         recent={recent}
                         pinned={pinned}
                         shortcuts={shortcuts}
@@ -605,7 +605,7 @@ export function ConfigEditor({onSelectView, embedded = false, initialHost = null
                                     </div>
                                 )}
                                 <div className="flex-1 min-h-0">
-                                    <ConfigCodeEditor
+                                    <FileManagerFileEditor
                                         content={tab.content}
                                         fileName={tab.fileName}
                                         onContentChange={content => setTabContent(tab.id, content)}

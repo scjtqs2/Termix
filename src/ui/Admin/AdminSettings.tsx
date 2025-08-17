@@ -194,7 +194,7 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
 
                 <div className="px-6 py-4 overflow-auto">
                     <Tabs defaultValue="registration" className="w-full">
-                        <TabsList className="grid w-full grid-cols-4 mb-6">
+                        <TabsList className="mb-4 bg-[#18181b] border-2 border-[#303032]">
                             <TabsTrigger value="registration" className="flex items-center gap-2">
                                 <Users className="h-4 w-4"/>
                                 General

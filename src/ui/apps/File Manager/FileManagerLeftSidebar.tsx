@@ -12,7 +12,7 @@ import {
     getConfigEditorPinned,
     addConfigEditorPinned,
     removeConfigEditorPinned
-} from '@/ui/SSH/ssh-axios.ts';
+} from '@/ui/main-axios.ts';
 
 interface SSHHost {
     id: number;
@@ -37,7 +37,7 @@ interface SSHHost {
     updatedAt: string;
 }
 
-const ConfigEditorSidebar = forwardRef(function ConfigEditorSidebar(
+const FileManagerLeftSidebar = forwardRef(function ConfigEditorSidebar(
     {onSelectView, onOpenFile, tabs, host}: {
         onSelectView?: (view: string) => void;
         onOpenFile: (file: any) => void;
@@ -280,27 +280,21 @@ const ConfigEditorSidebar = forwardRef(function ConfigEditorSidebar(
                                 </Button>
                                 <Input ref={pathInputRef} value={currentPath}
                                        onChange={e => setCurrentPath(e.target.value)}
-                                       className="flex-1 bg-[#18181b] border border-[#434345] text-white truncate rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring hover:border-[#5a5a5d]"
+                                       className="flex-1 bg-[#18181b] border-2 border-[#434345] text-white truncate rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring hover:border-[#5a5a5d]"
                                 />
                             </div>
                             <div className="px-2 py-2 border-b-1 border-[#303032] bg-[#18181b]">
                                 <Input
                                     placeholder="Search files and folders..."
-                                    className="w-full h-7 text-sm bg-[#23232a] border border-[#434345] text-white placeholder:text-muted-foreground rounded"
+                                    className="w-full h-7 text-sm bg-[#23232a] border-2 border-[#434345] text-white placeholder:text-muted-foreground rounded-md"
                                     autoComplete="off"
                                     value={fileSearch}
                                     onChange={e => setFileSearch(e.target.value)}
                                 />
                             </div>
-                            <div className="flex-1 w-full h-full bg-[#09090b] border-t-1 border-[#303032]">
-                                <ScrollArea className="w-full h-full bg-[#09090b]" style={{
-                                    height: '100%',
-                                    maxHeight: '100%',
-                                    paddingRight: 8,
-                                    scrollbarGutter: 'stable',
-                                    background: '#09090b'
-                                }}>
-                                    <div className="p-2 pr-2">
+                            <div className="flex-1 min-h-0 w-full bg-[#09090b] border-t-1 border-[#303032]">
+                                <ScrollArea className="h-full w-full bg-[#09090b]">
+                                    <div className="p-2 pb-0">
                                         {connectingSSH || filesLoading ? (
                                             <div className="text-xs text-muted-foreground">Loading...</div>
                                         ) : filesError ? (
@@ -388,4 +382,4 @@ const ConfigEditorSidebar = forwardRef(function ConfigEditorSidebar(
         </div>
     );
 });
-export {ConfigEditorSidebar};
+export {FileManagerLeftSidebar};

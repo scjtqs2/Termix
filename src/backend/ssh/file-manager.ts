@@ -68,7 +68,7 @@ function scheduleSessionCleanup(sessionId: string) {
     }
 }
 
-app.post('/ssh/config_editor/ssh/connect', (req, res) => {
+app.post('/ssh/file_manager/ssh/connect', (req, res) => {
     const {sessionId, ip, port, username, password, sshKey, keyPassword} = req.body;
     if (!sessionId || !ip || !username || !port) {
         return res.status(400).json({error: 'Missing SSH connection parameters'});
@@ -153,19 +153,19 @@ app.post('/ssh/config_editor/ssh/connect', (req, res) => {
     client.connect(config);
 });
 
-app.post('/ssh/config_editor/ssh/disconnect', (req, res) => {
+app.post('/ssh/file_manager/ssh/disconnect', (req, res) => {
     const {sessionId} = req.body;
     cleanupSession(sessionId);
     res.json({status: 'success', message: 'SSH connection disconnected'});
 });
 
-app.get('/ssh/config_editor/ssh/status', (req, res) => {
+app.get('/ssh/file_manager/ssh/status', (req, res) => {
     const sessionId = req.query.sessionId as string;
     const isConnected = !!sshSessions[sessionId]?.isConnected;
     res.json({status: 'success', connected: isConnected});
 });
 
-app.get('/ssh/config_editor/ssh/listFiles', (req, res) => {
+app.get('/ssh/file_manager/ssh/listFiles', (req, res) => {
     const sessionId = req.query.sessionId as string;
     const sshConn = sshSessions[sessionId];
     const sshPath = decodeURIComponent((req.query.path as string) || '/');
@@ -231,7 +231,7 @@ app.get('/ssh/config_editor/ssh/listFiles', (req, res) => {
     });
 });
 
-app.get('/ssh/config_editor/ssh/readFile', (req, res) => {
+app.get('/ssh/file_manager/ssh/readFile', (req, res) => {
     const sessionId = req.query.sessionId as string;
     const sshConn = sshSessions[sessionId];
     const filePath = decodeURIComponent(req.query.path as string);
@@ -280,7 +280,7 @@ app.get('/ssh/config_editor/ssh/readFile', (req, res) => {
     });
 });
 
-app.post('/ssh/config_editor/ssh/writeFile', (req, res) => {
+app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
     const {sessionId, path: filePath, content} = req.body;
     const sshConn = sshSessions[sessionId];
 

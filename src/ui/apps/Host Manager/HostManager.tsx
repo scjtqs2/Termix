@@ -1,8 +1,8 @@
 import React, {useState} from "react";
-import {SSHManagerHostViewer} from "@/ui/SSH/Manager/SSHManagerHostViewer.tsx"
+import {HostManagerHostViewer} from "@/ui/apps/Host Manager/HostManagerHostViewer.tsx"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs.tsx";
 import {Separator} from "@/components/ui/separator.tsx";
-import {SSHManagerHostEditor} from "@/ui/SSH/Manager/SSHManagerHostEditor.tsx";
+import {HostManagerHostEditor} from "@/ui/apps/Host Manager/HostManagerHostEditor.tsx";
 import {useSidebar} from "@/components/ui/sidebar.tsx";
 
 interface ConfigEditorProps {
@@ -33,7 +33,7 @@ interface SSHHost {
 	updatedAt: string;
 }
 
-export function SSHManager({onSelectView, isTopbarOpen}: ConfigEditorProps): React.ReactElement {
+export function HostManager({onSelectView, isTopbarOpen}: ConfigEditorProps): React.ReactElement {
 	const [activeTab, setActiveTab] = useState("host_viewer");
 	const [editingHost, setEditingHost] = useState<SSHHost | null>(null);
 	const {state: sidebarState} = useSidebar();
@@ -75,7 +75,7 @@ export function SSHManager({onSelectView, isTopbarOpen}: ConfigEditorProps): Rea
 				>
 					<Tabs value={activeTab} onValueChange={handleTabChange}
 							className="flex-1 flex flex-col h-full min-h-0">
-						<TabsList className="mt-1.5">
+						<TabsList className="bg-[#18181b] border-2 border-[#303032] mt-1.5">
 							<TabsTrigger value="host_viewer">Host Viewer</TabsTrigger>
 							<TabsTrigger value="add_host">
 								{editingHost ? "Edit Host" : "Add Host"}
@@ -83,12 +83,12 @@ export function SSHManager({onSelectView, isTopbarOpen}: ConfigEditorProps): Rea
 						</TabsList>
 						<TabsContent value="host_viewer" className="flex-1 flex flex-col h-full min-h-0">
 							<Separator className="p-0.25 -mt-0.5 mb-1"/>
-							<SSHManagerHostViewer onEditHost={handleEditHost}/>
+							<HostManagerHostViewer onEditHost={handleEditHost}/>
 						</TabsContent>
 						<TabsContent value="add_host" className="flex-1 flex flex-col h-full min-h-0">
 							<Separator className="p-0.25 -mt-0.5 mb-1"/>
 							<div className="flex flex-col h-full min-h-0">
-								<SSHManagerHostEditor
+								<HostManagerHostEditor
 										editingHost={editingHost}
 										onFormSubmit={handleFormSubmit}
 								/>

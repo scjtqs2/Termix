@@ -41,7 +41,7 @@ interface ConfigFileSidebarViewerProps {
     currentSSH?: SSHConnection;
 }
 
-export function ConfigFileSidebarViewer({
+export function FileManagerLeftSidebarFileViewer({
                                             sshConnections,
                                             onAddSSH,
                                             onConnectSSH,

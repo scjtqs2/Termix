@@ -4,8 +4,8 @@ import {Homepage} from "@/ui/Homepage/Homepage.tsx"
 import {AppView} from "@/ui/Navigation/AppView.tsx"
 // import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
 // import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx"
-import {SSHManager} from "@/ui/SSH/Manager/SSHManager.tsx"
-import {TabProvider, useTabs} from "@/contexts/TabContext"
+import {HostManager} from "@/ui/apps/Host Manager/HostManager.tsx"
+import {TabProvider, useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx"
 import axios from "axios"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 import { AdminSettings } from "@/ui/Admin/AdminSettings";
@@ -202,7 +202,7 @@ function AppContent() {
                             overflow: "hidden",
                         }}
                     >
-                        <SSHManager onSelectView={handleSelectView} isTopbarOpen={isTopbarOpen} />
+                        <HostManager onSelectView={handleSelectView} isTopbarOpen={isTopbarOpen} />
                     </div>
 
                     {/* Admin Settings tab */}

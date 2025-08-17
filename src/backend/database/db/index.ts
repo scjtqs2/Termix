@@ -82,14 +82,14 @@ sqlite.exec(`
         enable_terminal INTEGER NOT NULL DEFAULT 1,
         enable_tunnel INTEGER NOT NULL DEFAULT 1,
         tunnel_connections TEXT,
-        enable_config_editor INTEGER NOT NULL DEFAULT 1,
+        enable_file_manager INTEGER NOT NULL DEFAULT 1,
         default_path TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
-    CREATE TABLE IF NOT EXISTS config_editor_recent (
+    CREATE TABLE IF NOT EXISTS file_manager_recent (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL,
         host_id INTEGER NOT NULL,
@@ -100,7 +100,7 @@ sqlite.exec(`
         FOREIGN KEY (host_id) REFERENCES ssh_data(id)
     );
 
-    CREATE TABLE IF NOT EXISTS config_editor_pinned (
+    CREATE TABLE IF NOT EXISTS file_manager_pinned (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL,
         host_id INTEGER NOT NULL,
@@ -111,7 +111,7 @@ sqlite.exec(`
         FOREIGN KEY (host_id) REFERENCES ssh_data(id)
     );
 
-    CREATE TABLE IF NOT EXISTS config_editor_shortcuts (
+    CREATE TABLE IF NOT EXISTS file_manager_shortcuts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL,
         host_id INTEGER NOT NULL,
@@ -179,14 +179,14 @@ const migrateSchema = () => {
     addColumnIfNotExists('ssh_data', 'enable_terminal', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfNotExists('ssh_data', 'enable_tunnel', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfNotExists('ssh_data', 'tunnel_connections', 'TEXT');
-    addColumnIfNotExists('ssh_data', 'enable_config_editor', 'INTEGER NOT NULL DEFAULT 1');
+    addColumnIfNotExists('ssh_data', 'enable_file_manager', 'INTEGER NOT NULL DEFAULT 1');
     addColumnIfNotExists('ssh_data', 'default_path', 'TEXT');
     addColumnIfNotExists('ssh_data', 'created_at', 'TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP');
     addColumnIfNotExists('ssh_data', 'updated_at', 'TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP');
 
-    addColumnIfNotExists('config_editor_recent', 'host_id', 'INTEGER NOT NULL');
-    addColumnIfNotExists('config_editor_pinned', 'host_id', 'INTEGER NOT NULL');
-    addColumnIfNotExists('config_editor_shortcuts', 'host_id', 'INTEGER NOT NULL');
+    addColumnIfNotExists('file_manager_recent', 'host_id', 'INTEGER NOT NULL');
+    addColumnIfNotExists('file_manager_pinned', 'host_id', 'INTEGER NOT NULL');
+    addColumnIfNotExists('file_manager_shortcuts', 'host_id', 'INTEGER NOT NULL');
 
     logger.success('Schema migration completed');
 };

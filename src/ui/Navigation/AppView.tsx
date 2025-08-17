@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import {TerminalComponent} from "../SSH/Terminal/TerminalComponent.tsx";
-import {Server as ServerView} from "@/ui/SSH/Server/Server.tsx";
-import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx";
-import {useTabs} from "@/contexts/TabContext.tsx";
+import {TerminalComponent} from "@/ui/apps/Terminal/TerminalComponent.tsx";
+import {Server as ServerView} from "@/ui/apps/Server/Server.tsx";
+import {FileManager} from "@/ui/apps/File Manager/FileManager.tsx";
+import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
 import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
 import * as ResizablePrimitive from "react-resizable-panels";
 import { useSidebar } from "@/components/ui/sidebar.tsx";
@@ -168,7 +168,7 @@ export function AppView({ isTopbarOpen = true }: TerminalViewProps): React.React
                                         embedded
                                     />
                                 ) : (
-                                    <ConfigEditor
+                                    <FileManager
                                         embedded
                                         initialHost={t.hostConfig}
                                     />

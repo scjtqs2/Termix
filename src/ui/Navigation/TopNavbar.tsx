@@ -3,7 +3,7 @@ import {useSidebar} from "@/components/ui/sidebar";
 import {Button} from "@/components/ui/button.tsx";
 import {ChevronDown, ChevronUpIcon} from "lucide-react";
 import {Tab} from "@/ui/Navigation/Tabs/Tab.tsx";
-import {useTabs} from "@/contexts/TabContext";
+import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
 
 interface TopNavbarProps {
     isTopbarOpen: boolean;

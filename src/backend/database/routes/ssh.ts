@@ -406,8 +406,8 @@ router.delete('/db/host/:id', authenticateJWT, async (req: Request, res: Respons
 });
 
 // Route: Get recent files (requires JWT)
-// GET /ssh/config_editor/recent
-router.get('/config_editor/recent', authenticateJWT, async (req: Request, res: Response) => {
+// GET /ssh/file_manager/recent
+router.get('/file_manager/recent', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const hostId = req.query.hostId ? parseInt(req.query.hostId as string) : null;
 
@@ -438,8 +438,8 @@ router.get('/config_editor/recent', authenticateJWT, async (req: Request, res: R
 });
 
 // Route: Add file to recent (requires JWT)
-// POST /ssh/config_editor/recent
-router.post('/config_editor/recent', authenticateJWT, async (req: Request, res: Response) => {
+// POST /ssh/file_manager/recent
+router.post('/file_manager/recent', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -480,8 +480,8 @@ router.post('/config_editor/recent', authenticateJWT, async (req: Request, res: 
 });
 
 // Route: Remove file from recent (requires JWT)
-// DELETE /ssh/config_editor/recent
-router.delete('/config_editor/recent', authenticateJWT, async (req: Request, res: Response) => {
+// DELETE /ssh/file_manager/recent
+router.delete('/file_manager/recent', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -506,8 +506,8 @@ router.delete('/config_editor/recent', authenticateJWT, async (req: Request, res
 });
 
 // Route: Get pinned files (requires JWT)
-// GET /ssh/config_editor/pinned
-router.get('/config_editor/pinned', authenticateJWT, async (req: Request, res: Response) => {
+// GET /ssh/file_manager/pinned
+router.get('/file_manager/pinned', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const hostId = req.query.hostId ? parseInt(req.query.hostId as string) : null;
 
@@ -538,8 +538,8 @@ router.get('/config_editor/pinned', authenticateJWT, async (req: Request, res: R
 });
 
 // Route: Add file to pinned (requires JWT)
-// POST /ssh/config_editor/pinned
-router.post('/config_editor/pinned', authenticateJWT, async (req: Request, res: Response) => {
+// POST /ssh/file_manager/pinned
+router.post('/file_manager/pinned', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -575,8 +575,8 @@ router.post('/config_editor/pinned', authenticateJWT, async (req: Request, res: 
 });
 
 // Route: Remove file from pinned (requires JWT)
-// DELETE /ssh/config_editor/pinned
-router.delete('/config_editor/pinned', authenticateJWT, async (req: Request, res: Response) => {
+// DELETE /ssh/file_manager/pinned
+router.delete('/file_manager/pinned', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -601,8 +601,8 @@ router.delete('/config_editor/pinned', authenticateJWT, async (req: Request, res
 });
 
 // Route: Get folder shortcuts (requires JWT)
-// GET /ssh/config_editor/shortcuts
-router.get('/config_editor/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
+// GET /ssh/file_manager/shortcuts
+router.get('/file_manager/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const hostId = req.query.hostId ? parseInt(req.query.hostId as string) : null;
 
@@ -631,8 +631,8 @@ router.get('/config_editor/shortcuts', authenticateJWT, async (req: Request, res
 });
 
 // Route: Add folder shortcut (requires JWT)
-// POST /ssh/config_editor/shortcuts
-router.post('/config_editor/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
+// POST /ssh/file_manager/shortcuts
+router.post('/file_manager/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -667,8 +667,8 @@ router.post('/config_editor/shortcuts', authenticateJWT, async (req: Request, re
 });
 
 // Route: Remove folder shortcut (requires JWT)
-// DELETE /ssh/config_editor/shortcuts
-router.delete('/config_editor/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
+// DELETE /ssh/file_manager/shortcuts
+router.delete('/file_manager/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {

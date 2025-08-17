@@ -3,8 +3,8 @@ import {Status, StatusIndicator} from "@/components/ui/shadcn-io/status";
 import {Button} from "@/components/ui/button.tsx";
 import {ButtonGroup} from "@/components/ui/button-group.tsx";
 import {Server, Terminal} from "lucide-react";
-import {useTabs} from "@/contexts/TabContext";
-import { getServerStatusById } from "@/ui/SSH/ssh-axios";
+import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
+import { getServerStatusById } from "@/ui/main-axios.ts";
 
 interface SSHHost {
     id: number;
@@ -86,13 +86,15 @@ export function Host({ host }: HostProps): React.ReactElement {
                     <Button variant="outline" className="!px-2 border-1 border-[#303032]" onClick={handleServerClick}>
                         <Server/>
                     </Button>
-                    <Button 
-                        variant="outline" 
-                        className="!px-2 border-1 border-[#303032]"
-                        onClick={handleTerminalClick}
-                    >
-                        <Terminal/>
-                    </Button>
+                    {host.enableTerminal && (
+                        <Button 
+                            variant="outline" 
+                            className="!px-2 border-1 border-[#303032]"
+                            onClick={handleTerminalClick}
+                        >
+                            <Terminal/>
+                        </Button>
+                    )}
                 </ButtonGroup>
             </div>
             {hasTags && (

@@ -5,9 +5,9 @@ import {Separator} from "@/components/ui/separator.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import { Progress } from "@/components/ui/progress"
 import {Cpu, HardDrive, MemoryStick} from "lucide-react";
-import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx";
-import { getServerStatusById, getServerMetricsById, ServerMetrics } from "@/ui/SSH/ssh-axios";
-import { useTabs } from "@/contexts/TabContext";
+import {Tunnel} from "@/ui/apps/Tunnel/Tunnel.tsx";
+import { getServerStatusById, getServerMetricsById, ServerMetrics } from "@/ui/main-axios.ts";
+import { useTabs } from "@/ui/Navigation/Tabs/TabContext.tsx";
 
 interface ServerProps {
 	hostConfig?: any;
@@ -22,6 +22,54 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 	const { addTab } = useTabs() as any;
 	const [serverStatus, setServerStatus] = React.useState<'online' | 'offline'>('offline');
 	const [metrics, setMetrics] = React.useState<ServerMetrics | null>(null);
+	const [currentHostConfig, setCurrentHostConfig] = React.useState(hostConfig);
+
+	// Listen for host configuration changes
+	React.useEffect(() => {
+		setCurrentHostConfig(hostConfig);
+	}, [hostConfig]);
+
+	// Always fetch latest host config when component mounts or hostConfig changes
+	React.useEffect(() => {
+		const fetchLatestHostConfig = async () => {
+			if (hostConfig?.id) {
+				try {
+					// Import the getSSHHosts function to fetch updated host data
+					const { getSSHHosts } = await import('@/ui/main-axios.ts');
+					const hosts = await getSSHHosts();
+					const updatedHost = hosts.find(h => h.id === hostConfig.id);
+					if (updatedHost) {
+						setCurrentHostConfig(updatedHost);
+					}
+				} catch (error) {
+					console.error('Failed to fetch latest host config:', error);
+				}
+			}
+		};
+
+		// Fetch immediately when component mounts or hostConfig changes
+		fetchLatestHostConfig();
+
+		// Also listen for SSH hosts changed event to refresh host config
+		const handleHostsChanged = async () => {
+			if (hostConfig?.id) {
+				try {
+					// Import the getSSHHosts function to fetch updated host data
+					const { getSSHHosts } = await import('@/ui/main-axios.ts');
+					const hosts = await getSSHHosts();
+					const updatedHost = hosts.find(h => h.id === hostConfig.id);
+					if (updatedHost) {
+						setCurrentHostConfig(updatedHost);
+					}
+				} catch (error) {
+					console.error('Failed to refresh host config:', error);
+				}
+			}
+		};
+
+		window.addEventListener('ssh-hosts:changed', handleHostsChanged);
+		return () => window.removeEventListener('ssh-hosts:changed', handleHostsChanged);
+	}, [hostConfig?.id]);
 
 	React.useEffect(() => {
 		let cancelled = false;
@@ -29,7 +77,7 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 
 		const fetchStatus = async () => {
 			try {
-				const res = await getServerStatusById(hostConfig?.id);
+				const res = await getServerStatusById(currentHostConfig?.id);
 				if (!cancelled) {
 					setServerStatus(res?.status === 'online' ? 'online' : 'offline');
 				}
@@ -39,16 +87,16 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 		};
 
 		const fetchMetrics = async () => {
-			if (!hostConfig?.id) return;
+			if (!currentHostConfig?.id) return;
 			try {
-				const data = await getServerMetricsById(hostConfig.id);
+				const data = await getServerMetricsById(currentHostConfig.id);
 				if (!cancelled) setMetrics(data);
 			} catch {
 				if (!cancelled) setMetrics(null);
 			}
 		};
 
-		if (hostConfig?.id) {
+		if (currentHostConfig?.id) {
 			fetchStatus();
 			fetchMetrics();
 			intervalId = window.setInterval(() => {
@@ -61,7 +109,7 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 			cancelled = true;
 			if (intervalId) window.clearInterval(intervalId);
 		};
-	}, [hostConfig?.id]);
+	}, [currentHostConfig?.id]);
 
 	const topMarginPx = isTopbarOpen ? 74 : 16;
 	const leftMarginPx = sidebarState === 'collapsed' ? 16 : 8;
@@ -90,29 +138,32 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 				<div className="flex items-center justify-between px-3 pt-2 pb-2">
 					<div className="flex items-center gap-4">
 						<h1 className="font-bold text-lg">
-							{hostConfig.folder} / {title}
+							{currentHostConfig?.folder} / {title}
 						</h1>
 						<Status status={serverStatus} className="!bg-transparent !p-0.75 flex-shrink-0">
 							<StatusIndicator/>
 						</Status>
 					</div>
 					<div className="flex items-center">
-						<Button
-							variant="outline"
-							onClick={() => {
-								if (!hostConfig) return;
-								const titleBase = hostConfig?.name && hostConfig.name.trim() !== ''
-									? hostConfig.name.trim()
-									: `${hostConfig.username}@${hostConfig.ip}`;
-								addTab({
-									type: 'config',
-									title: titleBase,
-									hostConfig: hostConfig,
-								});
-							}}
-						>
-							File Manager
-						</Button>
+						{currentHostConfig?.enableConfigEditor && (
+							<Button
+								variant="outline"
+								className="font-semibold"
+								onClick={() => {
+									if (!currentHostConfig) return;
+									const titleBase = currentHostConfig?.name && currentHostConfig.name.trim() !== ''
+										? currentHostConfig.name.trim()
+										: `${currentHostConfig.username}@${currentHostConfig.ip}`;
+									addTab({
+										type: 'config',
+										title: titleBase,
+										hostConfig: currentHostConfig,
+									});
+								}}
+							>
+								File Manager
+							</Button>
+						)}
 					</div>
 				</div>
 				<Separator className="p-0.25 w-full"/>
@@ -181,9 +232,9 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 				</div>
 
 				{/* SSH Tunnels */}
-				{(hostConfig?.tunnelConnections && hostConfig.tunnelConnections.length > 0) && (
+				{(currentHostConfig?.tunnelConnections && currentHostConfig.tunnelConnections.length > 0) && (
 					<div className="rounded-lg border-2 border-[#303032] m-3 bg-[#0e0e10] h-[360px] overflow-hidden flex flex-col min-h-0">
-						<SSHTunnel filterHostKey={(hostConfig?.name && hostConfig.name.trim() !== '') ? hostConfig.name : `${hostConfig?.username}@${hostConfig?.ip}`}/>
+						<Tunnel filterHostKey={(currentHostConfig?.name && currentHostConfig.name.trim() !== '') ? currentHostConfig.name : `${currentHostConfig?.username}@${currentHostConfig?.ip}`}/>
 					</div>
 				)}
 

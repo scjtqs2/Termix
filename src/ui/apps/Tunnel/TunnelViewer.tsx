@@ -1,5 +1,5 @@
 import React from "react";
-import {SSHTunnelObject} from "./SSHTunnelObject.tsx";
+import {TunnelObject} from "./TunnelObject.tsx";
 
 interface TunnelConnection {
     sourcePort: number;
@@ -46,7 +46,7 @@ interface SSHTunnelViewerProps {
     onTunnelAction: (action: 'connect' | 'disconnect' | 'cancel', host: SSHHost, tunnelIndex: number) => Promise<any>;
 }
 
-export function SSHTunnelViewer({
+export function TunnelViewer({
                                     hosts = [],
                                     tunnelStatuses = {},
                                     tunnelActions = {},
@@ -74,7 +74,7 @@ export function SSHTunnelViewer({
             <div className="min-h-0 flex-1 overflow-auto pr-1">
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3 auto-rows-min content-start w-full">
                     {activeHost.tunnelConnections.map((t, idx) => (
-                        <SSHTunnelObject
+                        <TunnelObject
                             key={`tunnel-${activeHost.id}-${t.endpointHost}-${t.sourcePort}-${t.endpointPort}`}
                             host={{...activeHost, tunnelConnections: [activeHost.tunnelConnections[idx]]}}
                             tunnelStatuses={tunnelStatuses}

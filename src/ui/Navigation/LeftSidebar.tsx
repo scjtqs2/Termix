@@ -48,8 +48,8 @@ import {
 import axios from "axios";
 import {Card} from "@/components/ui/card.tsx";
 import {FolderCard} from "@/ui/Navigation/Hosts/FolderCard.tsx";
-import {getSSHHosts} from "@/ui/SSH/ssh-axios";
-import { useTabs } from "@/contexts/TabContext";
+import {getSSHHosts} from "@/ui/main-axios.ts";
+import { useTabs } from "@/ui/Navigation/Tabs/TabContext.tsx";
 
 interface SSHHost {
     id: number;
@@ -206,19 +206,20 @@ export function LeftSidebar({
     const fetchHosts = React.useCallback(async () => {
         try {
             const newHosts = await getSSHHosts();
-            const terminalHosts = newHosts.filter(host => host.enableTerminal);
+            // Show all hosts in sidebar, regardless of terminal setting
+            // Terminal visibility is handled in the UI components
 
             const prevHosts = prevHostsRef.current;
             
             // Create a stable map of existing hosts by ID for comparison
             const existingHostsMap = new Map(prevHosts.map(h => [h.id, h]));
-            const newHostsMap = new Map(terminalHosts.map(h => [h.id, h]));
+            const newHostsMap = new Map(newHosts.map(h => [h.id, h]));
             
             // Check if there are any meaningful changes
             let hasChanges = false;
             
             // Check for new hosts, removed hosts, or changed hosts
-            if (terminalHosts.length !== prevHosts.length) {
+            if (newHosts.length !== prevHosts.length) {
                 hasChanges = true;
             } else {
                 for (const [id, newHost] of newHostsMap) {
@@ -248,8 +249,8 @@ export function LeftSidebar({
             if (hasChanges) {
                 // Use a small delay to batch updates and reduce jittering
                 setTimeout(() => {
-                    setHosts(terminalHosts);
-                    prevHostsRef.current = terminalHosts;
+                    setHosts(newHosts);
+                    prevHostsRef.current = newHosts;
                 }, 50);
             }
         } catch (err: any) {

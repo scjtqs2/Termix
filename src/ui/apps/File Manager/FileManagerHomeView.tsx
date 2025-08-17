@@ -31,7 +31,7 @@ interface ConfigHomeViewProps {
     onAddShortcut: (path: string) => void;
 }
 
-export function ConfigHomeView({
+export function FileManagerHomeView({
                                    recent,
                                    pinned,
                                    shortcuts,
@@ -177,8 +177,8 @@ export function ConfigHomeView({
                         />
                         <Button
                             size="sm"
-                            variant="outline"
-                            className="h-8 px-2 bg-[#23232a] border-2 border-[#303032] hover:bg-[#2d2d30] rounded-md"
+                            variant="ghost"
+                            className="h-8 px-2 bg-[#23232a] border-2 !border-[#303032] hover:bg-[#2d2d30] rounded-md"
                             onClick={() => {
                                 if (newShortcut.trim()) {
                                     onAddShortcut(newShortcut.trim());

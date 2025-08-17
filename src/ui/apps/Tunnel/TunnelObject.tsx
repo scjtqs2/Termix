@@ -79,7 +79,7 @@ interface SSHTunnelObjectProps {
     bare?: boolean; // when true, render without Card wrapper/background
 }
 
-export function SSHTunnelObject({
+export function TunnelObject({
                                     host,
                                     tunnelStatuses,
                                     tunnelActions,

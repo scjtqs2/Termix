@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useCallback} from "react";
-import {SSHTunnelViewer} from "@/ui/SSH/Tunnel/SSHTunnelViewer.tsx";
-import {getSSHHosts, getTunnelStatuses, connectTunnel, disconnectTunnel, cancelTunnel} from "@/ui/SSH/ssh-axios";
+import {TunnelViewer} from "@/ui/apps/Tunnel/TunnelViewer.tsx";
+import {getSSHHosts, getTunnelStatuses, connectTunnel, disconnectTunnel, cancelTunnel} from "@/ui/main-axios.ts";
 
 interface TunnelConnection {
     sourcePort: number;
@@ -48,7 +48,7 @@ interface SSHTunnelProps {
     filterHostKey?: string;
 }
 
-export function SSHTunnel({ filterHostKey }: SSHTunnelProps): React.ReactElement {
+export function Tunnel({ filterHostKey }: SSHTunnelProps): React.ReactElement {
     // Keep full list for endpoint lookups; keep a separate visible list for UI
     const [allHosts, setAllHosts] = useState<SSHHost[]>([]);
     const [visibleHosts, setVisibleHosts] = useState<SSHHost[]>([]);
@@ -197,7 +197,7 @@ export function SSHTunnel({ filterHostKey }: SSHTunnelProps): React.ReactElement
     };
 
     return (
-        <SSHTunnelViewer
+        <TunnelViewer
             hosts={visibleHosts}
             tunnelStatuses={tunnelStatuses}
             tunnelActions={tunnelActions}
