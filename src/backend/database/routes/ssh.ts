@@ -1,6 +1,6 @@
 import express from 'express';
 import {db} from '../db/index.js';
-import {sshData, configEditorRecent, configEditorPinned, configEditorShortcuts} from '../db/schema.js';
+import {sshData, fileManagerRecent, fileManagerPinned, fileManagerShortcuts} from '../db/schema.js';
 import {eq, and, desc} from 'drizzle-orm';
 import chalk from 'chalk';
 import jwt from 'jsonwebtoken';
@@ -101,7 +101,7 @@ router.get('/db/host/internal', async (req: Request, res: Response) => {
             enableTerminal: !!row.enableTerminal,
             enableTunnel: !!row.enableTunnel,
             tunnelConnections: row.tunnelConnections ? JSON.parse(row.tunnelConnections) : [],
-            enableConfigEditor: !!row.enableConfigEditor,
+            enableFileManager: !!row.enableFileManager,
         }));
         res.json(result);
     } catch (err) {
@@ -150,7 +150,7 @@ router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Reque
         pin,
         enableTerminal,
         enableTunnel,
-        enableConfigEditor,
+        enableFileManager,
         defaultPath,
         tunnelConnections
     } = hostData;
@@ -173,7 +173,7 @@ router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Reque
         enableTerminal: !!enableTerminal ? 1 : 0,
         enableTunnel: !!enableTunnel ? 1 : 0,
         tunnelConnections: Array.isArray(tunnelConnections) ? JSON.stringify(tunnelConnections) : null,
-        enableConfigEditor: !!enableConfigEditor ? 1 : 0,
+        enableFileManager: !!enableFileManager ? 1 : 0,
         defaultPath: defaultPath || null,
     };
 
@@ -238,7 +238,7 @@ router.put('/db/host/:id', authenticateJWT, upload.single('key'), async (req: Re
         pin,
         enableTerminal,
         enableTunnel,
-        enableConfigEditor,
+        enableFileManager,
         defaultPath,
         tunnelConnections
     } = hostData;
@@ -261,7 +261,7 @@ router.put('/db/host/:id', authenticateJWT, upload.single('key'), async (req: Re
         enableTerminal: !!enableTerminal ? 1 : 0,
         enableTunnel: !!enableTunnel ? 1 : 0,
         tunnelConnections: Array.isArray(tunnelConnections) ? JSON.stringify(tunnelConnections) : null,
-        enableConfigEditor: !!enableConfigEditor ? 1 : 0,
+        enableFileManager: !!enableFileManager ? 1 : 0,
         defaultPath: defaultPath || null,
     };
 
@@ -308,7 +308,7 @@ router.get('/db/host', authenticateJWT, async (req: Request, res: Response) => {
             enableTerminal: !!row.enableTerminal,
             enableTunnel: !!row.enableTunnel,
             tunnelConnections: row.tunnelConnections ? JSON.parse(row.tunnelConnections) : [],
-            enableConfigEditor: !!row.enableConfigEditor,
+            enableFileManager: !!row.enableFileManager,
         }));
         res.json(result);
     } catch (err) {
@@ -346,7 +346,7 @@ router.get('/db/host/:id', authenticateJWT, async (req: Request, res: Response) 
             enableTerminal: !!host.enableTerminal,
             enableTunnel: !!host.enableTunnel,
             tunnelConnections: host.tunnelConnections ? JSON.parse(host.tunnelConnections) : [],
-            enableConfigEditor: !!host.enableConfigEditor,
+            enableFileManager: !!host.enableFileManager,
         };
 
         res.json(result);
@@ -424,12 +424,12 @@ router.get('/file_manager/recent', authenticateJWT, async (req: Request, res: Re
     try {
         const recentFiles = await db
             .select()
-            .from(configEditorRecent)
+            .from(fileManagerRecent)
             .where(and(
-                eq(configEditorRecent.userId, userId),
-                eq(configEditorRecent.hostId, hostId)
+                eq(fileManagerRecent.userId, userId),
+                eq(fileManagerRecent.hostId, hostId)
             ))
-            .orderBy(desc(configEditorRecent.lastOpened));
+            .orderBy(desc(fileManagerRecent.lastOpened));
         res.json(recentFiles);
     } catch (err) {
         logger.error('Failed to fetch recent files', err);
@@ -448,23 +448,23 @@ router.post('/file_manager/recent', authenticateJWT, async (req: Request, res: R
     }
     try {
         const conditions = [
-            eq(configEditorRecent.userId, userId),
-            eq(configEditorRecent.path, path),
-            eq(configEditorRecent.hostId, hostId)
+            eq(fileManagerRecent.userId, userId),
+            eq(fileManagerRecent.path, path),
+            eq(fileManagerRecent.hostId, hostId)
         ];
 
         const existing = await db
             .select()
-            .from(configEditorRecent)
+            .from(fileManagerRecent)
             .where(and(...conditions));
 
         if (existing.length > 0) {
             await db
-                .update(configEditorRecent)
+                .update(fileManagerRecent)
                 .set({lastOpened: new Date().toISOString()})
                 .where(and(...conditions));
         } else {
-            await db.insert(configEditorRecent).values({
+            await db.insert(fileManagerRecent).values({
                 userId,
                 hostId,
                 name,
@@ -490,13 +490,13 @@ router.delete('/file_manager/recent', authenticateJWT, async (req: Request, res:
     }
     try {
         const conditions = [
-            eq(configEditorRecent.userId, userId),
-            eq(configEditorRecent.path, path),
-            eq(configEditorRecent.hostId, hostId)
+            eq(fileManagerRecent.userId, userId),
+            eq(fileManagerRecent.path, path),
+            eq(fileManagerRecent.hostId, hostId)
         ];
 
         const result = await db
-            .delete(configEditorRecent)
+            .delete(fileManagerRecent)
             .where(and(...conditions));
         res.json({message: 'File removed from recent'});
     } catch (err) {
@@ -524,12 +524,12 @@ router.get('/file_manager/pinned', authenticateJWT, async (req: Request, res: Re
     try {
         const pinnedFiles = await db
             .select()
-            .from(configEditorPinned)
+            .from(fileManagerPinned)
             .where(and(
-                eq(configEditorPinned.userId, userId),
-                eq(configEditorPinned.hostId, hostId)
+                eq(fileManagerPinned.userId, userId),
+                eq(fileManagerPinned.hostId, hostId)
             ))
-            .orderBy(configEditorPinned.pinnedAt);
+            .orderBy(fileManagerPinned.pinnedAt);
         res.json(pinnedFiles);
     } catch (err) {
         logger.error('Failed to fetch pinned files', err);
@@ -548,18 +548,18 @@ router.post('/file_manager/pinned', authenticateJWT, async (req: Request, res: R
     }
     try {
         const conditions = [
-            eq(configEditorPinned.userId, userId),
-            eq(configEditorPinned.path, path),
-            eq(configEditorPinned.hostId, hostId)
+            eq(fileManagerPinned.userId, userId),
+            eq(fileManagerPinned.path, path),
+            eq(fileManagerPinned.hostId, hostId)
         ];
 
         const existing = await db
             .select()
-            .from(configEditorPinned)
+            .from(fileManagerPinned)
             .where(and(...conditions));
 
         if (existing.length === 0) {
-            await db.insert(configEditorPinned).values({
+            await db.insert(fileManagerPinned).values({
                 userId,
                 hostId,
                 name,
@@ -585,13 +585,13 @@ router.delete('/file_manager/pinned', authenticateJWT, async (req: Request, res:
     }
     try {
         const conditions = [
-            eq(configEditorPinned.userId, userId),
-            eq(configEditorPinned.path, path),
-            eq(configEditorPinned.hostId, hostId)
+            eq(fileManagerPinned.userId, userId),
+            eq(fileManagerPinned.path, path),
+            eq(fileManagerPinned.hostId, hostId)
         ];
 
         const result = await db
-            .delete(configEditorPinned)
+            .delete(fileManagerPinned)
             .where(and(...conditions));
         res.json({message: 'File unpinned successfully'});
     } catch (err) {
@@ -617,12 +617,12 @@ router.get('/file_manager/shortcuts', authenticateJWT, async (req: Request, res:
     try {
         const shortcuts = await db
             .select()
-            .from(configEditorShortcuts)
+            .from(fileManagerShortcuts)
             .where(and(
-                eq(configEditorShortcuts.userId, userId),
-                eq(configEditorShortcuts.hostId, hostId)
+                eq(fileManagerShortcuts.userId, userId),
+                eq(fileManagerShortcuts.hostId, hostId)
             ))
-            .orderBy(configEditorShortcuts.createdAt);
+            .orderBy(fileManagerShortcuts.createdAt);
         res.json(shortcuts);
     } catch (err) {
         logger.error('Failed to fetch shortcuts', err);
@@ -640,18 +640,18 @@ router.post('/file_manager/shortcuts', authenticateJWT, async (req: Request, res
     }
     try {
         const conditions = [
-            eq(configEditorShortcuts.userId, userId),
-            eq(configEditorShortcuts.path, path),
-            eq(configEditorShortcuts.hostId, hostId)
+            eq(fileManagerShortcuts.userId, userId),
+            eq(fileManagerShortcuts.path, path),
+            eq(fileManagerShortcuts.hostId, hostId)
         ];
 
         const existing = await db
             .select()
-            .from(configEditorShortcuts)
+            .from(fileManagerShortcuts)
             .where(and(...conditions));
 
         if (existing.length === 0) {
-            await db.insert(configEditorShortcuts).values({
+            await db.insert(fileManagerShortcuts).values({
                 userId,
                 hostId,
                 name,
@@ -676,13 +676,13 @@ router.delete('/file_manager/shortcuts', authenticateJWT, async (req: Request, r
     }
     try {
         const conditions = [
-            eq(configEditorShortcuts.userId, userId),
-            eq(configEditorShortcuts.path, path),
-            eq(configEditorShortcuts.hostId, hostId)
+            eq(fileManagerShortcuts.userId, userId),
+            eq(fileManagerShortcuts.path, path),
+            eq(fileManagerShortcuts.hostId, hostId)
         ];
 
         const result = await db
-            .delete(configEditorShortcuts)
+            .delete(fileManagerShortcuts)
             .where(and(...conditions));
         res.json({message: 'Shortcut removed successfully'});
     } catch (err) {
@@ -765,7 +765,7 @@ router.post('/bulk-import', authenticateJWT, async (req: Request, res: Response)
                 enableTerminal: !!hostData.enableTerminal ? 1 : 0,
                 enableTunnel: !!hostData.enableTunnel ? 1 : 0,
                 tunnelConnections: Array.isArray(hostData.tunnelConnections) ? JSON.stringify(hostData.tunnelConnections) : null,
-                enableConfigEditor: !!hostData.enableConfigEditor ? 1 : 0,
+                enableFileManager: !!hostData.enableFileManager ? 1 : 0,
                 defaultPath: hostData.defaultPath || null,
             };
 

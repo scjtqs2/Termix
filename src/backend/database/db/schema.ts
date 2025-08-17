@@ -42,13 +42,13 @@ export const sshData = sqliteTable('ssh_data', {
     enableTerminal: integer('enable_terminal', {mode: 'boolean'}).notNull().default(true),
     enableTunnel: integer('enable_tunnel', {mode: 'boolean'}).notNull().default(true),
     tunnelConnections: text('tunnel_connections'),
-    enableConfigEditor: integer('enable_file_manager', {mode: 'boolean'}).notNull().default(true),
+    enableFileManager: integer('enable_file_manager', {mode: 'boolean'}).notNull().default(true),
     defaultPath: text('default_path'),
     createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const configEditorRecent = sqliteTable('file_manager_recent', {
+export const fileManagerRecent = sqliteTable('file_manager_recent', {
     id: integer('id').primaryKey({autoIncrement: true}),
     userId: text('user_id').notNull().references(() => users.id),
     hostId: integer('host_id').notNull().references(() => sshData.id),
@@ -57,7 +57,7 @@ export const configEditorRecent = sqliteTable('file_manager_recent', {
     lastOpened: text('last_opened').notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const configEditorPinned = sqliteTable('file_manager_pinned', {
+export const fileManagerPinned = sqliteTable('file_manager_pinned', {
     id: integer('id').primaryKey({autoIncrement: true}),
     userId: text('user_id').notNull().references(() => users.id),
     hostId: integer('host_id').notNull().references(() => sshData.id),
@@ -66,7 +66,7 @@ export const configEditorPinned = sqliteTable('file_manager_pinned', {
     pinnedAt: text('pinned_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const configEditorShortcuts = sqliteTable('file_manager_shortcuts', {
+export const fileManagerShortcuts = sqliteTable('file_manager_shortcuts', {
     id: integer('id').primaryKey({autoIncrement: true}),
     userId: text('user_id').notNull().references(() => users.id),
     hostId: integer('host_id').notNull().references(() => sshData.id),

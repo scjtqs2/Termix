@@ -4,7 +4,7 @@
 import './database/database.js'
 import './ssh/terminal.js';
 import './ssh/tunnel.js';
-import './ssh/file-manager.ts';
+import './ssh/file-manager.js';
 import './ssh/server-stats.js';
 import chalk from 'chalk';
 
