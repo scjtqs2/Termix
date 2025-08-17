@@ -155,6 +155,16 @@ export function LeftSidebar({
         const id = addTab({ type: 'ssh_manager', title: 'SSH Manager' } as any);
         setCurrentTab(id);
     };
+    const adminTab = tabList.find((t) => t.type === 'admin');
+    const openAdminTab = () => {
+        if (isSplitScreenActive) return;
+        if (adminTab) {
+            setCurrentTab(adminTab.id);
+            return;
+        }
+        const id = addTab({ type: 'admin', title: 'Admin' } as any);
+        setCurrentTab(id);
+    };
 
     // SSH Hosts state management
     const [hosts, setHosts] = useState<SSHHost[]>([]);
@@ -251,6 +261,15 @@ export function LeftSidebar({
         fetchHosts();
         const interval = setInterval(fetchHosts, 10000);
         return () => clearInterval(interval);
+    }, [fetchHosts]);
+
+    // Immediate refresh when SSH hosts are changed elsewhere in the app
+    React.useEffect(() => {
+        const handleHostsChanged = () => {
+            fetchHosts();
+        };
+        window.addEventListener('ssh-hosts:changed', handleHostsChanged as EventListener);
+        return () => window.removeEventListener('ssh-hosts:changed', handleHostsChanged as EventListener);
     }, [fetchHosts]);
 
     // Search debouncing
@@ -536,8 +555,8 @@ export function LeftSidebar({
                             
                             {/* Error Display */}
                             {hostsError && (
-                                <div className="px-4 pb-2">
-                                    <div className="text-xs text-red-500 bg-red-500/10 rounded px-2 py-1 border border-red-500/20">
+                                <div className="px-1">
+                                    <div className="text-xs text-red-500 bg-red-500/10 rounded-lg px-2 py-1 border w-full">
                                         {hostsError}
                                     </div>
                                 </div>
@@ -589,9 +608,7 @@ export function LeftSidebar({
                                             <DropdownMenuItem
                                                 className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none"
                                                 onSelect={() => {
-                                                    if (isAdmin) {
-                                                        setAdminSheetOpen(true);
-                                                    }
+                                                    if (isAdmin) openAdminTab();
                                                 }}>
                                                 <span>Admin Settings</span>
                                             </DropdownMenuItem>
@@ -619,7 +636,7 @@ export function LeftSidebar({
                     </SidebarFooter>
                     {/* Admin Settings Sheet */}
                     {isAdmin && (
-                        <Sheet open={adminSheetOpen && isAdmin} onOpenChange={(open) => {
+                        <Sheet modal={false} open={adminSheetOpen && isAdmin} onOpenChange={(open) => {
                             if (open && !isAdmin) return;
                             setAdminSheetOpen(open);
                         }}>
@@ -643,7 +660,7 @@ export function LeftSidebar({
                                                 <Users className="h-4 w-4"/>
                                                 Users
                                             </TabsTrigger>
-                                            <TabsTrigger value="admins" className="h-4 w-4">
+                                            <TabsTrigger value="admins" className="flex items-center gap-2">
                                                 <Shield className="h-4 w-4"/>
                                                 Admins
                                             </TabsTrigger>
@@ -984,7 +1001,7 @@ export function LeftSidebar({
                     )}
 
                     {/* Delete Account Confirmation Sheet */}
-                    <Sheet open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen}>
+                    <Sheet modal={false} open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen}>
                         <SheetContent side="left" className="w-[400px]">
                             <SheetHeader className="pb-0">
                                 <SheetTitle>Delete Account</SheetTitle>

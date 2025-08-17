@@ -75,6 +75,7 @@ export function SSHManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
             try {
                 await deleteSSHHost(hostId);
                 await fetchHosts();
+                window.dispatchEvent(new CustomEvent('ssh-hosts:changed'));
             } catch (err) {
                 alert('Failed to delete host');
             }
@@ -115,6 +116,7 @@ export function SSHManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
             if (result.success > 0) {
                 alert(`Import completed: ${result.success} successful, ${result.failed} failed${result.errors.length > 0 ? '\n\nErrors:\n' + result.errors.join('\n') : ''}`);
                 await fetchHosts();
+                window.dispatchEvent(new CustomEvent('ssh-hosts:changed'));
             } else {
                 alert(`Import failed: ${result.errors.join('\n')}`);
             }

@@ -3,8 +3,9 @@
 
 import './database/database.js'
 import './ssh/ssh.js';
-import './ssh_tunnel/ssh_tunnel.js';
-import './config_editor/config_editor.js';
+import './ssh/ssh_tunnel.js';
+import './ssh/config_editor.js';
+import './ssh/server-stats.js';
 import chalk from 'chalk';
 
 const fixedIconSymbol = '🚀';

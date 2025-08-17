@@ -138,7 +138,7 @@ export function Homepage({
                                     className="text-sm"
                                     onClick={() => window.open('https://github.com/sponsors/LukeGus', '_blank')}
                                 >
-                                    Fund
+                                    Donate
                                 </Button>
                             </div>
                         </div>

@@ -1,5 +1,12 @@
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar";
+import {Status, StatusIndicator} from "@/components/ui/shadcn-io/status";
+import {Separator} from "@/components/ui/separator.tsx";
+import {Button} from "@/components/ui/button.tsx";
+import { Progress } from "@/components/ui/progress"
+import {Cpu, HardDrive, MemoryStick} from "lucide-react";
+import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx";
+import { getServerStatusById, getServerMetricsById, ServerMetrics } from "@/ui/SSH/ssh-axios";
 
 interface ServerProps {
 	hostConfig?: any;
@@ -11,10 +18,52 @@ interface ServerProps {
 
 export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = true, embedded = false }: ServerProps): React.ReactElement {
 	const { state: sidebarState } = useSidebar();
+	const [serverStatus, setServerStatus] = React.useState<'online' | 'offline'>('offline');
+	const [metrics, setMetrics] = React.useState<ServerMetrics | null>(null);
+
+	React.useEffect(() => {
+		let cancelled = false;
+		let intervalId: number | undefined;
+
+		const fetchStatus = async () => {
+			try {
+				const res = await getServerStatusById(hostConfig?.id);
+				if (!cancelled) {
+					setServerStatus(res?.status === 'online' ? 'online' : 'offline');
+				}
+			} catch {
+				if (!cancelled) setServerStatus('offline');
+			}
+		};
+
+		const fetchMetrics = async () => {
+			if (!hostConfig?.id) return;
+			try {
+				const data = await getServerMetricsById(hostConfig.id);
+				if (!cancelled) setMetrics(data);
+			} catch {
+				if (!cancelled) setMetrics(null);
+			}
+		};
+
+		if (hostConfig?.id) {
+			fetchStatus();
+			fetchMetrics();
+			intervalId = window.setInterval(() => {
+				fetchStatus();
+				fetchMetrics();
+			}, 10_000);
+		}
+
+		return () => {
+			cancelled = true;
+			if (intervalId) window.clearInterval(intervalId);
+		};
+	}, [hostConfig?.id]);
 
 	const topMarginPx = isTopbarOpen ? 74 : 16;
 	const leftMarginPx = sidebarState === 'collapsed' ? 16 : 8;
-	const bottomMarginPx = 16;
+	const bottomMarginPx = 8;
 
 	const wrapperStyle: React.CSSProperties = embedded
 		? { opacity: isVisible ? 1 : 0, height: '100%', width: '100%' }
@@ -33,10 +82,106 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 
 	return (
 		<div style={wrapperStyle} className={containerClass}>
-			<div className="h-full w-full flex items-center justify-center">
-				<div className="text-sm opacity-70 text-center">
-					<div>{title || 'Server'}</div>
+			<div className="h-full w-full flex flex-col">
+
+				{/* Top Header */}
+				<div className="flex items-center justify-between px-3 pt-2 pb-2">
+					<div className="flex items-center gap-4">
+						<h1 className="font-bold text-lg">
+							{hostConfig.folder} / {title}
+						</h1>
+						<Status status={serverStatus} className="!bg-transparent !p-0.75 flex-shrink-0">
+							<StatusIndicator/>
+						</Status>
+					</div>
+					<div className="flex items-center">
+						<Button variant="outline">File Manager</Button>
+					</div>
 				</div>
+				<Separator className="p-0.25 w-full"/>
+
+				{/* Stats */}
+				<div className="rounded-lg border-2 border-[#303032] m-3 bg-[#0e0e10] flex flex-row items-stretch">
+					{/* CPU */}
+					<div className="flex-1 min-w-0 px-2 py-2">
+						<h1 className="font-bold text-lg flex flex-row gap-2 mb-1">
+							<Cpu/>
+							{(() => {
+								const pct = metrics?.cpu?.percent;
+								const cores = metrics?.cpu?.cores;
+								const la = metrics?.cpu?.load;
+								const pctText = (typeof pct === 'number') ? `${pct}%` : 'N/A';
+								const coresText = (typeof cores === 'number') ? `${cores} CPU(s)` : 'N/A CPU(s)';
+								const laText = (la && la.length === 3)
+									? `Avg: ${la[0].toFixed(2)}, ${la[1].toFixed(2)}, ${la[2].toFixed(2)}`
+									: 'Avg: N/A';
+								return `CPU Usage - ${pctText} of ${coresText} (${laText})`;
+							})()}
+						</h1>
+
+						<Progress value={typeof metrics?.cpu?.percent === 'number' ? metrics!.cpu!.percent! : 0} />
+					</div>
+
+					<Separator className="p-0.5 self-stretch" orientation="vertical"/>
+
+					{/* Memory */}
+					<div className="flex-1 min-w-0 px-2 py-2">
+						<h1 className="font-bold text-lg flex flex-row gap-2 mb-1">
+							<MemoryStick/>
+							{(() => {
+								const pct = metrics?.memory?.percent;
+								const used = metrics?.memory?.usedGiB;
+								const total = metrics?.memory?.totalGiB;
+								const pctText = (typeof pct === 'number') ? `${pct}%` : 'N/A';
+								const usedText = (typeof used === 'number') ? `${used} GiB` : 'N/A';
+								const totalText = (typeof total === 'number') ? `${total} GiB` : 'N/A';
+								return `Memory Usage - ${pctText} (${usedText} of ${totalText})`;
+							})()}
+						</h1>
+
+						<Progress value={typeof metrics?.memory?.percent === 'number' ? metrics!.memory!.percent! : 0} />
+					</div>
+
+					<Separator className="p-0.5 self-stretch" orientation="vertical"/>
+
+					{/* HDD */}
+					<div className="flex-1 min-w-0 px-2 py-2">
+						<h1 className="font-bold text-lg flex flex-row gap-2 mb-1">
+							<HardDrive/>
+							{(() => {
+								const pct = metrics?.disk?.percent;
+								const used = metrics?.disk?.usedHuman;
+								const total = metrics?.disk?.totalHuman;
+								const pctText = (typeof pct === 'number') ? `${pct}%` : 'N/A';
+								const usedText = used ?? 'N/A';
+								const totalText = total ?? 'N/A';
+								return `HD Space - ${pctText} (${usedText} of ${totalText})`;
+							})()}
+						</h1>
+
+						<Progress value={typeof metrics?.disk?.percent === 'number' ? metrics!.disk!.percent! : 0} />
+					</div>
+				</div>
+
+				{/* SSH Tunnels */}
+				{(hostConfig?.tunnelConnections && hostConfig.tunnelConnections.length > 0) && (
+					<div className="rounded-lg border-2 border-[#303032] m-3 bg-[#0e0e10] h-[360px] overflow-hidden flex flex-col min-h-0">
+						<SSHTunnel filterHostKey={(hostConfig?.name && hostConfig.name.trim() !== '') ? hostConfig.name : `${hostConfig?.username}@${hostConfig?.ip}`}/>
+					</div>
+				)}
+
+				<p className="px-4 pt-2 pb-2 text-sm text-gray-500">
+					Have ideas for what should come next for server management? Share them on{" "}
+					<a
+						href="https://github.com/LukeGus/Termix/issues/new"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-blue-500 hover:underline"
+					>
+						GitHub
+					</a>
+					!
+				</p>
 			</div>
 		</div>
 	);

@@ -31,6 +31,7 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
     const currentTabObj = tabs.find((t: any) => t.id === currentTab);
     const currentTabIsHome = currentTabObj?.type === 'home';
     const currentTabIsSshManager = currentTabObj?.type === 'ssh_manager';
+    const currentTabIsAdmin = currentTabObj?.type === 'admin';
 
     return (
         <div>
@@ -53,12 +54,13 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                         const isTerminal = tab.type === 'terminal';
                         const isServer = tab.type === 'server';
                         const isSshManager = tab.type === 'ssh_manager';
+                        const isAdmin = tab.type === 'admin';
                         // Split availability
                         const isSplittable = isTerminal || isServer;
                         // Disable split entirely when on Home or SSH Manager
                         const isSplitButtonDisabled = (isActive && !isSplitScreenActive) || ((allSplitScreenTab?.length || 0) >= 3 && !isSplit);
-                        const disableSplit = !isSplittable || isSplitButtonDisabled || isActive || currentTabIsHome || currentTabIsSshManager;
-                        const disableActivate = isSplit || ((tab.type === 'home' || tab.type === 'ssh_manager') && isSplitScreenActive);
+                        const disableSplit = !isSplittable || isSplitButtonDisabled || isActive || currentTabIsHome || currentTabIsSshManager || currentTabIsAdmin;
+                        const disableActivate = isSplit || ((tab.type === 'home' || tab.type === 'ssh_manager' || tab.type === 'admin') && isSplitScreenActive);
                         const disableClose = (isSplitScreenActive && isActive) || isSplit;
                         return (
                             <Tab
@@ -67,10 +69,10 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                 title={tab.title}
                                 isActive={isActive}
                                 onActivate={() => handleTabActivate(tab.id)}
-                                onClose={isTerminal || isServer || isSshManager ? () => handleTabClose(tab.id) : undefined}
+                                onClose={isTerminal || isServer || isSshManager || isAdmin ? () => handleTabClose(tab.id) : undefined}
                                 onSplit={isSplittable ? () => handleTabSplit(tab.id) : undefined}
                                 canSplit={isSplittable}
-                                canClose={isTerminal || isServer || isSshManager}
+                                canClose={isTerminal || isServer || isSshManager || isAdmin}
                                 disableActivate={disableActivate}
                                 disableSplit={disableSplit}
                                 disableClose={disableClose}

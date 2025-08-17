@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {Status, StatusIndicator} from "@/components/ui/shadcn-io/status";
 import {Button} from "@/components/ui/button.tsx";
 import {ButtonGroup} from "@/components/ui/button-group.tsx";
 import {Server, Terminal} from "lucide-react";
 import {useTabs} from "@/contexts/TabContext";
+import { getServerStatusById } from "@/ui/SSH/ssh-axios";
 
 interface SSHHost {
     id: number;
@@ -34,10 +35,35 @@ interface HostProps {
 
 export function Host({ host }: HostProps): React.ReactElement {
     const { addTab } = useTabs();
+    const [serverStatus, setServerStatus] = useState<'online' | 'offline'>('offline');
     const tags = Array.isArray(host.tags) ? host.tags : [];
     const hasTags = tags.length > 0;
     
     const title = host.name?.trim() ? host.name : `${host.username}@${host.ip}:${host.port}`;
+
+    useEffect(() => {
+        let cancelled = false;
+        let intervalId: number | undefined;
+
+        const fetchStatus = async () => {
+            try {
+                const res = await getServerStatusById(host.id);
+                if (!cancelled) {
+                    setServerStatus(res?.status === 'online' ? 'online' : 'offline');
+                }
+            } catch {
+                if (!cancelled) setServerStatus('offline');
+            }
+        };
+
+        fetchStatus();
+        intervalId = window.setInterval(fetchStatus, 60_000);
+
+        return () => {
+            cancelled = true;
+            if (intervalId) window.clearInterval(intervalId);
+        };
+    }, [host.id]);
 
     const handleTerminalClick = () => {
         addTab({ type: 'terminal', title, hostConfig: host });
@@ -50,7 +76,7 @@ export function Host({ host }: HostProps): React.ReactElement {
     return (
         <div>
             <div className="flex items-center gap-2">
-                <Status status={"online"} className="!bg-transparent !p-0.75 flex-shrink-0">
+                <Status status={serverStatus} className="!bg-transparent !p-0.75 flex-shrink-0">
                     <StatusIndicator/>
                 </Status>
                 <p className="font-semibold flex-1 min-w-0 break-words text-sm">

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import {TerminalComponent} from "./TerminalComponent.tsx";
+import {TerminalComponent} from "../SSH/Terminal/TerminalComponent.tsx";
 import {Server as ServerView} from "@/ui/SSH/Server/Server.tsx";
-import {useTabs} from "@/contexts/TabContext";
+import {useTabs} from "@/contexts/TabContext.tsx";
 import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
 import * as ResizablePrimitive from "react-resizable-panels";
-import { useSidebar } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar.tsx";
 import {LucideRefreshCcw, LucideRefreshCw, RefreshCcw, RefreshCcwDot} from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 
@@ -12,7 +12,7 @@ interface TerminalViewProps {
     isTopbarOpen?: boolean;
 }
 
-export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.ReactElement {
+export function AppView({ isTopbarOpen = true }: TerminalViewProps): React.ReactElement {
     const {tabs, currentTab, allSplitScreenTab} = useTabs() as any;
     const { state: sidebarState } = useSidebar();
 
@@ -305,7 +305,7 @@ export function TerminalView({ isTopbarOpen = true }: TerminalViewProps): React.
 
     const topMarginPx = isTopbarOpen ? 74 : 26;
     const leftMarginPx = sidebarState === 'collapsed' ? 26 : 8;
-    const bottomMarginPx = 15;
+    const bottomMarginPx = 8;
 
     return (
         <div

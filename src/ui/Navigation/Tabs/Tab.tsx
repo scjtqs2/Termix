@@ -92,5 +92,28 @@ export function Tab({tabType, title, isActive, onActivate, onClose, onSplit, can
         );
     }
 
+    if (tabType === "admin") {
+        return (
+            <ButtonGroup>
+                <Button
+                    variant="outline"
+                    className={`!px-2 border-1 border-[#303032] ${isActive ? '!bg-[#1d1d1f] !text-white !border-[#2d2d30]' : ''}`}
+                    onClick={onActivate}
+                    disabled={disableActivate}
+                >
+                    {title || "Admin"}
+                </Button>
+                <Button
+                    variant="outline"
+                    className="!px-2 border-1 border-[#303032]"
+                    onClick={onClose}
+                    disabled={disableClose}
+                >
+                    <X/>
+                </Button>
+            </ButtonGroup>
+        );
+    }
+
     return null;
 }

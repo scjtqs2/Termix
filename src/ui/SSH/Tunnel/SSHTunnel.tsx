@@ -1,11 +1,6 @@
 import React, {useState, useEffect, useCallback} from "react";
-import {SSHTunnelSidebar} from "@/ui/SSH/Tunnel/SSHTunnelSidebar.tsx";
 import {SSHTunnelViewer} from "@/ui/SSH/Tunnel/SSHTunnelViewer.tsx";
 import {getSSHHosts, getTunnelStatuses, connectTunnel, disconnectTunnel, cancelTunnel} from "@/ui/SSH/ssh-axios";
-
-interface ConfigEditorProps {
-    onSelectView: (view: string) => void;
-}
 
 interface TunnelConnection {
     sourcePort: number;
@@ -49,31 +44,92 @@ interface TunnelStatus {
     retryExhausted?: boolean;
 }
 
-export function SSHTunnel({onSelectView}: ConfigEditorProps): React.ReactElement {
-    const [hosts, setHosts] = useState<SSHHost[]>([]);
+interface SSHTunnelProps {
+    filterHostKey?: string;
+}
+
+export function SSHTunnel({ filterHostKey }: SSHTunnelProps): React.ReactElement {
+    // Keep full list for endpoint lookups; keep a separate visible list for UI
+    const [allHosts, setAllHosts] = useState<SSHHost[]>([]);
+    const [visibleHosts, setVisibleHosts] = useState<SSHHost[]>([]);
     const [tunnelStatuses, setTunnelStatuses] = useState<Record<string, TunnelStatus>>({});
     const [tunnelActions, setTunnelActions] = useState<Record<string, boolean>>({});
 
-    const fetchHosts = useCallback(async () => {
-        try {
-            const hostsData = await getSSHHosts();
-            setHosts(hostsData);
-        } catch (err) {
+    const prevVisibleHostRef = React.useRef<SSHHost | null>(null);
+
+    const haveTunnelConnectionsChanged = (a: TunnelConnection[] = [], b: TunnelConnection[] = []): boolean => {
+        if (a.length !== b.length) return true;
+        for (let i = 0; i < a.length; i++) {
+            const x = a[i];
+            const y = b[i];
+            if (
+                x.sourcePort !== y.sourcePort ||
+                x.endpointPort !== y.endpointPort ||
+                x.endpointHost !== y.endpointHost ||
+                x.maxRetries !== y.maxRetries ||
+                x.retryInterval !== y.retryInterval ||
+                x.autoStart !== y.autoStart
+            ) {
+                return true;
+            }
         }
-    }, []);
+        return false;
+    };
+
+    const fetchHosts = useCallback(async () => {
+        const hostsData = await getSSHHosts();
+        setAllHosts(hostsData);
+        const nextVisible = filterHostKey
+            ? hostsData.filter(h => {
+                const key = (h.name && h.name.trim() !== '') ? h.name : `${h.username}@${h.ip}`;
+                return key === filterHostKey;
+            })
+            : hostsData;
+
+        // Silent update: only set state if meaningful changes
+        const prev = prevVisibleHostRef.current;
+        const curr = nextVisible[0] ?? null;
+        let changed = false;
+        if (!prev && curr) changed = true;
+        else if (prev && !curr) changed = true;
+        else if (prev && curr) {
+            if (
+                prev.id !== curr.id ||
+                prev.name !== curr.name ||
+                prev.ip !== curr.ip ||
+                prev.port !== curr.port ||
+                prev.username !== curr.username ||
+                haveTunnelConnectionsChanged(prev.tunnelConnections, curr.tunnelConnections)
+            ) {
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            setVisibleHosts(nextVisible);
+            prevVisibleHostRef.current = curr;
+        }
+    }, [filterHostKey]);
 
     const fetchTunnelStatuses = useCallback(async () => {
-        try {
-            const statusData = await getTunnelStatuses();
-            setTunnelStatuses(statusData);
-        } catch (err) {
-        }
+        const statusData = await getTunnelStatuses();
+        setTunnelStatuses(statusData);
     }, []);
 
     useEffect(() => {
         fetchHosts();
-        const interval = setInterval(fetchHosts, 10000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchHosts, 5000);
+
+        // Refresh immediately when hosts are changed elsewhere (e.g., SSH Manager)
+        const handleHostsChanged = () => {
+            fetchHosts();
+        };
+        window.addEventListener('ssh-hosts:changed', handleHostsChanged as EventListener);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('ssh-hosts:changed', handleHostsChanged as EventListener);
+        };
     }, [fetchHosts]);
 
     useEffect(() => {
@@ -90,7 +146,7 @@ export function SSHTunnel({onSelectView}: ConfigEditorProps): React.ReactElement
 
         try {
             if (action === 'connect') {
-                const endpointHost = hosts.find(h =>
+                const endpointHost = allHosts.find(h =>
                     h.name === tunnel.endpointHost ||
                     `${h.username}@${h.ip}` === tunnel.endpointHost
                 );
@@ -141,20 +197,11 @@ export function SSHTunnel({onSelectView}: ConfigEditorProps): React.ReactElement
     };
 
     return (
-        <div className="flex h-screen w-full">
-            <div className="w-64 flex-shrink-0">
-                <SSHTunnelSidebar
-                    onSelectView={onSelectView}
-                />
-            </div>
-            <div className="flex-1 overflow-auto">
-                <SSHTunnelViewer
-                    hosts={hosts}
-                    tunnelStatuses={tunnelStatuses}
-                    tunnelActions={tunnelActions}
-                    onTunnelAction={handleTunnelAction}
-                />
-            </div>
-        </div>
+        <SSHTunnelViewer
+            hosts={visibleHosts}
+            tunnelStatuses={tunnelStatuses}
+            tunnelActions={tunnelActions}
+            onTunnelAction={handleTunnelAction}
+        />
     );
 }

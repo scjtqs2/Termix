@@ -93,6 +93,18 @@ interface ConfigEditorShortcut {
     path: string;
 }
 
+export type ServerStatus = {
+    status: 'online' | 'offline';
+    lastChecked: string;
+};
+
+export type ServerMetrics = {
+    cpu: { percent: number | null; cores: number | null; load: [number, number, number] | null };
+    memory: { percent: number | null; usedGiB: number | null; totalGiB: number | null };
+    disk: { percent: number | null; usedHuman: string | null; totalHuman: string | null };
+    lastChecked: string;
+};
+
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const sshHostApi = axios.create({
@@ -116,6 +128,13 @@ const configEditorApi = axios.create({
     }
 })
 
+const statsApi = axios.create({
+    baseURL: isLocalhost ? 'http://localhost:8085' : '/ssh/stats',
+    headers: {
+        'Content-Type': 'application/json',
+    }
+})
+
 function getCookie(name: string): string | undefined {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -123,6 +142,14 @@ function getCookie(name: string): string | undefined {
 }
 
 sshHostApi.interceptors.request.use((config) => {
+    const token = getCookie('jwt');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+statsApi.interceptors.request.use((config) => {
     const token = getCookie('jwt');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -532,3 +559,30 @@ export async function writeSSHFile(sessionId: string, path: string, content: str
 }
 
 export {sshHostApi, tunnelApi, configEditorApi};
+
+export async function getAllServerStatuses(): Promise<Record<number, ServerStatus>> {
+    try {
+        const response = await statsApi.get('/status');
+        return response.data || {};
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function getServerStatusById(id: number): Promise<ServerStatus> {
+    try {
+        const response = await statsApi.get(`/status/${id}`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function getServerMetricsById(id: number): Promise<ServerMetrics> {
+    try {
+        const response = await statsApi.get(`/metrics/${id}`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}

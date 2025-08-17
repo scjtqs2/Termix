@@ -1,13 +1,14 @@
 import React, {useState, useEffect} from "react"
 import {LeftSidebar} from "@/ui/Navigation/LeftSidebar.tsx"
 import {Homepage} from "@/ui/Homepage/Homepage.tsx"
-import {TerminalView} from "@/ui/SSH/Terminal/TerminalView.tsx"
-import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
-import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx"
+import {AppView} from "@/ui/Navigation/AppView.tsx"
+// import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
+// import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx"
 import {SSHManager} from "@/ui/SSH/Manager/SSHManager.tsx"
 import {TabProvider, useTabs} from "@/contexts/TabContext"
 import axios from "axios"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
+import { AdminSettings } from "@/ui/Admin/AdminSettings";
 
 const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
 const API = axios.create({baseURL: apiBase});
@@ -90,6 +91,7 @@ function AppContent() {
     const showTerminalView = currentTabData?.type === 'terminal' || currentTabData?.type === 'server';
     const showHome = currentTabData?.type === 'home';
     const showSshManager = currentTabData?.type === 'ssh_manager';
+    const showAdmin = currentTabData?.type === 'admin';
     
     console.log('Current tab:', currentTab);
     console.log('Current tab data:', currentTabData);
@@ -164,7 +166,7 @@ function AppContent() {
                             overflow: "hidden",
                         }}
                     >
-                        <TerminalView isTopbarOpen={isTopbarOpen} />
+                        <AppView isTopbarOpen={isTopbarOpen} />
                     </div>
                     
                     {/* Always render Homepage to keep it mounted */}
@@ -202,28 +204,23 @@ function AppContent() {
                     >
                         <SSHManager onSelectView={handleSelectView} isTopbarOpen={isTopbarOpen} />
                     </div>
+
+                    {/* Admin Settings tab */}
+                    <div
+                        className="h-screen w-full"
+                        style={{
+                            visibility: showAdmin ? "visible" : "hidden",
+                            pointerEvents: showAdmin ? "auto" : "none",
+                            height: showAdmin ? "100vh" : 0,
+                            width: showAdmin ? "100%" : 0,
+                            position: showAdmin ? "static" : "absolute",
+                            overflow: "hidden",
+                        }}
+                    >
+                        <AdminSettings isTopbarOpen={isTopbarOpen} />
+                    </div>
                     
-                    {/* Legacy views - keep for compatibility (exclude homepage to avoid duplicate mounts) */}
-                    {mountedViews.has("ssh_manager") && (
-                        <div style={{display: view === "ssh_manager" ? "block" : "none"}}>
-                            <SSHManager onSelectView={handleSelectView} isTopbarOpen={isTopbarOpen}/>
-                        </div>
-                    )}
-                    {mountedViews.has("terminal") && (
-                        <div style={{display: view === "terminal" ? "block" : "none"}}>
-                            <Terminal onSelectView={handleSelectView}/>
-                        </div>
-                    )}
-                    {mountedViews.has("tunnel") && (
-                        <div style={{display: view === "tunnel" ? "block" : "none"}}>
-                            <SSHTunnel onSelectView={handleSelectView}/>
-                        </div>
-                    )}
-                    {mountedViews.has("config_editor") && (
-                        <div style={{display: view === "config_editor" ? "block" : "none"}}>
-                            <ConfigEditor onSelectView={handleSelectView}/>
-                        </div>
-                    )}
+                    {/* Legacy views removed; tab system controls main content */}
                     <TopNavbar isTopbarOpen={isTopbarOpen} setIsTopbarOpen={setIsTopbarOpen}/>
                 </LeftSidebar>
             )}

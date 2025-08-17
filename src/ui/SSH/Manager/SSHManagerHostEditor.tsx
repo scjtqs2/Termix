@@ -251,6 +251,8 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
             if (onFormSubmit) {
                 onFormSubmit();
             }
+
+            window.dispatchEvent(new CustomEvent('ssh-hosts:changed'));
         } catch (error) {
             alert('Failed to save host. Please try again.');
         }
@@ -809,7 +811,7 @@ export function SSHManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHost
                                                                             render={({field: sourcePortField}) => (
                                                                                 <FormItem className="col-span-4">
                                                                                     <FormLabel>Source Port
-                                                                                        (Local)</FormLabel>
+                                                                                        (Source refers to the Current Connection Details in the General tab)</FormLabel>
                                                                                     <FormControl>
                                                                                         <Input
                                                                                             placeholder="22" {...sourcePortField} />

@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, type ReactNode } from 'react';
 
 export interface Tab {
     id: number;
-    type: 'home' | 'terminal' | 'ssh_manager' | 'server';
+    type: 'home' | 'terminal' | 'ssh_manager' | 'server' | 'admin';
     title: string;
     hostConfig?: any;
     terminalRef?: React.RefObject<any>;
@@ -41,8 +41,9 @@ export function TabProvider({ children }: TabProviderProps) {
     const [allSplitScreenTab, setAllSplitScreenTab] = useState<number[]>([]);
     const nextTabId = useRef(2);
 
-    function computeUniqueTerminalTitle(desiredTitle: string | undefined): string {
-        const baseTitle = (desiredTitle || 'Terminal').trim();
+    function computeUniqueTitle(tabType: Tab['type'], desiredTitle: string | undefined): string {
+        const defaultTitle = tabType === 'server' ? 'Server' : 'Terminal';
+        const baseTitle = (desiredTitle || defaultTitle).trim();
         // Extract base name without trailing " (n)"
         const match = baseTitle.match(/^(.*) \((\d+)\)$/);
         const root = match ? match[1] : baseTitle;
@@ -50,12 +51,12 @@ export function TabProvider({ children }: TabProviderProps) {
         const usedNumbers = new Set<number>();
         let rootUsed = false;
         tabs.forEach(t => {
-            if (t.type !== 'terminal' || !t.title) return;
+            if (t.type !== tabType || !t.title) return;
             if (t.title === root) {
                 rootUsed = true;
                 return;
             }
-            const m = t.title.match(new RegExp(`^${root.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")} \\((\\d+)\\)$`));
+            const m = t.title.match(new RegExp(`^${root.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")} \\((\\d+)\\)$`));
             if (m) {
                 const n = parseInt(m[1], 10);
                 if (!isNaN(n)) usedNumbers.add(n);
@@ -71,7 +72,8 @@ export function TabProvider({ children }: TabProviderProps) {
 
     const addTab = (tabData: Omit<Tab, 'id'>): number => {
         const id = nextTabId.current++;
-        const effectiveTitle = tabData.type === 'terminal' ? computeUniqueTerminalTitle(tabData.title) : (tabData.title || '');
+        const needsUniqueTitle = tabData.type === 'terminal' || tabData.type === 'server';
+        const effectiveTitle = needsUniqueTitle ? computeUniqueTitle(tabData.type, tabData.title) : (tabData.title || '');
         const newTab: Tab = { 
             ...tabData, 
             id,
