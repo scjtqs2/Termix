@@ -78,7 +78,6 @@ export function TabProvider({children}: TabProviderProps) {
             title: effectiveTitle,
             terminalRef: tabData.type === 'terminal' ? React.createRef<any>() : undefined
         };
-        console.log('Adding new tab:', newTab);
         setTabs(prev => [...prev, newTab]);
         setCurrentTab(id);
         setAllSplitScreenTab(prev => prev.filter(tid => tid !== id));
