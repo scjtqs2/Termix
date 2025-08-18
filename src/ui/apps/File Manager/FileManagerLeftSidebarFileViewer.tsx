@@ -20,7 +20,7 @@ interface FileItem {
     isStarred?: boolean;
 }
 
-interface ConfigFileSidebarViewerProps {
+interface FileManagerLeftSidebarVileViewerProps {
     sshConnections: SSHConnection[];
     onAddSSH: () => void;
     onConnectSSH: (conn: SSHConnection) => void;
@@ -60,7 +60,7 @@ export function FileManagerLeftSidebarFileViewer({
                                             onSwitchToLocal,
                                             onSwitchToSSH,
                                             currentSSH,
-                                        }: ConfigFileSidebarViewerProps) {
+                                        }: FileManagerLeftSidebarVileViewerProps) {
     return (
         <div className="flex flex-col h-full">
             {/* SSH Connections */}

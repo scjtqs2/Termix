@@ -5,13 +5,13 @@ import {hyperLink} from '@uiw/codemirror-extensions-hyper-link';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {EditorView} from '@codemirror/view';
 
-interface ConfigCodeEditorProps {
+interface FileManagerCodeEditorProps {
     content: string;
     fileName: string;
     onContentChange: (value: string) => void;
 }
 
-export function FileManagerFileEditor({content, fileName, onContentChange}: ConfigCodeEditorProps) {
+export function FileManagerFileEditor({content, fileName, onContentChange}: FileManagerCodeEditorProps) {
     function getLanguageName(filename: string): string {
         if (!filename || typeof filename !== 'string') {
             return 'text';

@@ -22,7 +22,7 @@ interface SSHHost {
     authType: string;
     enableTerminal: boolean;
     enableTunnel: boolean;
-    enableConfigEditor: boolean;
+    enableFileManager: boolean;
     defaultPath: string;
     tunnelConnections: TunnelConnection[];
     createdAt: string;

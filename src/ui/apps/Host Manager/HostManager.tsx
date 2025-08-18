@@ -5,7 +5,7 @@ import {Separator} from "@/components/ui/separator.tsx";
 import {HostManagerHostEditor} from "@/ui/apps/Host Manager/HostManagerHostEditor.tsx";
 import {useSidebar} from "@/components/ui/sidebar.tsx";
 
-interface ConfigEditorProps {
+interface HostManagerProps {
 	onSelectView: (view: string) => void;
 	isTopbarOpen?: boolean;
 }
@@ -26,14 +26,14 @@ interface SSHHost {
 	keyType?: string;
 	enableTerminal: boolean;
 	enableTunnel: boolean;
-	enableConfigEditor: boolean;
+	enableFileManager: boolean;
 	defaultPath: string;
 	tunnelConnections: any[];
 	createdAt: string;
 	updatedAt: string;
 }
 
-export function HostManager({onSelectView, isTopbarOpen}: ConfigEditorProps): React.ReactElement {
+export function HostManager({onSelectView, isTopbarOpen}: HostManagerProps): React.ReactElement {
 	const [activeTab, setActiveTab] = useState("host_viewer");
 	const [editingHost, setEditingHost] = useState<SSHHost | null>(null);
 	const {state: sidebarState} = useSidebar();

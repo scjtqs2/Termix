@@ -9,9 +9,9 @@ import {
     listSSHFiles,
     connectSSH,
     getSSHStatus,
-    getConfigEditorPinned,
-    addConfigEditorPinned,
-    removeConfigEditorPinned
+    getFileManagerPinned,
+    addFileManagerPinned,
+    removeFileManagerPinned
 } from '@/ui/main-axios.ts';
 
 interface SSHHost {
@@ -30,14 +30,14 @@ interface SSHHost {
     keyType?: string;
     enableTerminal: boolean;
     enableTunnel: boolean;
-    enableConfigEditor: boolean;
+    enableFileManager: boolean;
     defaultPath: string;
     tunnelConnections: any[];
     createdAt: string;
     updatedAt: string;
 }
 
-const FileManagerLeftSidebar = forwardRef(function ConfigEditorSidebar(
+const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
     {onSelectView, onOpenFile, tabs, host}: {
         onSelectView?: (view: string) => void;
         onOpenFile: (file: any) => void;
@@ -146,7 +146,7 @@ const FileManagerLeftSidebar = forwardRef(function ConfigEditorSidebar(
             let pinnedFiles: any[] = [];
             try {
                 if (host) {
-                    pinnedFiles = await getConfigEditorPinned(host.id);
+                    pinnedFiles = await getFileManagerPinned(host.id);
                 }
             } catch (err) {
             }
@@ -336,7 +336,7 @@ const FileManagerLeftSidebar = forwardRef(function ConfigEditorSidebar(
                                                                                 e.stopPropagation();
                                                                                 try {
                                                                                     if (item.isPinned) {
-                                                                                        await removeConfigEditorPinned({
+                                                                                        await removeFileManagerPinned({
                                                                                             name: item.name,
                                                                                             path: item.path,
                                                                                             hostId: host?.id,
@@ -347,7 +347,7 @@ const FileManagerLeftSidebar = forwardRef(function ConfigEditorSidebar(
                                                                                             f.path === item.path ? { ...f, isPinned: false } : f
                                                                                         ));
                                                                                     } else {
-                                                                                        await addConfigEditorPinned({
+                                                                                        await addFileManagerPinned({
                                                                                             name: item.name,
                                                                                             path: item.path,
                                                                                             hostId: host?.id,

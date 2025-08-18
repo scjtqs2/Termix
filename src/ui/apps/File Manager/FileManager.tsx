@@ -7,15 +7,15 @@ import {Button} from '@/components/ui/button.tsx';
 import {FIleManagerTopNavbar} from "@/ui/apps/File Manager/FIleManagerTopNavbar.tsx";
 import {cn} from '@/lib/utils.ts';
 import {
-    getConfigEditorRecent,
-    getConfigEditorPinned,
-    getConfigEditorShortcuts,
-    addConfigEditorRecent,
-    removeConfigEditorRecent,
-    addConfigEditorPinned,
-    removeConfigEditorPinned,
-    addConfigEditorShortcut,
-    removeConfigEditorShortcut,
+    getFileManagerRecent,
+    getFileManagerPinned,
+    getFileManagerShortcuts,
+    addFileManagerRecent,
+    removeFileManagerRecent,
+    addFileManagerPinned,
+    removeFileManagerPinned,
+    addFileManagerShortcut,
+    removeFileManagerShortcut,
     readSSHFile,
     writeSSHFile,
     getSSHStatus,
@@ -52,14 +52,18 @@ interface SSHHost {
     keyType?: string;
     enableTerminal: boolean;
     enableTunnel: boolean;
-    enableConfigEditor: boolean;
+    enableFileManager: boolean;
     defaultPath: string;
     tunnelConnections: any[];
     createdAt: string;
     updatedAt: string;
 }
 
-export function FileManager({onSelectView, embedded = false, initialHost = null}: { onSelectView?: (view: string) => void, embedded?: boolean, initialHost?: SSHHost | null }): React.ReactElement {
+export function FileManager({onSelectView, embedded = false, initialHost = null}: {
+    onSelectView?: (view: string) => void,
+    embedded?: boolean,
+    initialHost?: SSHHost | null
+}): React.ReactElement {
     const [tabs, setTabs] = useState<Tab[]>([]);
     const [activeTab, setActiveTab] = useState<string | number>('home');
     const [recent, setRecent] = useState<any[]>([]);
@@ -118,9 +122,9 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
 
         try {
             const homeDataPromise = Promise.all([
-                getConfigEditorRecent(currentHost.id),
-                getConfigEditorPinned(currentHost.id),
-                getConfigEditorShortcuts(currentHost.id),
+                getFileManagerRecent(currentHost.id),
+                getFileManagerPinned(currentHost.id),
+                getFileManagerShortcuts(currentHost.id),
             ]);
 
             const timeoutPromise = new Promise((_, reject) =>
@@ -197,7 +201,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                     loading: false,
                     error: undefined
                 } : t));
-                await addConfigEditorRecent({
+                await addFileManagerRecent({
                     name: file.name,
                     path: file.path,
                     isSSH: true,
@@ -215,7 +219,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
 
     const handleRemoveRecent = async (file: any) => {
         try {
-            await removeConfigEditorRecent({
+            await removeFileManagerRecent({
                 name: file.name,
                 path: file.path,
                 isSSH: true,
@@ -229,7 +233,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
 
     const handlePinFile = async (file: any) => {
         try {
-            await addConfigEditorPinned({
+            await addFileManagerPinned({
                 name: file.name,
                 path: file.path,
                 isSSH: true,
@@ -246,7 +250,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
 
     const handleUnpinFile = async (file: any) => {
         try {
-            await removeConfigEditorPinned({
+            await removeFileManagerPinned({
                 name: file.name,
                 path: file.path,
                 isSSH: true,
@@ -286,7 +290,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
     const handleAddShortcut = async (folderPath: string) => {
         try {
             const name = folderPath.split('/').pop() || folderPath;
-            await addConfigEditorShortcut({
+            await addFileManagerShortcut({
                 name,
                 path: folderPath,
                 isSSH: true,
@@ -300,7 +304,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
 
     const handleRemoveShortcut = async (shortcut: any) => {
         try {
-            await removeConfigEditorShortcut({
+            await removeFileManagerShortcut({
                 name: shortcut.name,
                 path: shortcut.path,
                 isSSH: true,
@@ -402,7 +406,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
             Promise.allSettled([
                 (async () => {
                     try {
-                        await addConfigEditorRecent({
+                        await addFileManagerRecent({
                             name: tab.fileName,
                             path: tab.filePath,
                             isSSH: true,
@@ -445,14 +449,16 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
     };
 
     // Host is locked; no external host change from UI
-    const handleHostChange = (_host: SSHHost | null) => {};
+    const handleHostChange = (_host: SSHHost | null) => {
+    };
 
     if (!currentHost) {
         return (
             <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
                 <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100%', zIndex: 20}}>
                     <FileManagerLeftSidebar
-                        onSelectView={onSelectView || (() => {})}
+                        onSelectView={onSelectView || (() => {
+                        })}
                         onOpenFile={handleOpenFile}
                         tabs={tabs}
                         ref={sidebarRef}
@@ -483,7 +489,8 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
         <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
             <div style={{position: 'absolute', top: 0, left: 0, width: 256, height: '100%', zIndex: 20}}>
                 <FileManagerLeftSidebar
-                    onSelectView={onSelectView || (() => {})}
+                    onSelectView={onSelectView || (() => {
+                    })}
                     onOpenFile={handleOpenFile}
                     tabs={tabs}
                     ref={sidebarRef}

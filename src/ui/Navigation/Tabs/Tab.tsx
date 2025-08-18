@@ -31,9 +31,9 @@ export function Tab({tabType, title, isActive, onActivate, onClose, onSplit, can
         );
     }
 
-    if (tabType === "terminal" || tabType === "server" || tabType === "config") {
+    if (tabType === "terminal" || tabType === "server" || tabType === "file_manager") {
         const isServer = tabType === 'server';
-        const isConfig = tabType === 'config';
+        const isFileManager = tabType === 'file_manager';
         return (
             <ButtonGroup>
                 <Button
@@ -42,8 +42,8 @@ export function Tab({tabType, title, isActive, onActivate, onClose, onSplit, can
                     onClick={onActivate}
                     disabled={disableActivate}
                 >
-                    {isServer ? <ServerIcon className="mr-1 h-4 w-4"/> : isConfig ? <FolderIcon className="mr-1 h-4 w-4"/> : <TerminalIcon className="mr-1 h-4 w-4"/>}
-                    {title || (isServer ? 'Server' : isConfig ? 'Config' : 'Terminal')}
+                    {isServer ? <ServerIcon className="mr-1 h-4 w-4"/> : isFileManager ? <FolderIcon className="mr-1 h-4 w-4"/> : <TerminalIcon className="mr-1 h-4 w-4"/>}
+                    {title || (isServer ? 'Server' : isFileManager ? 'file_manager' : 'Terminal')}
                 </Button>
                 {canSplit && (
                     <Button

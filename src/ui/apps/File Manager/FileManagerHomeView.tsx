@@ -18,7 +18,7 @@ interface ShortcutItem {
     path: string;
 }
 
-interface ConfigHomeViewProps {
+interface FileManagerHomeViewProps {
     recent: FileItem[];
     pinned: FileItem[];
     shortcuts: ShortcutItem[];
@@ -42,7 +42,7 @@ export function FileManagerHomeView({
                                    onOpenShortcut,
                                    onRemoveShortcut,
                                    onAddShortcut
-                               }: ConfigHomeViewProps) {
+                               }: FileManagerHomeViewProps) {
     const [tab, setTab] = useState<'recent' | 'pinned' | 'shortcuts'>('recent');
     const [newShortcut, setNewShortcut] = useState('');
 

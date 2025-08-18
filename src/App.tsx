@@ -2,8 +2,6 @@ import React, {useState, useEffect} from "react"
 import {LeftSidebar} from "@/ui/Navigation/LeftSidebar.tsx"
 import {Homepage} from "@/ui/Homepage/Homepage.tsx"
 import {AppView} from "@/ui/Navigation/AppView.tsx"
-// import {SSHTunnel} from "@/ui/SSH/Tunnel/SSHTunnel.tsx"
-// import {ConfigEditor} from "@/ui/SSH/Config Editor/ConfigEditor.tsx"
 import {HostManager} from "@/ui/apps/Host Manager/HostManager.tsx"
 import {TabProvider, useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx"
 import axios from "axios"
@@ -88,7 +86,7 @@ function AppContent() {
 
     // Determine what to show based on current tab
     const currentTabData = tabs.find(tab => tab.id === currentTab);
-    const showTerminalView = currentTabData?.type === 'terminal' || currentTabData?.type === 'server' || currentTabData?.type === 'config';
+    const showTerminalView = currentTabData?.type === 'terminal' || currentTabData?.type === 'server' || currentTabData?.type === 'file_manager';
     const showHome = currentTabData?.type === 'home';
     const showSshManager = currentTabData?.type === 'ssh_manager';
     const showAdmin = currentTabData?.type === 'admin';

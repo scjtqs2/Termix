@@ -17,7 +17,7 @@ export function AppView({ isTopbarOpen = true }: TerminalViewProps): React.React
     const {tabs, currentTab, allSplitScreenTab} = useTabs() as any;
     const { state: sidebarState } = useSidebar();
 
-    const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal' || tab.type === 'server' || tab.type === 'config');
+    const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal' || tab.type === 'server' || tab.type === 'file_manager');
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});

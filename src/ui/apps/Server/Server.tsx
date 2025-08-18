@@ -145,7 +145,7 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 						</Status>
 					</div>
 					<div className="flex items-center">
-						{currentHostConfig?.enableConfigEditor && (
+						{currentHostConfig?.enableFileManager && (
 							<Button
 								variant="outline"
 								className="font-semibold"
@@ -155,7 +155,7 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 										? currentHostConfig.name.trim()
 										: `${currentHostConfig.username}@${currentHostConfig.ip}`;
 									addTab({
-										type: 'config',
+										type: 'file_manager',
 										title: titleBase,
 										hostConfig: currentHostConfig,
 									});
@@ -194,7 +194,7 @@ export function Server({ hostConfig, title, isVisible = true, isTopbarOpen = tru
 
 					{/* Memory */}
 					<div className="flex-1 min-w-0 px-2 py-2">
-						<h1 className="font-bold text-lg flex flex-row gap-2 mb-1">
+						<h1 className="font-bold xt-lg flex flex-row gap-2 mb-1">
 							<MemoryStick/>
 							{(() => {
 								const pct = metrics?.memory?.percent;

@@ -35,7 +35,7 @@ interface SSHHost {
     authType: string;
     enableTerminal: boolean;
     enableTunnel: boolean;
-    enableConfigEditor: boolean;
+    enableFileManager: boolean;
     defaultPath: string;
     tunnelConnections: any[];
     createdAt: string;
@@ -275,7 +275,7 @@ export function HostManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
                                         pin: true,
                                         enableTerminal: true,
                                         enableTunnel: false,
-                                        enableConfigEditor: true,
+                                        enableFileManager: true,
                                         defaultPath: "/var/www"
                                     },
                                     {
@@ -292,7 +292,7 @@ export function HostManagerHostViewer({onEditHost}: SSHManagerHostViewerProps) {
                                         pin: false,
                                         enableTerminal: true,
                                         enableTunnel: true,
-                                        enableConfigEditor: false,
+                                        enableFileManager: false,
                                         tunnelConnections: [
                                             {
                                                 sourcePort: 5432,
@@ -347,7 +347,7 @@ OPTIONAL FIELDS:
 • pin: Pin to top (boolean)
 • enableTerminal: Show in Terminal tab (boolean, default: true)
 • enableTunnel: Show in Tunnel tab (boolean, default: true)
-• enableConfigEditor: Show in Config Editor tab (boolean, default: true)
+• enableFileManager: Show in File Manager tab (boolean, default: true)
 • defaultPath: Default directory path (string)
 
 TUNNEL CONFIGURATION:
@@ -374,7 +374,7 @@ EXAMPLE STRUCTURE:
       "pin": true,
       "enableTerminal": true,
       "enableTunnel": false,
-      "enableConfigEditor": true,
+      "enableFileManager": true,
       "defaultPath": "/var/www"
     }
   ]
@@ -500,8 +500,8 @@ EXAMPLE STRUCTURE:
                                                 <button class="copy-btn" onclick="navigator.clipboard.writeText('enableTunnel')">Copy</button>
                                             </div>
                                             <div class="field-item">
-                                                <code>enableConfigEditor</code> - Show in Config Editor tab (boolean, default: true)
-                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('enableConfigEditor')">Copy</button>
+                                                <code>enableFileManager</code> - Show in File Manager tab (boolean, default: true)
+                                                <button class="copy-btn" onclick="navigator.clipboard.writeText('enableFileManager')">Copy</button>
                                             </div>
                                             <div class="field-item">
                                                 <code>defaultPath</code> - Default directory path (string)
@@ -558,7 +558,7 @@ EXAMPLE STRUCTURE:
       "pin": true,
       "enableTerminal": true,
       "enableTunnel": false,
-      "enableConfigEditor": true,
+      "enableFileManager": true,
       "defaultPath": "/var/www"
     }
   ]
@@ -709,10 +709,10 @@ EXAMPLE STRUCTURE:
                                                                     )}
                                                                 </Badge>
                                                             )}
-                                                            {host.enableConfigEditor && (
+                                                            {host.enableFileManager && (
                                                                 <Badge variant="outline" className="text-xs px-1 py-0">
                                                                     <FileEdit className="h-2 w-2 mr-0.5"/>
-                                                                    Config
+                                                                    File Manager
                                                                 </Badge>
                                                             )}
                                                         </div>

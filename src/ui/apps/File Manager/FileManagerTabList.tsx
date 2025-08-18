@@ -2,20 +2,20 @@ import React from 'react';
 import {Button} from '@/components/ui/button.tsx';
 import {X, Home} from 'lucide-react';
 
-interface ConfigTab {
+interface FileManagerTab {
     id: string | number;
     title: string;
 }
 
-interface ConfigTabListProps {
-    tabs: ConfigTab[];
+interface FileManagerTabList {
+    tabs: FileManagerTab[];
     activeTab: string | number;
     setActiveTab: (tab: string | number) => void;
     closeTab: (tab: string | number) => void;
     onHomeClick: () => void;
 }
 
-export function FileManagerTabList({tabs, activeTab, setActiveTab, closeTab, onHomeClick}: ConfigTabListProps) {
+export function FileManagerTabList({tabs, activeTab, setActiveTab, closeTab, onHomeClick}: FileManagerTabList) {
     return (
         <div className="inline-flex items-center h-full px-[0.5rem] overflow-x-auto">
             <Button

@@ -53,11 +53,11 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                         const isSplit = Array.isArray(allSplitScreenTab) && allSplitScreenTab.includes(tab.id);
                         const isTerminal = tab.type === 'terminal';
                         const isServer = tab.type === 'server';
-                        const isConfig = tab.type === 'config';
+                        const isFileManager = tab.type === 'file_manager';
                         const isSshManager = tab.type === 'ssh_manager';
                         const isAdmin = tab.type === 'admin';
                         // Split availability
-                        const isSplittable = isTerminal || isServer || isConfig;
+                        const isSplittable = isTerminal || isServer || isFileManager;
                         // Disable split entirely when on Home or SSH Manager
                         const isSplitButtonDisabled = (isActive && !isSplitScreenActive) || ((allSplitScreenTab?.length || 0) >= 3 && !isSplit);
                         const disableSplit = !isSplittable || isSplitButtonDisabled || isActive || currentTabIsHome || currentTabIsSshManager || currentTabIsAdmin;
@@ -70,10 +70,10 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                 title={tab.title}
                                 isActive={isActive}
                                 onActivate={() => handleTabActivate(tab.id)}
-                                onClose={isTerminal || isServer || isConfig || isSshManager || isAdmin ? () => handleTabClose(tab.id) : undefined}
+                                onClose={isTerminal || isServer || isFileManager || isSshManager || isAdmin ? () => handleTabClose(tab.id) : undefined}
                                 onSplit={isSplittable ? () => handleTabSplit(tab.id) : undefined}
                                 canSplit={isSplittable}
-                                canClose={isTerminal || isServer || isConfig || isSshManager || isAdmin}
+                                canClose={isTerminal || isServer || isFileManager || isSshManager || isAdmin}
                                 disableActivate={disableActivate}
                                 disableSplit={disableSplit}
                                 disableClose={disableClose}

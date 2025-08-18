@@ -37,7 +37,7 @@ interface SSHHost {
     keyType?: string;
     enableTerminal: boolean;
     enableTunnel: boolean;
-    enableConfigEditor: boolean;
+    enableFileManager: boolean;
     defaultPath: string;
     tunnelConnections: any[];
     createdAt: string;
@@ -120,7 +120,7 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
             retryInterval: z.coerce.number().min(1).max(3600).default(10),
             autoStart: z.boolean().default(false),
         })).default([]),
-        enableConfigEditor: z.boolean().default(true),
+        enableFileManager: z.boolean().default(true),
         defaultPath: z.string().optional(),
     }).superRefine((data, ctx) => {
         if (data.authType === 'password') {
@@ -178,7 +178,7 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
             keyType: "auto",
             enableTerminal: editingHost?.enableTerminal !== false,
             enableTunnel: editingHost?.enableTunnel !== false,
-            enableConfigEditor: editingHost?.enableConfigEditor !== false,
+            enableFileManager: editingHost?.enableFileManager !== false,
             defaultPath: editingHost?.defaultPath || "/",
             tunnelConnections: editingHost?.tunnelConnections || [],
         }
@@ -205,7 +205,7 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
                 keyType: (editingHost.keyType as any) || "auto",
                 enableTerminal: editingHost.enableTerminal !== false,
                 enableTunnel: editingHost.enableTunnel !== false,
-                enableConfigEditor: editingHost.enableConfigEditor !== false,
+                enableFileManager: editingHost.enableFileManager !== false,
                 defaultPath: editingHost.defaultPath || "/",
                 tunnelConnections: editingHost.tunnelConnections || [],
             });
@@ -227,7 +227,7 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
                 keyType: "auto",
                 enableTerminal: true,
                 enableTunnel: true,
-                enableConfigEditor: true,
+                enableFileManager: true,
                 defaultPath: "/",
                 tunnelConnections: [],
             });
@@ -989,7 +989,7 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
                             <TabsContent value="file_manager">
                                 <FormField
                                     control={form.control}
-                                    name="enableConfigEditor"
+                                    name="enableFileManager"
                                     render={({field}) => (
                                         <FormItem>
                                             <FormLabel>Enable File Manager</FormLabel>
@@ -1006,7 +1006,7 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
                                     )}
                                 />
 
-                                {form.watch('enableConfigEditor') && (
+                                {form.watch('enableFileManager') && (
                                     <div className="mt-4">
                                         <FormField
                                             control={form.control}
