@@ -10,7 +10,13 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+
+// Increase JSON body parser limit for larger file uploads
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Add raw body parser for very large files
+app.use(express.raw({ limit: '200mb', type: 'application/octet-stream' }));
 
 const sshIconSymbol = '📁';
 const getTimeStamp = (): string => chalk.gray(`[${new Date().toLocaleTimeString()}]`);
@@ -303,40 +309,106 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
     sshConn.lastActive = Date.now();
     scheduleSessionCleanup(sessionId);
 
-    const tempFile = `/tmp/temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const escapedTempFile = tempFile.replace(/'/g, "'\"'\"'");
-    const escapedFilePath = filePath.replace(/'/g, "'\"'\"'");
-
-    const base64Content = Buffer.from(content, 'utf8').toString('base64');
-
     const commandTimeout = setTimeout(() => {
         logger.error(`SSH writeFile command timed out for session: ${sessionId}`);
         if (!res.headersSent) {
             res.status(500).json({error: 'SSH command timed out'});
         }
-    }, 15000);
+    }, 60000); // Increased timeout to 60 seconds
 
-    const checkCommand = `ls -la '${escapedFilePath}' 2>/dev/null || echo "File does not exist"`;
+    // Try SFTP first, fallback to command line if it fails
+    const trySFTP = () => {
+        try {
+            sshConn.client.sftp((err, sftp) => {
+                if (err) {
+                    logger.warn(`SFTP failed, trying fallback method: ${err.message}`);
+                    tryFallbackMethod();
+                    return;
+                }
 
-    sshConn.client.exec(checkCommand, (checkErr, checkStream) => {
-        if (checkErr) {
-            return res.status(500).json({error: `File check failed: ${checkErr.message}`});
+                // Convert content to buffer
+                let fileBuffer;
+                try {
+                    if (typeof content === 'string') {
+                        fileBuffer = Buffer.from(content, 'utf8');
+                    } else if (Buffer.isBuffer(content)) {
+                        fileBuffer = content;
+                    } else {
+                        fileBuffer = Buffer.from(content);
+                    }
+                } catch (bufferErr) {
+                    clearTimeout(commandTimeout);
+                    logger.error('Buffer conversion error:', bufferErr);
+                    if (!res.headersSent) {
+                        return res.status(500).json({error: 'Invalid file content format'});
+                    }
+                    return;
+                }
+
+                // Create write stream with error handling
+                const writeStream = sftp.createWriteStream(filePath);
+                
+                let hasError = false;
+                let hasFinished = false;
+
+                writeStream.on('error', (streamErr) => {
+                    if (hasError || hasFinished) return;
+                    hasError = true;
+                    logger.warn(`SFTP write failed, trying fallback method: ${streamErr.message}`);
+                    tryFallbackMethod();
+                });
+
+                writeStream.on('finish', () => {
+                    if (hasError || hasFinished) return;
+                    hasFinished = true;
+                    clearTimeout(commandTimeout);
+                    logger.success(`File written successfully via SFTP: ${filePath}`);
+                    if (!res.headersSent) {
+                        res.json({message: 'File written successfully', path: filePath});
+                    }
+                });
+
+                writeStream.on('close', () => {
+                    if (hasError || hasFinished) return;
+                    hasFinished = true;
+                    clearTimeout(commandTimeout);
+                    logger.success(`File written successfully via SFTP: ${filePath}`);
+                    if (!res.headersSent) {
+                        res.json({message: 'File written successfully', path: filePath});
+                    }
+                });
+
+                // Write the buffer to the stream
+                try {
+                    writeStream.write(fileBuffer);
+                    writeStream.end();
+                } catch (writeErr) {
+                    if (hasError || hasFinished) return;
+                    hasError = true;
+                    logger.warn(`SFTP write operation failed, trying fallback method: ${writeErr.message}`);
+                    tryFallbackMethod();
+                }
+            });
+        } catch (sftpErr) {
+            logger.warn(`SFTP connection error, trying fallback method: ${sftpErr.message}`);
+            tryFallbackMethod();
         }
+    };
 
-        let checkResult = '';
-        checkStream.on('data', (chunk: Buffer) => {
-            checkResult += chunk.toString();
-        });
+    // Fallback method using command line
+    const tryFallbackMethod = () => {
+        try {
+            const base64Content = Buffer.from(content, 'utf8').toString('base64');
+            const escapedPath = filePath.replace(/'/g, "'\"'\"'");
 
-        checkStream.on('close', (checkCode) => {
-            const writeCommand = `echo '${base64Content}' > '${escapedTempFile}' && base64 -d '${escapedTempFile}' > '${escapedFilePath}' && rm -f '${escapedTempFile}' && echo "SUCCESS" && exit 0`;
-
+            const writeCommand = `echo '${base64Content}' | base64 -d > '${escapedPath}' && echo "SUCCESS"`;
+            
             sshConn.client.exec(writeCommand, (err, stream) => {
                 if (err) {
                     clearTimeout(commandTimeout);
-                    logger.error('SSH writeFile error:', err);
+                    logger.error('Fallback write command failed:', err);
                     if (!res.headersSent) {
-                        return res.status(500).json({error: err.message});
+                        return res.status(500).json({error: `Write failed: ${err.message}`});
                     }
                     return;
                 }
@@ -350,76 +422,678 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
 
                 stream.stderr.on('data', (chunk: Buffer) => {
                     errorData += chunk.toString();
-
-                    if (chunk.toString().includes('Permission denied')) {
-                        clearTimeout(commandTimeout);
-                        logger.error(`Permission denied writing to file: ${filePath}`);
-                        if (!res.headersSent) {
-                            return res.status(403).json({
-                                error: `Permission denied: Cannot write to ${filePath}. Check file ownership and permissions. Use 'ls -la ${filePath}' to verify.`
-                            });
-                        }
-                        return;
-                    }
                 });
 
                 stream.on('close', (code) => {
                     clearTimeout(commandTimeout);
-
+                    
                     if (outputData.includes('SUCCESS')) {
-                        const verifyCommand = `ls -la '${escapedFilePath}' 2>/dev/null | awk '{print $5}'`;
-
-                        sshConn.client.exec(verifyCommand, (verifyErr, verifyStream) => {
-                            if (verifyErr) {
-                                if (!res.headersSent) {
-                                    res.json({message: 'File written successfully', path: filePath});
-                                }
-                                return;
-                            }
-
-                            let verifyResult = '';
-                            verifyStream.on('data', (chunk: Buffer) => {
-                                verifyResult += chunk.toString();
-                            });
-
-                            verifyStream.on('close', (verifyCode) => {
-                                const fileSize = Number(verifyResult.trim());
-
-                                if (fileSize > 0) {
-                                    if (!res.headersSent) {
-                                        res.json({message: 'File written successfully', path: filePath});
-                                    }
-                                } else {
-                                    if (!res.headersSent) {
-                                        res.status(500).json({error: 'File write operation may have failed - file appears empty'});
-                                    }
-                                }
-                            });
-                        });
-                        return;
-                    }
-
-                    if (code !== 0) {
-                        logger.error(`SSH writeFile command failed with code ${code}: ${errorData.replace(/\n/g, ' ').trim()}`);
+                        logger.success(`File written successfully via fallback: ${filePath}`);
                         if (!res.headersSent) {
-                            return res.status(500).json({error: `Command failed: ${errorData}`});
+                            res.json({message: 'File written successfully', path: filePath});
                         }
-                        return;
-                    }
-
-                    if (!res.headersSent) {
-                        res.json({message: 'File written successfully', path: filePath});
+                    } else {
+                        logger.error(`Fallback write failed with code ${code}: ${errorData}`);
+                        if (!res.headersSent) {
+                            res.status(500).json({error: `Write failed: ${errorData}`});
+                        }
                     }
                 });
 
                 stream.on('error', (streamErr) => {
                     clearTimeout(commandTimeout);
-                    logger.error('SSH writeFile stream error:', streamErr);
+                    logger.error('Fallback write stream error:', streamErr);
                     if (!res.headersSent) {
-                        res.status(500).json({error: `Stream error: ${streamErr.message}`});
+                        res.status(500).json({error: `Write stream error: ${streamErr.message}`});
                     }
                 });
             });
+        } catch (fallbackErr) {
+            clearTimeout(commandTimeout);
+            logger.error('Fallback method failed:', fallbackErr);
+            if (!res.headersSent) {
+                res.status(500).json({error: `All write methods failed: ${fallbackErr.message}`});
+            }
+        }
+    };
+
+    // Start with SFTP
+    trySFTP();
+});
+
+// Upload file route
+app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
+    const {sessionId, path: filePath, content, fileName} = req.body;
+    const sshConn = sshSessions[sessionId];
+
+    if (!sessionId) {
+        return res.status(400).json({error: 'Session ID is required'});
+    }
+
+    if (!sshConn?.isConnected) {
+        return res.status(400).json({error: 'SSH connection not established'});
+    }
+
+    if (!filePath || !fileName || content === undefined) {
+        return res.status(400).json({error: 'File path, name, and content are required'});
+    }
+
+    sshConn.lastActive = Date.now();
+    scheduleSessionCleanup(sessionId);
+
+    const fullPath = filePath.endsWith('/') ? filePath + fileName : filePath + '/' + fileName;
+
+    const commandTimeout = setTimeout(() => {
+        logger.error(`SSH uploadFile command timed out for session: ${sessionId}`);
+        if (!res.headersSent) {
+            res.status(500).json({error: 'SSH command timed out'});
+        }
+    }, 60000); // Increased timeout to 60 seconds
+
+    // Try SFTP first, fallback to command line if it fails
+    const trySFTP = () => {
+        try {
+            sshConn.client.sftp((err, sftp) => {
+                if (err) {
+                    logger.warn(`SFTP failed, trying fallback method: ${err.message}`);
+                    tryFallbackMethod();
+                    return;
+                }
+
+                // Convert content to buffer
+                let fileBuffer;
+                try {
+                    if (typeof content === 'string') {
+                        fileBuffer = Buffer.from(content, 'utf8');
+                    } else if (Buffer.isBuffer(content)) {
+                        fileBuffer = content;
+                    } else {
+                        fileBuffer = Buffer.from(content);
+                    }
+                } catch (bufferErr) {
+                    clearTimeout(commandTimeout);
+                    logger.error('Buffer conversion error:', bufferErr);
+                    if (!res.headersSent) {
+                        return res.status(500).json({error: 'Invalid file content format'});
+                    }
+                    return;
+                }
+
+                // Create write stream with error handling
+                const writeStream = sftp.createWriteStream(fullPath);
+                
+                let hasError = false;
+                let hasFinished = false;
+
+                writeStream.on('error', (streamErr) => {
+                    if (hasError || hasFinished) return;
+                    hasError = true;
+                    logger.warn(`SFTP write failed, trying fallback method: ${streamErr.message}`);
+                    tryFallbackMethod();
+                });
+
+                writeStream.on('finish', () => {
+                    if (hasError || hasFinished) return;
+                    hasFinished = true;
+                    clearTimeout(commandTimeout);
+                    logger.success(`File uploaded successfully via SFTP: ${fullPath}`);
+                    if (!res.headersSent) {
+                        res.json({message: 'File uploaded successfully', path: fullPath});
+                    }
+                });
+
+                writeStream.on('close', () => {
+                    if (hasError || hasFinished) return;
+                    hasFinished = true;
+                    clearTimeout(commandTimeout);
+                    logger.success(`File uploaded successfully via SFTP: ${fullPath}`);
+                    if (!res.headersSent) {
+                        res.json({message: 'File uploaded successfully', path: fullPath});
+                    }
+                });
+
+                // Write the buffer to the stream
+                try {
+                    writeStream.write(fileBuffer);
+                    writeStream.end();
+                } catch (writeErr) {
+                    if (hasError || hasFinished) return;
+                    hasError = true;
+                    logger.warn(`SFTP write operation failed, trying fallback method: ${writeErr.message}`);
+                    tryFallbackMethod();
+                }
+            });
+        } catch (sftpErr) {
+            logger.warn(`SFTP connection error, trying fallback method: ${sftpErr.message}`);
+            tryFallbackMethod();
+        }
+    };
+
+    // Fallback method using command line with chunked approach
+    const tryFallbackMethod = () => {
+        try {
+            // Convert content to base64 and split into smaller chunks if needed
+            const base64Content = Buffer.from(content, 'utf8').toString('base64');
+            const chunkSize = 1000000; // 1MB chunks
+            const chunks = [];
+            
+            for (let i = 0; i < base64Content.length; i += chunkSize) {
+                chunks.push(base64Content.slice(i, i + chunkSize));
+            }
+
+            if (chunks.length === 1) {
+                // Single chunk - use simple approach
+                const tempFile = `/tmp/upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const escapedTempFile = tempFile.replace(/'/g, "'\"'\"'");
+                const escapedPath = fullPath.replace(/'/g, "'\"'\"'");
+
+                const writeCommand = `echo '${chunks[0]}' | base64 -d > '${escapedPath}' && echo "SUCCESS"`;
+                
+                sshConn.client.exec(writeCommand, (err, stream) => {
+                    if (err) {
+                        clearTimeout(commandTimeout);
+                        logger.error('Fallback upload command failed:', err);
+                        if (!res.headersSent) {
+                            return res.status(500).json({error: `Upload failed: ${err.message}`});
+                        }
+                        return;
+                    }
+
+                    let outputData = '';
+                    let errorData = '';
+
+                    stream.on('data', (chunk: Buffer) => {
+                        outputData += chunk.toString();
+                    });
+
+                    stream.stderr.on('data', (chunk: Buffer) => {
+                        errorData += chunk.toString();
+                    });
+
+                    stream.on('close', (code) => {
+                        clearTimeout(commandTimeout);
+                        
+                        if (outputData.includes('SUCCESS')) {
+                            logger.success(`File uploaded successfully via fallback: ${fullPath}`);
+                            if (!res.headersSent) {
+                                res.json({message: 'File uploaded successfully', path: fullPath});
+                            }
+                        } else {
+                            logger.error(`Fallback upload failed with code ${code}: ${errorData}`);
+                            if (!res.headersSent) {
+                                res.status(500).json({error: `Upload failed: ${errorData}`});
+                            }
+                        }
+                    });
+
+                    stream.on('error', (streamErr) => {
+                        clearTimeout(commandTimeout);
+                        logger.error('Fallback upload stream error:', streamErr);
+                        if (!res.headersSent) {
+                            res.status(500).json({error: `Upload stream error: ${streamErr.message}`});
+                        }
+                    });
+                });
+            } else {
+                // Multiple chunks - use chunked approach
+                const tempFile = `/tmp/upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const escapedTempFile = tempFile.replace(/'/g, "'\"'\"'");
+                const escapedPath = fullPath.replace(/'/g, "'\"'\"'");
+
+                let writeCommand = `> '${escapedPath}'`; // Start with empty file
+                
+                chunks.forEach((chunk, index) => {
+                    writeCommand += ` && echo '${chunk}' | base64 -d >> '${escapedPath}'`;
+                });
+                
+                writeCommand += ` && echo "SUCCESS"`;
+
+                sshConn.client.exec(writeCommand, (err, stream) => {
+                    if (err) {
+                        clearTimeout(commandTimeout);
+                        logger.error('Chunked fallback upload failed:', err);
+                        if (!res.headersSent) {
+                            return res.status(500).json({error: `Chunked upload failed: ${err.message}`});
+                        }
+                        return;
+                    }
+
+                    let outputData = '';
+                    let errorData = '';
+
+                    stream.on('data', (chunk: Buffer) => {
+                        outputData += chunk.toString();
+                    });
+
+                    stream.stderr.on('data', (chunk: Buffer) => {
+                        errorData += chunk.toString();
+                    });
+
+                    stream.on('close', (code) => {
+                        clearTimeout(commandTimeout);
+                        
+                        if (outputData.includes('SUCCESS')) {
+                            logger.success(`File uploaded successfully via chunked fallback: ${fullPath}`);
+                            if (!res.headersSent) {
+                                res.json({message: 'File uploaded successfully', path: fullPath});
+                            }
+                        } else {
+                            logger.error(`Chunked fallback upload failed with code ${code}: ${errorData}`);
+                            if (!res.headersSent) {
+                                res.status(500).json({error: `Chunked upload failed: ${errorData}`});
+                            }
+                        }
+                    });
+
+                    stream.on('error', (streamErr) => {
+                        clearTimeout(commandTimeout);
+                        logger.error('Chunked fallback upload stream error:', streamErr);
+                        if (!res.headersSent) {
+                            res.status(500).json({error: `Chunked upload stream error: ${streamErr.message}`});
+                        }
+                    });
+                });
+            }
+        } catch (fallbackErr) {
+            clearTimeout(commandTimeout);
+            logger.error('Fallback method failed:', fallbackErr);
+            if (!res.headersSent) {
+                res.status(500).json({error: `All upload methods failed: ${fallbackErr.message}`});
+            }
+        }
+    };
+
+    // Start with SFTP
+    trySFTP();
+});
+
+// Create new file route
+app.post('/ssh/file_manager/ssh/createFile', (req, res) => {
+    const {sessionId, path: filePath, fileName, content = ''} = req.body;
+    const sshConn = sshSessions[sessionId];
+
+    if (!sessionId) {
+        return res.status(400).json({error: 'Session ID is required'});
+    }
+
+    if (!sshConn?.isConnected) {
+        return res.status(400).json({error: 'SSH connection not established'});
+    }
+
+    if (!filePath || !fileName) {
+        return res.status(400).json({error: 'File path and name are required'});
+    }
+
+    sshConn.lastActive = Date.now();
+    scheduleSessionCleanup(sessionId);
+
+    const fullPath = filePath.endsWith('/') ? filePath + fileName : filePath + '/' + fileName;
+    const escapedPath = fullPath.replace(/'/g, "'\"'\"'");
+
+    const commandTimeout = setTimeout(() => {
+        logger.error(`SSH createFile command timed out for session: ${sessionId}`);
+        if (!res.headersSent) {
+            res.status(500).json({error: 'SSH command timed out'});
+        }
+    }, 15000);
+
+    const createCommand = `touch '${escapedPath}' && echo "SUCCESS" && exit 0`;
+
+    sshConn.client.exec(createCommand, (err, stream) => {
+        if (err) {
+            clearTimeout(commandTimeout);
+            logger.error('SSH createFile error:', err);
+            if (!res.headersSent) {
+                return res.status(500).json({error: err.message});
+            }
+            return;
+        }
+
+        let outputData = '';
+        let errorData = '';
+
+        stream.on('data', (chunk: Buffer) => {
+            outputData += chunk.toString();
+        });
+
+        stream.stderr.on('data', (chunk: Buffer) => {
+            errorData += chunk.toString();
+
+            if (chunk.toString().includes('Permission denied')) {
+                clearTimeout(commandTimeout);
+                logger.error(`Permission denied creating file: ${fullPath}`);
+                if (!res.headersSent) {
+                    return res.status(403).json({
+                        error: `Permission denied: Cannot create file ${fullPath}. Check directory permissions.`
+                    });
+                }
+                return;
+            }
+        });
+
+        stream.on('close', (code) => {
+            clearTimeout(commandTimeout);
+
+            if (outputData.includes('SUCCESS')) {
+                if (!res.headersSent) {
+                    res.json({message: 'File created successfully', path: fullPath});
+                }
+                return;
+            }
+
+            if (code !== 0) {
+                logger.error(`SSH createFile command failed with code ${code}: ${errorData.replace(/\n/g, ' ').trim()}`);
+                if (!res.headersSent) {
+                    return res.status(500).json({error: `Command failed: ${errorData}`});
+                }
+                return;
+            }
+
+            if (!res.headersSent) {
+                res.json({message: 'File created successfully', path: fullPath});
+            }
+        });
+
+        stream.on('error', (streamErr) => {
+            clearTimeout(commandTimeout);
+            logger.error('SSH createFile stream error:', streamErr);
+            if (!res.headersSent) {
+                res.status(500).json({error: `Stream error: ${streamErr.message}`});
+            }
+        });
+    });
+});
+
+// Create folder route
+app.post('/ssh/file_manager/ssh/createFolder', (req, res) => {
+    const {sessionId, path: folderPath, folderName} = req.body;
+    const sshConn = sshSessions[sessionId];
+
+    if (!sessionId) {
+        return res.status(400).json({error: 'Session ID is required'});
+    }
+
+    if (!sshConn?.isConnected) {
+        return res.status(400).json({error: 'SSH connection not established'});
+    }
+
+    if (!folderPath || !folderName) {
+        return res.status(400).json({error: 'Folder path and name are required'});
+    }
+
+    sshConn.lastActive = Date.now();
+    scheduleSessionCleanup(sessionId);
+
+    const fullPath = folderPath.endsWith('/') ? folderPath + folderName : folderPath + '/' + folderName;
+    const escapedPath = fullPath.replace(/'/g, "'\"'\"'");
+
+    const commandTimeout = setTimeout(() => {
+        logger.error(`SSH createFolder command timed out for session: ${sessionId}`);
+        if (!res.headersSent) {
+            res.status(500).json({error: 'SSH command timed out'});
+        }
+    }, 15000);
+
+    const createCommand = `mkdir -p '${escapedPath}' && echo "SUCCESS" && exit 0`;
+
+    sshConn.client.exec(createCommand, (err, stream) => {
+        if (err) {
+            clearTimeout(commandTimeout);
+            logger.error('SSH createFolder error:', err);
+            if (!res.headersSent) {
+                return res.status(500).json({error: err.message});
+            }
+            return;
+        }
+
+        let outputData = '';
+        let errorData = '';
+
+        stream.on('data', (chunk: Buffer) => {
+            outputData += chunk.toString();
+        });
+
+        stream.stderr.on('data', (chunk: Buffer) => {
+            errorData += chunk.toString();
+
+            if (chunk.toString().includes('Permission denied')) {
+                clearTimeout(commandTimeout);
+                logger.error(`Permission denied creating folder: ${fullPath}`);
+                if (!res.headersSent) {
+                    return res.status(403).json({
+                        error: `Permission denied: Cannot create folder ${fullPath}. Check directory permissions.`
+                    });
+                }
+                return;
+            }
+        });
+
+        stream.on('close', (code) => {
+            clearTimeout(commandTimeout);
+
+            if (outputData.includes('SUCCESS')) {
+                if (!res.headersSent) {
+                    res.json({message: 'Folder created successfully', path: fullPath});
+                }
+                return;
+            }
+
+            if (code !== 0) {
+                logger.error(`SSH createFolder command failed with code ${code}: ${errorData.replace(/\n/g, ' ').trim()}`);
+                if (!res.headersSent) {
+                    return res.status(500).json({error: `Command failed: ${errorData}`});
+                }
+                return;
+            }
+
+            if (!res.headersSent) {
+                res.json({message: 'Folder created successfully', path: fullPath});
+            }
+        });
+
+        stream.on('error', (streamErr) => {
+            clearTimeout(commandTimeout);
+            logger.error('SSH createFolder stream error:', streamErr);
+            if (!res.headersSent) {
+                res.status(500).json({error: `Stream error: ${streamErr.message}`});
+            }
+        });
+    });
+});
+
+// Delete file/folder route
+app.delete('/ssh/file_manager/ssh/deleteItem', (req, res) => {
+    const {sessionId, path: itemPath, isDirectory} = req.body;
+    const sshConn = sshSessions[sessionId];
+
+    if (!sessionId) {
+        return res.status(400).json({error: 'Session ID is required'});
+    }
+
+    if (!sshConn?.isConnected) {
+        return res.status(400).json({error: 'SSH connection not established'});
+    }
+
+    if (!itemPath) {
+        return res.status(400).json({error: 'Item path is required'});
+    }
+
+    sshConn.lastActive = Date.now();
+    scheduleSessionCleanup(sessionId);
+
+    const escapedPath = itemPath.replace(/'/g, "'\"'\"'");
+
+    const commandTimeout = setTimeout(() => {
+        logger.error(`SSH deleteItem command timed out for session: ${sessionId}`);
+        if (!res.headersSent) {
+            res.status(500).json({error: 'SSH command timed out'});
+        }
+    }, 15000);
+
+    const deleteCommand = isDirectory 
+        ? `rm -rf '${escapedPath}' && echo "SUCCESS" && exit 0`
+        : `rm -f '${escapedPath}' && echo "SUCCESS" && exit 0`;
+
+    sshConn.client.exec(deleteCommand, (err, stream) => {
+        if (err) {
+            clearTimeout(commandTimeout);
+            logger.error('SSH deleteItem error:', err);
+            if (!res.headersSent) {
+                return res.status(500).json({error: err.message});
+            }
+            return;
+        }
+
+        let outputData = '';
+        let errorData = '';
+
+        stream.on('data', (chunk: Buffer) => {
+            outputData += chunk.toString();
+        });
+
+        stream.stderr.on('data', (chunk: Buffer) => {
+            errorData += chunk.toString();
+
+            if (chunk.toString().includes('Permission denied')) {
+                clearTimeout(commandTimeout);
+                logger.error(`Permission denied deleting: ${itemPath}`);
+                if (!res.headersSent) {
+                    return res.status(403).json({
+                        error: `Permission denied: Cannot delete ${itemPath}. Check file permissions.`
+                    });
+                }
+                return;
+            }
+        });
+
+        stream.on('close', (code) => {
+            clearTimeout(commandTimeout);
+
+            if (outputData.includes('SUCCESS')) {
+                if (!res.headersSent) {
+                    res.json({message: 'Item deleted successfully', path: itemPath});
+                }
+                return;
+            }
+
+            if (code !== 0) {
+                logger.error(`SSH deleteItem command failed with code ${code}: ${errorData.replace(/\n/g, ' ').trim()}`);
+                if (!res.headersSent) {
+                    return res.status(500).json({error: `Command failed: ${errorData}`});
+                }
+                return;
+            }
+
+            if (!res.headersSent) {
+                res.json({message: 'Item deleted successfully', path: itemPath});
+            }
+        });
+
+        stream.on('error', (streamErr) => {
+            clearTimeout(commandTimeout);
+            logger.error('SSH deleteItem stream error:', streamErr);
+            if (!res.headersSent) {
+                res.status(500).json({error: `Stream error: ${streamErr.message}`});
+            }
+        });
+    });
+});
+
+// Rename file/folder route
+app.put('/ssh/file_manager/ssh/renameItem', (req, res) => {
+    const {sessionId, oldPath, newName} = req.body;
+    const sshConn = sshSessions[sessionId];
+
+    if (!sessionId) {
+        return res.status(400).json({error: 'Session ID is required'});
+    }
+
+    if (!sshConn?.isConnected) {
+        return res.status(400).json({error: 'SSH connection not established'});
+    }
+
+    if (!oldPath || !newName) {
+        return res.status(400).json({error: 'Old path and new name are required'});
+    }
+
+    sshConn.lastActive = Date.now();
+    scheduleSessionCleanup(sessionId);
+
+    const oldDir = oldPath.substring(0, oldPath.lastIndexOf('/') + 1);
+    const newPath = oldDir + newName;
+    const escapedOldPath = oldPath.replace(/'/g, "'\"'\"'");
+    const escapedNewPath = newPath.replace(/'/g, "'\"'\"'");
+
+    const commandTimeout = setTimeout(() => {
+        logger.error(`SSH renameItem command timed out for session: ${sessionId}`);
+        if (!res.headersSent) {
+            res.status(500).json({error: 'SSH command timed out'});
+        }
+    }, 15000);
+
+    const renameCommand = `mv '${escapedOldPath}' '${escapedNewPath}' && echo "SUCCESS" && exit 0`;
+
+    sshConn.client.exec(renameCommand, (err, stream) => {
+        if (err) {
+            clearTimeout(commandTimeout);
+            logger.error('SSH renameItem error:', err);
+            if (!res.headersSent) {
+                return res.status(500).json({error: err.message});
+            }
+            return;
+        }
+
+        let outputData = '';
+        let errorData = '';
+
+        stream.on('data', (chunk: Buffer) => {
+            outputData += chunk.toString();
+        });
+
+        stream.stderr.on('data', (chunk: Buffer) => {
+            errorData += chunk.toString();
+
+            if (chunk.toString().includes('Permission denied')) {
+                clearTimeout(commandTimeout);
+                logger.error(`Permission denied renaming: ${oldPath}`);
+                if (!res.headersSent) {
+                    return res.status(403).json({
+                        error: `Permission denied: Cannot rename ${oldPath}. Check file permissions.`
+                    });
+                }
+                return;
+            }
+        });
+
+        stream.on('close', (code) => {
+            clearTimeout(commandTimeout);
+
+            if (outputData.includes('SUCCESS')) {
+                if (!res.headersSent) {
+                    res.json({message: 'Item renamed successfully', oldPath, newPath});
+                }
+                return;
+            }
+
+            if (code !== 0) {
+                logger.error(`SSH renameItem command failed with code ${code}: ${errorData.replace(/\n/g, ' ').trim()}`);
+                if (!res.headersSent) {
+                    return res.status(500).json({error: `Command failed: ${errorData}`});
+                }
+                return;
+            }
+
+            if (!res.headersSent) {
+                res.json({message: 'Item renamed successfully', oldPath, newPath});
+            }
+        });
+
+        stream.on('error', (streamErr) => {
+            clearTimeout(commandTimeout);
+            logger.error('SSH renameItem stream error:', streamErr);
+            if (!res.headersSent) {
+                res.status(500).json({error: `Stream error: ${streamErr.message}`});
+            }
         });
     });
 });

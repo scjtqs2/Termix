@@ -558,6 +558,75 @@ export async function writeSSHFile(sessionId: string, path: string, content: str
     }
 }
 
+export async function uploadSSHFile(sessionId: string, path: string, fileName: string, content: string): Promise<any> {
+    try {
+        const response = await fileManagerApi.post('/ssh/file_manager/ssh/uploadFile', {
+            sessionId,
+            path,
+            fileName,
+            content
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function createSSHFile(sessionId: string, path: string, fileName: string, content: string = ''): Promise<any> {
+    try {
+        const response = await fileManagerApi.post('/ssh/file_manager/ssh/createFile', {
+            sessionId,
+            path,
+            fileName,
+            content
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function createSSHFolder(sessionId: string, path: string, folderName: string): Promise<any> {
+    try {
+        const response = await fileManagerApi.post('/ssh/file_manager/ssh/createFolder', {
+            sessionId,
+            path,
+            folderName
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function deleteSSHItem(sessionId: string, path: string, isDirectory: boolean): Promise<any> {
+    try {
+        const response = await fileManagerApi.delete('/ssh/file_manager/ssh/deleteItem', {
+            data: {
+                sessionId,
+                path,
+                isDirectory
+            }
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function renameSSHItem(sessionId: string, oldPath: string, newName: string): Promise<any> {
+    try {
+        const response = await fileManagerApi.put('/ssh/file_manager/ssh/renameItem', {
+            sessionId,
+            oldPath,
+            newName
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
 export {sshHostApi, tunnelApi, fileManagerApi};
 
 export async function getAllServerStatuses(): Promise<Record<number, ServerStatus>> {

@@ -128,7 +128,7 @@ export function FileManagerHomeView({
                 </TabsList>
 
                 <TabsContent value="recent" className="mt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3 auto-rows-min content-start w-full">
                         {recent.length === 0 ? (
                             <div className="flex items-center justify-center py-8 col-span-full">
                                 <span className="text-sm text-muted-foreground">No recent files.</span>
@@ -145,7 +145,7 @@ export function FileManagerHomeView({
                 </TabsContent>
 
                 <TabsContent value="pinned" className="mt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3 auto-rows-min content-start w-full">
                         {pinned.length === 0 ? (
                             <div className="flex items-center justify-center py-8 col-span-full">
                                 <span className="text-sm text-muted-foreground">No pinned files.</span>
@@ -190,7 +190,7 @@ export function FileManagerHomeView({
                             Add
                         </Button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3 auto-rows-min content-start w-full">
                         {shortcuts.length === 0 ? (
                             <div className="flex items-center justify-center py-4 col-span-full">
                                 <span className="text-sm text-muted-foreground">No shortcuts.</span>

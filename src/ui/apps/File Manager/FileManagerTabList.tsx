@@ -17,38 +17,33 @@ interface FileManagerTabList {
 
 export function FileManagerTabList({tabs, activeTab, setActiveTab, closeTab, onHomeClick}: FileManagerTabList) {
     return (
-        <div className="inline-flex items-center h-full px-[0.5rem] overflow-x-auto">
+        <div className="inline-flex items-center h-full gap-2">
             <Button
                 onClick={onHomeClick}
                 variant="outline"
-                className={`h-7 mr-[0.5rem] rounded-md flex items-center ${activeTab === 'home' ? '!bg-[#1d1d1f] !text-white !border-2 !border-[#303032] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
+                className={`h-8 rounded-md flex items-center !px-2 border-1 border-[#303032] ${activeTab === 'home' ? '!bg-[#1d1d1f] !text-white !border-[#2d2d30] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
             >
                 <Home className="w-4 h-4"/>
             </Button>
-            {tabs.map((tab, index) => {
+            {tabs.map((tab) => {
                 const isActive = tab.id === activeTab;
                 return (
-                    <div
-                        key={tab.id}
-                        className={index < tabs.length - 1 ? "mr-[0.5rem]" : ""}
-                    >
-                        <div className="inline-flex rounded-md shadow-sm" role="group">
-                            <Button
-                                onClick={() => setActiveTab(tab.id)}
-                                variant="outline"
-                                className={`h-7 rounded-r-none ${isActive ? '!bg-[#1d1d1f] !text-white !border-2 !border-[#303032] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
-                            >
-                                {tab.title}
-                            </Button>
+                    <div key={tab.id} className="inline-flex rounded-md shadow-sm" role="group">
+                        <Button
+                            onClick={() => setActiveTab(tab.id)}
+                            variant="outline"
+                            className={`h-8 rounded-r-none !px-2 border-1 border-[#303032] ${isActive ? '!bg-[#1d1d1f] !text-white !border-[#2d2d30] !hover:bg-[#1d1d1f] !active:bg-[#1d1d1f] !focus:bg-[#1d1d1f] !hover:text-white !active:text-white !focus:text-white' : ''}`}
+                        >
+                            {tab.title}
+                        </Button>
 
-                            <Button
-                                onClick={() => closeTab(tab.id)}
-                                variant="outline"
-                                className="h-7 rounded-l-none p-0 !w-9"
-                            >
-                                <X className="!w-5 !h-5" strokeWidth={2.5}/>
-                            </Button>
-                        </div>
+                        <Button
+                            onClick={() => closeTab(tab.id)}
+                            variant="outline"
+                            className="h-8 rounded-l-none p-0 !w-9 border-1 border-[#303032]"
+                        >
+                            <X className="!w-4 !h-4" strokeWidth={2}/>
+                        </Button>
                     </div>
                 );
             })}

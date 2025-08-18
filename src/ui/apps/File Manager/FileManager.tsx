@@ -3,9 +3,12 @@ import {FileManagerLeftSidebar} from "@/ui/apps/File Manager/FileManagerLeftSide
 import {FileManagerTabList} from "@/ui/apps/File Manager/FileManagerTabList.tsx";
 import {FileManagerHomeView} from "@/ui/apps/File Manager/FileManagerHomeView.tsx";
 import {FileManagerFileEditor} from "@/ui/apps/File Manager/FileManagerFileEditor.tsx";
+import {FileManagerOperations} from "@/ui/apps/File Manager/FileManagerOperations.tsx";
 import {Button} from '@/components/ui/button.tsx';
 import {FIleManagerTopNavbar} from "@/ui/apps/File Manager/FIleManagerTopNavbar.tsx";
 import {cn} from '@/lib/utils.ts';
+import {Save, RefreshCw, Settings, Trash2} from 'lucide-react';
+import {toast} from 'sonner';
 import {
     getFileManagerRecent,
     getFileManagerPinned,
@@ -31,8 +34,6 @@ interface Tab {
     sshSessionId?: string;
     filePath?: string;
     loading?: boolean;
-    error?: string;
-    success?: string;
     dirty?: boolean;
 }
 
@@ -72,6 +73,13 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
 
     const [currentHost, setCurrentHost] = useState<SSHHost | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+
+    // New state for operations
+    const [showOperations, setShowOperations] = useState(false);
+    const [currentPath, setCurrentPath] = useState('/');
+
+    // Delete modal state
+    const [deletingItem, setDeletingItem] = useState<any | null>(null);
 
     const sidebarRef = useRef<any>(null);
 
@@ -131,7 +139,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                 setTimeout(() => reject(new Error('Fetch home data timed out')), 15000)
             );
 
-            const [recentRes, pinnedRes, shortcutsRes] = await Promise.race([homeDataPromise, timeoutPromise]);
+            const [recentRes, pinnedRes, shortcutsRes] = await Promise.race([homeDataPromise, timeoutPromise]) as [any, any, any];
 
             const recentWithPinnedStatus = (recentRes || []).map(file => ({
                 ...file,
@@ -211,7 +219,8 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                 fetchHomeData();
             } catch (err: any) {
                 const errorMessage = formatErrorMessage(err, 'Cannot read file');
-                setTabs(tabs => tabs.map(t => t.id === tabId ? {...t, loading: false, error: errorMessage} : t));
+                toast.error(errorMessage);
+                setTabs(tabs => tabs.map(t => t.id === tabId ? {...t, loading: false} : t));
             }
         }
         setActiveTab(tabId);
@@ -365,7 +374,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                     setTimeout(() => reject(new Error('SSH status check timed out')), 10000)
                 );
 
-                const status = await Promise.race([statusPromise, statusTimeoutPromise]);
+                const status = await Promise.race([statusPromise, statusTimeoutPromise]) as { connected: boolean };
 
                 if (!status.connected) {
                     const connectPromise = connectSSH(tab.sshSessionId, {
@@ -395,13 +404,10 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
             const result = await Promise.race([savePromise, timeoutPromise]);
             setTabs(tabs => tabs.map(t => t.id === tab.id ? {
                 ...t,
-                dirty: false,
-                success: 'File saved successfully'
+                loading: false
             } : t));
 
-            setTimeout(() => {
-                setTabs(tabs => tabs.map(t => t.id === tab.id ? {...t, success: undefined} : t));
-            }, 3000);
+            toast.success('File saved successfully');
 
             Promise.allSettled([
                 (async () => {
@@ -432,17 +438,11 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                 errorMessage = `Save operation timed out. The file may have been saved successfully, but the operation took too long to complete. Check the Docker logs for confirmation.`;
             }
 
-            setTabs(tabs => {
-                const updatedTabs = tabs.map(t => t.id === tab.id ? {
-                    ...t,
-                    error: `Failed to save file: ${errorMessage}`
-                } : t);
-                return updatedTabs;
-            });
-
-            setTimeout(() => {
-                setTabs(currentTabs => [...currentTabs]);
-            }, 100);
+            toast.error(`Failed to save file: ${errorMessage}`);
+            setTabs(tabs => tabs.map(t => t.id === tab.id ? {
+                ...t,
+                loading: false
+            } : t));
         } finally {
             setIsSaving(false);
         }
@@ -450,6 +450,50 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
 
     // Host is locked; no external host change from UI
     const handleHostChange = (_host: SSHHost | null) => {
+    };
+
+    const handleOperationComplete = () => {
+        // Refresh the sidebar files
+        if (sidebarRef.current && sidebarRef.current.fetchFiles) {
+            sidebarRef.current.fetchFiles();
+        }
+        // Refresh home data
+        if (currentHost) {
+            fetchHomeData();
+        }
+    };
+
+    const handleSuccess = (message: string) => {
+        toast.success(message);
+    };
+
+    const handleError = (error: string) => {
+        toast.error(error);
+    };
+
+    // Function to update current path from sidebar
+    const updateCurrentPath = (newPath: string) => {
+        setCurrentPath(newPath);
+    };
+
+    // Function to handle delete from sidebar
+    const handleDeleteFromSidebar = (item: any) => {
+        setDeletingItem(item);
+    };
+
+    // Function to perform the actual delete
+    const performDelete = async (item: any) => {
+        if (!currentHost?.id) return;
+
+        try {
+            const { deleteSSHItem } = await import('@/ui/main-axios.ts');
+            await deleteSSHItem(currentHost.id.toString(), item.path, item.type === 'directory');
+            toast.success(`${item.type === 'directory' ? 'Folder' : 'File'} deleted successfully`);
+            setDeletingItem(null);
+            handleOperationComplete();
+        } catch (error: any) {
+            handleError(error?.response?.data?.error || 'Failed to delete item');
+        }
     };
 
     if (!currentHost) {
@@ -463,6 +507,10 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                         tabs={tabs}
                         ref={sidebarRef}
                         host={initialHost as SSHHost}
+                        onOperationComplete={handleOperationComplete}
+                        onError={handleError}
+                        onSuccess={handleSuccess}
+                        onPathChange={updateCurrentPath}
                     />
                 </div>
                 <div style={{
@@ -495,47 +543,57 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                     tabs={tabs}
                     ref={sidebarRef}
                     host={currentHost as SSHHost}
+                    onOperationComplete={handleOperationComplete}
+                    onError={handleError}
+                    onSuccess={handleSuccess}
+                    onPathChange={updateCurrentPath}
+                    onDeleteItem={handleDeleteFromSidebar}
                 />
             </div>
-            <div style={{position: 'absolute', top: 0, left: 256, right: 0, height: 44, zIndex: 30}}>
-                <div className="flex items-center w-full bg-[#18181b] border-b-2 border-[#303032] h-11 relative px-4"
-                     style={{height: 44}}>
+            <div style={{position: 'absolute', top: 0, left: 256, right: 0, height: 50, zIndex: 30}}>
+                <div className="flex items-center w-full bg-[#18181b] border-b-2 border-[#303032] h-[50px] relative">
                     {/* Tab list scrollable area */}
-                    <div className="flex-1 min-w-0 h-full flex items-center">
-                        <div
-                            className="h-9 w-full bg-[#09090b] border-2 border-[#303032] rounded-md flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent"
-                            style={{minWidth: 0}}>
-                            <FIleManagerTopNavbar
-                                tabs={tabs.map(t => ({id: t.id, title: t.title}))}
-                                activeTab={activeTab}
-                                setActiveTab={setActiveTab}
-                                closeTab={closeTab}
-                                onHomeClick={() => {
-                                    setActiveTab('home');
-                                    if (currentHost) {
-                                        fetchHomeData();
-                                    }
-                                }}
-                            />
-                        </div>
+                    <div className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-6rem)] flex items-center overflow-x-auto overflow-y-hidden gap-2 thin-scrollbar">
+                        <FIleManagerTopNavbar
+                            tabs={tabs.map(t => ({id: t.id, title: t.title}))}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
+                            closeTab={closeTab}
+                            onHomeClick={() => {
+                                setActiveTab('home');
+                                if (currentHost) {
+                                    fetchHomeData();
+                                }
+                            }}
+                        />
                     </div>
-                    {/* Save button - always visible */}
-                    <Button
-                        className={cn(
-                            'ml-4 px-4 py-1.5 border rounded-md text-sm font-medium transition-colors',
-                            'border-[#2d2d30] text-white bg-transparent hover:bg-[#23232a] active:bg-[#23232a] focus:bg-[#23232a]',
-                            activeTab === 'home' || !tabs.find(t => t.id === activeTab)?.dirty || isSaving ? 'opacity-60 cursor-not-allowed' : 'hover:border-[#2d2d30]'
-                        )}
-                        disabled={activeTab === 'home' || !tabs.find(t => t.id === activeTab)?.dirty || isSaving}
-                        onClick={() => {
-                            const tab = tabs.find(t => t.id === activeTab);
-                            if (tab && !isSaving) handleSave(tab);
-                        }}
-                        type="button"
-                        style={{height: 36, alignSelf: 'center'}}
-                    >
-                        {isSaving ? 'Saving...' : 'Save'}
-                    </Button>
+                    <div className="flex items-center justify-center gap-2 flex-1">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowOperations(!showOperations)}
+                            className={cn(
+                                'w-[30px] h-[30px]',
+                                showOperations ? 'bg-[#2d2d30] border-[#434345]' : ''
+                            )}
+                            title="File Operations"
+                        >
+                            <Settings className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                const tab = tabs.find(t => t.id === activeTab);
+                                if (tab && !isSaving) handleSave(tab);
+                            }}
+                            disabled={activeTab === 'home' || !tabs.find(t => t.id === activeTab)?.dirty || isSaving}
+                            className={cn(
+                                'w-[30px] h-[30px]',
+                                activeTab === 'home' || !tabs.find(t => t.id === activeTab)?.dirty || isSaving ? 'opacity-60 cursor-not-allowed' : ''
+                            )}
+                        >
+                            {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        </Button>
+                    </div>
                 </div>
             </div>
             <div style={{
@@ -550,67 +608,43 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                 display: 'flex',
                 flexDirection: 'column'
             }}>
+                {/* Success/Error Messages */}
+                {/* The custom alert divs are removed, so this block is no longer needed. */}
+
                 {activeTab === 'home' ? (
-                    <FileManagerHomeView
-                        recent={recent}
-                        pinned={pinned}
-                        shortcuts={shortcuts}
-                        onOpenFile={handleOpenFile}
-                        onRemoveRecent={handleRemoveRecent}
-                        onPinFile={handlePinFile}
-                        onUnpinFile={handleUnpinFile}
-                        onOpenShortcut={handleOpenShortcut}
-                        onRemoveShortcut={handleRemoveShortcut}
-                        onAddShortcut={handleAddShortcut}
-                    />
+                    <div className="flex h-full">
+                        <div className="flex-1">
+                            <FileManagerHomeView
+                                recent={recent}
+                                pinned={pinned}
+                                shortcuts={shortcuts}
+                                onOpenFile={handleOpenFile}
+                                onRemoveRecent={handleRemoveRecent}
+                                onPinFile={handlePinFile}
+                                onUnpinFile={handleUnpinFile}
+                                onOpenShortcut={handleOpenShortcut}
+                                onRemoveShortcut={handleRemoveShortcut}
+                                onAddShortcut={handleAddShortcut}
+                            />
+                        </div>
+                        {showOperations && (
+                            <div className="w-80 border-l-2 border-[#303032] bg-[#09090b] overflow-y-auto">
+                                <FileManagerOperations
+                                    currentPath={currentPath}
+                                    sshSessionId={currentHost?.id.toString() || null}
+                                    onOperationComplete={handleOperationComplete}
+                                    onError={handleError}
+                                    onSuccess={handleSuccess}
+                                />
+                            </div>
+                        )}
+                    </div>
                 ) : (
                     (() => {
                         const tab = tabs.find(t => t.id === activeTab);
                         if (!tab) return null;
                         return (
                             <div className="flex flex-col h-full" style={{flex: 1, minHeight: 0}}>
-                                {/* Error display */}
-                                {tab.error && (
-                                    <div
-                                        className="bg-red-900/20 border border-red-500/30 text-red-300 px-4 py-3 text-sm">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-red-400">⚠️</span>
-                                                <span>{tab.error}</span>
-                                            </div>
-                                            <button
-                                                onClick={() => setTabs(tabs => tabs.map(t => t.id === tab.id ? {
-                                                    ...t,
-                                                    error: undefined
-                                                } : t))}
-                                                className="text-red-400 hover:text-red-300 transition-colors"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                                {/* Success display */}
-                                {tab.success && (
-                                    <div
-                                        className="bg-green-900/20 border border-green-500/30 text-green-300 px-4 py-3 text-sm">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-green-400">✓</span>
-                                                <span>{tab.success}</span>
-                                            </div>
-                                            <button
-                                                onClick={() => setTabs(tabs => tabs.map(t => t.id === tab.id ? {
-                                                    ...t,
-                                                    success: undefined
-                                                } : t))}
-                                                className="text-green-400 hover:text-green-300 transition-colors"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
                                 <div className="flex-1 min-h-0">
                                     <FileManagerFileEditor
                                         content={tab.content}
@@ -623,6 +657,47 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                     })()
                 )}
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {deletingItem && (
+                <div className="fixed inset-0 z-[99999]">
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black/60"></div>
+                    
+                    {/* Modal */}
+                    <div className="relative h-full flex items-center justify-center">
+                        <div className="bg-[#18181b] border-2 border-[#303032] rounded-lg p-6 max-w-md mx-4 shadow-2xl">
+                            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                <Trash2 className="w-5 h-5 text-red-400" />
+                                Confirm Delete
+                            </h3>
+                            <p className="text-white mb-4">
+                                Are you sure you want to delete <strong>{deletingItem.name}</strong>?
+                                {deletingItem.type === 'directory' && ' This will delete the folder and all its contents.'}
+                            </p>
+                            <p className="text-red-400 text-sm mb-6">
+                                This action cannot be undone.
+                            </p>
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="destructive"
+                                    onClick={() => performDelete(deletingItem)}
+                                    className="flex-1"
+                                >
+                                    Delete
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setDeletingItem(null)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

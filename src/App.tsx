@@ -7,6 +7,7 @@ import {TabProvider, useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx"
 import axios from "axios"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 import { AdminSettings } from "@/ui/Admin/AdminSettings";
+import { Toaster } from "@/components/ui/sonner";
 
 const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
 const API = axios.create({baseURL: apiBase});
@@ -222,6 +223,13 @@ function AppContent() {
                     <TopNavbar isTopbarOpen={isTopbarOpen} setIsTopbarOpen={setIsTopbarOpen}/>
                 </LeftSidebar>
             )}
+            <Toaster 
+                position="bottom-right"
+                richColors={false}
+                closeButton
+                duration={5000}
+                offset={20}
+            />
         </div>
     )
 }
