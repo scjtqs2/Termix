@@ -49,7 +49,7 @@ import axios from "axios";
 import {Card} from "@/components/ui/card.tsx";
 import {FolderCard} from "@/ui/Navigation/Hosts/FolderCard.tsx";
 import {getSSHHosts} from "@/ui/main-axios.ts";
-import { useTabs } from "@/ui/Navigation/Tabs/TabContext.tsx";
+import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
 
 interface SSHHost {
     id: number;
@@ -102,29 +102,14 @@ const API = axios.create({
 });
 
 export function LeftSidebar({
-                                    onSelectView,
-                                    getView,
-                                    disabled,
-                                    isAdmin,
-                                    username,
-                                    children,
-                                }: SidebarProps): React.ReactElement {
+                                onSelectView,
+                                getView,
+                                disabled,
+                                isAdmin,
+                                username,
+                                children,
+                            }: SidebarProps): React.ReactElement {
     const [adminSheetOpen, setAdminSheetOpen] = React.useState(false);
-    const [allowRegistration, setAllowRegistration] = React.useState(true);
-    const [regLoading, setRegLoading] = React.useState(false);
-    const [oidcConfig, setOidcConfig] = React.useState({
-        client_id: '',
-        client_secret: '',
-        issuer_url: '',
-        authorization_url: '',
-        token_url: '',
-        identifier_path: 'sub',
-        name_path: 'name',
-        scopes: 'openid email profile'
-    });
-    const [oidcLoading, setOidcLoading] = React.useState(false);
-    const [oidcError, setOidcError] = React.useState<string | null>(null);
-    const [oidcSuccess, setOidcSuccess] = React.useState<string | null>(null);
 
     const [deleteAccountOpen, setDeleteAccountOpen] = React.useState(false);
     const [deletePassword, setDeletePassword] = React.useState("");
@@ -138,21 +123,21 @@ export function LeftSidebar({
         is_admin: boolean;
         is_oidc: boolean;
     }>>([]);
-    const [usersLoading, setUsersLoading] = React.useState(false);
     const [newAdminUsername, setNewAdminUsername] = React.useState("");
+    const [usersLoading, setUsersLoading] = React.useState(false);
     const [makeAdminLoading, setMakeAdminLoading] = React.useState(false);
     const [makeAdminError, setMakeAdminError] = React.useState<string | null>(null);
     const [makeAdminSuccess, setMakeAdminSuccess] = React.useState<string | null>(null);
+    const [oidcConfig, setOidcConfig] = React.useState<any>(null);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
-    // Tabs context for opening SSH Manager tab
-    const { tabs: tabList, addTab, setCurrentTab, allSplitScreenTab } = useTabs() as any;
+    const {tabs: tabList, addTab, setCurrentTab, allSplitScreenTab} = useTabs() as any;
     const isSplitScreenActive = Array.isArray(allSplitScreenTab) && allSplitScreenTab.length > 0;
     const sshManagerTab = tabList.find((t) => t.type === 'ssh_manager');
     const openSshManagerTab = () => {
         if (sshManagerTab || isSplitScreenActive) return;
-        const id = addTab({ type: 'ssh_manager', title: 'SSH Manager' } as any);
+        const id = addTab({type: 'ssh_manager', title: 'SSH Manager'} as any);
         setCurrentTab(id);
     };
     const adminTab = tabList.find((t) => t.type === 'admin');
@@ -162,11 +147,10 @@ export function LeftSidebar({
             setCurrentTab(adminTab.id);
             return;
         }
-        const id = addTab({ type: 'admin', title: 'Admin' } as any);
+        const id = addTab({type: 'admin', title: 'Admin'} as any);
         setCurrentTab(id);
     };
 
-    // SSH Hosts state management
     const [hosts, setHosts] = useState<SSHHost[]>([]);
     const [hostsLoading, setHostsLoading] = useState(false);
     const [hostsError, setHostsError] = useState<string | null>(null);
@@ -202,23 +186,16 @@ export function LeftSidebar({
         }
     }, [isAdmin]);
 
-    // SSH Hosts data fetching
     const fetchHosts = React.useCallback(async () => {
         try {
             const newHosts = await getSSHHosts();
-            // Show all hosts in sidebar, regardless of terminal setting
-            // Terminal visibility is handled in the UI components
-
             const prevHosts = prevHostsRef.current;
-            
-            // Create a stable map of existing hosts by ID for comparison
+
             const existingHostsMap = new Map(prevHosts.map(h => [h.id, h]));
             const newHostsMap = new Map(newHosts.map(h => [h.id, h]));
-            
-            // Check if there are any meaningful changes
+
             let hasChanges = false;
-            
-            // Check for new hosts, removed hosts, or changed hosts
+
             if (newHosts.length !== prevHosts.length) {
                 hasChanges = true;
             } else {
@@ -228,8 +205,7 @@ export function LeftSidebar({
                         hasChanges = true;
                         break;
                     }
-                    
-                    // Only check fields that affect the display
+
                     if (
                         newHost.name !== existingHost.name ||
                         newHost.folder !== existingHost.folder ||
@@ -245,9 +221,8 @@ export function LeftSidebar({
                     }
                 }
             }
-            
+
             if (hasChanges) {
-                // Use a small delay to batch updates and reduce jittering
                 setTimeout(() => {
                     setHosts(newHosts);
                     prevHostsRef.current = newHosts;
@@ -264,7 +239,6 @@ export function LeftSidebar({
         return () => clearInterval(interval);
     }, [fetchHosts]);
 
-    // Immediate refresh when SSH hosts are changed elsewhere in the app
     React.useEffect(() => {
         const handleHostsChanged = () => {
             fetchHosts();
@@ -273,13 +247,11 @@ export function LeftSidebar({
         return () => window.removeEventListener('ssh-hosts:changed', handleHostsChanged as EventListener);
     }, [fetchHosts]);
 
-    // Search debouncing
     React.useEffect(() => {
         const handler = setTimeout(() => setDebouncedSearch(search), 200);
         return () => clearTimeout(handler);
     }, [search]);
 
-    // Filter and organize hosts with stable references
     const filteredHosts = React.useMemo(() => {
         if (!debouncedSearch.trim()) return hosts;
         const q = debouncedSearch.trim().toLowerCase();
@@ -323,68 +295,6 @@ export function LeftSidebar({
         return [...pinned, ...rest];
     }, []);
 
-    const handleToggle = async (checked: boolean) => {
-        if (!isAdmin) {
-            return;
-        }
-
-        setRegLoading(true);
-        const jwt = getCookie("jwt");
-        try {
-            await API.patch(
-                "/registration-allowed",
-                {allowed: checked},
-                {headers: {Authorization: `Bearer ${jwt}`}}
-            );
-            setAllowRegistration(checked);
-        } catch (e) {
-        } finally {
-            setRegLoading(false);
-        }
-    };
-
-    const handleOIDCConfigSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!isAdmin) {
-            return;
-        }
-        
-        setOidcLoading(true);
-        setOidcError(null);
-        setOidcSuccess(null);
-
-        const requiredFields = ['client_id', 'client_secret', 'issuer_url', 'authorization_url', 'token_url'];
-        const missingFields = requiredFields.filter(field => !oidcConfig[field as keyof typeof oidcConfig]);
-
-        if (missingFields.length > 0) {
-            setOidcError(`Missing required fields: ${missingFields.join(', ')}`);
-            setOidcLoading(false);
-            return;
-        }
-
-        const jwt = getCookie("jwt");
-        try {
-            await API.post(
-                "/oidc-config",
-                oidcConfig,
-                {headers: {Authorization: `Bearer ${jwt}`}}
-            );
-            setOidcSuccess("OIDC configuration updated successfully!");
-        } catch (err: any) {
-            setOidcError(err?.response?.data?.error || "Failed to update OIDC configuration");
-        } finally {
-            setOidcLoading(false);
-        }
-    };
-
-    const handleOIDCConfigChange = (field: string, value: string) => {
-        setOidcConfig(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
     const handleDeleteAccount = async (e: React.FormEvent) => {
         e.preventDefault();
         setDeleteLoading(true);
@@ -416,7 +326,7 @@ export function LeftSidebar({
         if (!jwt || !isAdmin) {
             return;
         }
-        
+
         setUsersLoading(true);
         try {
             const response = await API.get("/list", {
@@ -427,7 +337,6 @@ export function LeftSidebar({
             const adminUsers = response.data.users.filter((user: any) => user.is_admin);
             setAdminCount(adminUsers.length);
         } catch (err: any) {
-            console.error("Failed to fetch users:", err);
         } finally {
             setUsersLoading(false);
         }
@@ -439,7 +348,7 @@ export function LeftSidebar({
         if (!jwt || !isAdmin) {
             return;
         }
-        
+
         try {
             const response = await API.get("/list", {
                 headers: {Authorization: `Bearer ${jwt}`}
@@ -447,7 +356,6 @@ export function LeftSidebar({
             const adminUsers = response.data.users.filter((user: any) => user.is_admin);
             setAdminCount(adminUsers.length);
         } catch (err: any) {
-            console.error("Failed to fetch admin count:", err);
         }
     };
 
@@ -494,7 +402,6 @@ export function LeftSidebar({
             );
             fetchUsers();
         } catch (err: any) {
-            console.error("Failed to remove admin status:", err);
         }
     };
 
@@ -513,7 +420,6 @@ export function LeftSidebar({
             });
             fetchUsers();
         } catch (err: any) {
-            console.error("Failed to delete user:", err);
         }
     };
 
@@ -536,14 +442,15 @@ export function LeftSidebar({
                     <Separator className="p-0.25"/>
                     <SidebarContent>
                         <SidebarGroup className="!m-0 !p-0 !-mb-2">
-                            <Button className="m-2 flex flex-row font-semibold" variant="outline" onClick={openSshManagerTab} disabled={!!sshManagerTab || isSplitScreenActive} title={sshManagerTab ? 'SSH Manager already open' : isSplitScreenActive ? 'Disabled during split screen' : undefined}>
+                            <Button className="m-2 flex flex-row font-semibold" variant="outline"
+                                    onClick={openSshManagerTab} disabled={!!sshManagerTab || isSplitScreenActive}
+                                    title={sshManagerTab ? 'SSH Manager already open' : isSplitScreenActive ? 'Disabled during split screen' : undefined}>
                                 <HardDrive strokeWidth="2.5"/>
                                 Host Manager
                             </Button>
                         </SidebarGroup>
                         <Separator className="p-0.25"/>
                         <SidebarGroup className="flex flex-col gap-y-2 !-mt-2">
-                            {/* Search Input */}
                             <div className="bg-[#131316] rounded-lg">
                                 <Input
                                     value={search}
@@ -553,17 +460,16 @@ export function LeftSidebar({
                                     autoComplete="off"
                                 />
                             </div>
-                            
-                            {/* Error Display */}
+
                             {hostsError && (
                                 <div className="px-1">
-                                    <div className="text-xs text-red-500 bg-red-500/10 rounded-lg px-2 py-1 border w-full">
+                                    <div
+                                        className="text-xs text-red-500 bg-red-500/10 rounded-lg px-2 py-1 border w-full">
                                         {hostsError}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Loading State */}
                             {hostsLoading && (
                                 <div className="px-4 pb-2">
                                     <div className="text-xs text-muted-foreground text-center">
@@ -572,7 +478,6 @@ export function LeftSidebar({
                                 </div>
                             )}
 
-                            {/* Hosts by Folder */}
                             {sortedFolders.map((folder, idx) => (
                                 <FolderCard
                                     key={`folder-${folder}-${hostsByFolder[folder]?.length || 0}`}
@@ -608,7 +513,7 @@ export function LeftSidebar({
                                         {isAdmin && (
                                             <DropdownMenuItem
                                                 className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none"
-                                                onSelect={() => {
+                                                onClick={() => {
                                                     if (isAdmin) openAdminTab();
                                                 }}>
                                                 <span>Admin Settings</span>
@@ -616,12 +521,12 @@ export function LeftSidebar({
                                         )}
                                         <DropdownMenuItem
                                             className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none"
-                                            onSelect={handleLogout}>
+                                            onClick={handleLogout}>
                                             <span>Sign out</span>
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none"
-                                            onSelect={() => setDeleteAccountOpen(true)}
+                                            onClick={() => setDeleteAccountOpen(true)}
                                             disabled={isAdmin && adminCount <= 1}
                                         >
                                             <span
@@ -635,383 +540,74 @@ export function LeftSidebar({
                             </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarFooter>
-                    {/* Admin Settings Sheet */}
-                    {isAdmin && (
-                        <Sheet modal={false} open={adminSheetOpen && isAdmin} onOpenChange={(open) => {
-                            if (open && !isAdmin) return;
-                            setAdminSheetOpen(open);
-                        }}>
-                            <SheetContent side="left" className="w-[700px] max-h-screen overflow-y-auto">
-                                <SheetHeader className="px-6 pb-4">
-                                    <SheetTitle>Admin Settings</SheetTitle>
-                                </SheetHeader>
 
-                                <div className="px-6">
-                                    <Tabs defaultValue="registration" className="w-full">
-                                        <TabsList className="grid w-full grid-cols-4 mb-6">
-                                            <TabsTrigger value="registration" className="flex items-center gap-2">
-                                                <Users className="h-4 w-4"/>
-                                                Reg
-                                            </TabsTrigger>
-                                            <TabsTrigger value="oidc" className="flex items-center gap-2">
-                                                <Shield className="h-4 w-4"/>
-                                                OIDC
-                                            </TabsTrigger>
-                                            <TabsTrigger value="users" className="flex items-center gap-2">
-                                                <Users className="h-4 w-4"/>
-                                                Users
-                                            </TabsTrigger>
-                                            <TabsTrigger value="admins" className="flex items-center gap-2">
-                                                <Shield className="h-4 w-4"/>
-                                                Admins
-                                            </TabsTrigger>
-                                        </TabsList>
 
-                                        {/* Registration Settings Tab */}
-                                        <TabsContent value="registration" className="space-y-6">
-                                            <div className="space-y-4">
-                                                <h3 className="text-lg font-semibold">User Registration</h3>
-                                                <label className="flex items-center gap-2">
-                                                    <Checkbox checked={allowRegistration} onCheckedChange={handleToggle}
-                                                              disabled={regLoading}/>
-                                                    Allow new account registration
-                                                </label>
-                                            </div>
-                                        </TabsContent>
+                </Sidebar>
+                <SidebarInset>
+                    {children}
+                </SidebarInset>
+            </SidebarProvider>
 
-                                        {/* OIDC Configuration Tab */}
-                                        <TabsContent value="oidc" className="space-y-6">
-                                            <div className="space-y-4">
-                                                <h3 className="text-lg font-semibold">External Authentication
-                                                    (OIDC)</h3>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Configure external identity provider for OIDC/OAuth2 authentication.
-                                                    Users will see an "External" login option once configured.
-                                                </p>
+            {!isSidebarOpen && (
+                <div
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="absolute top-0 left-0 w-[10px] h-full bg-[#18181b] cursor-pointer z-20 flex items-center justify-center rounded-tr-md rounded-br-md">
+                    <ChevronRight size={10}/>
+                </div>
+            )}
 
-                                                {oidcError && (
-                                                    <Alert variant="destructive">
-                                                        <AlertTitle>Error</AlertTitle>
-                                                        <AlertDescription>{oidcError}</AlertDescription>
-                                                    </Alert>
-                                                )}
+            {deleteAccountOpen && (
+                <div
+                    className="fixed inset-0 z-[999999] flex"
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 999999,
+                        pointerEvents: 'auto',
+                        isolation: 'isolate',
+                        transform: 'translateZ(0)',
+                        willChange: 'z-index'
+                    }}
+                >
+                    <div
+                        className="w-[400px] h-full bg-[#18181b] border-r-2 border-[#303032] flex flex-col shadow-2xl"
+                        style={{
+                            backgroundColor: '#18181b',
+                            boxShadow: '4px 0 20px rgba(0, 0, 0, 0.5)',
+                            zIndex: 9999999,
+                            position: 'relative',
+                            isolation: 'isolate',
+                            transform: 'translateZ(0)'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-[#303032]">
+                            <h2 className="text-lg font-semibold text-white">Delete Account</h2>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setDeleteAccountOpen(false);
+                                    setDeletePassword("");
+                                    setDeleteError(null);
+                                }}
+                                className="h-8 w-8 p-0 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center"
+                                title="Close Delete Account"
+                            >
+                                <span className="text-lg font-bold leading-none">×</span>
+                            </Button>
+                        </div>
 
-                                                <form onSubmit={handleOIDCConfigSubmit} className="space-y-4">
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="client_id">Client ID</Label>
-                                                        <Input
-                                                            id="client_id"
-                                                            value={oidcConfig.client_id}
-                                                            onChange={(e) => handleOIDCConfigChange('client_id', e.target.value)}
-                                                            placeholder="your-client-id"
-                                                            required
-                                                        />
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="client_secret">Client Secret</Label>
-                                                        <Input
-                                                            id="client_secret"
-                                                            type="password"
-                                                            value={oidcConfig.client_secret}
-                                                            onChange={(e) => handleOIDCConfigChange('client_secret', e.target.value)}
-                                                            placeholder="your-client-secret"
-                                                            required
-                                                        />
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="authorization_url">Authorization URL</Label>
-                                                        <Input
-                                                            id="authorization_url"
-                                                            value={oidcConfig.authorization_url}
-                                                            onChange={(e) => handleOIDCConfigChange('authorization_url', e.target.value)}
-                                                            placeholder="https://your-provider.com/application/o/authorize/"
-                                                            required
-                                                        />
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="issuer_url">Issuer URL</Label>
-                                                        <Input
-                                                            id="issuer_url"
-                                                            value={oidcConfig.issuer_url}
-                                                            onChange={(e) => handleOIDCConfigChange('issuer_url', e.target.value)}
-                                                            placeholder="https://your-provider.com/application/o/termix/"
-                                                            required
-                                                        />
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="token_url">Token URL</Label>
-                                                        <Input
-                                                            id="token_url"
-                                                            value={oidcConfig.token_url}
-                                                            onChange={(e) => handleOIDCConfigChange('token_url', e.target.value)}
-                                                            placeholder="https://your-provider.com/application/o/token/"
-                                                            required
-                                                        />
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="identifier_path">User Identifier Path</Label>
-                                                        <Input
-                                                            id="identifier_path"
-                                                            value={oidcConfig.identifier_path}
-                                                            onChange={(e) => handleOIDCConfigChange('identifier_path', e.target.value)}
-                                                            placeholder="sub"
-                                                            required
-                                                        />
-                                                        <p className="text-xs text-muted-foreground">
-                                                            JSON path to extract user ID from JWT (e.g., "sub", "email",
-                                                            "preferred_username")
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="name_path">Display Name Path</Label>
-                                                        <Input
-                                                            id="name_path"
-                                                            value={oidcConfig.name_path}
-                                                            onChange={(e) => handleOIDCConfigChange('name_path', e.target.value)}
-                                                            placeholder="name"
-                                                            required
-                                                        />
-                                                        <p className="text-xs text-muted-foreground">
-                                                            JSON path to extract display name from JWT (e.g., "name",
-                                                            "preferred_username")
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="scopes">Scopes</Label>
-                                                        <Input
-                                                            id="scopes"
-                                                            value={oidcConfig.scopes}
-                                                            onChange={(e) => handleOIDCConfigChange('scopes', (e.target as HTMLInputElement).value)}
-                                                            placeholder="openid email profile"
-                                                            required
-                                                        />
-                                                        <p className="text-xs text-muted-foreground">
-                                                            Space-separated list of OAuth2 scopes to request
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="flex gap-2 pt-2">
-                                                        <Button
-                                                            type="submit"
-                                                            className="flex-1"
-                                                            disabled={oidcLoading}
-                                                        >
-                                                            {oidcLoading ? "Saving..." : "Save Configuration"}
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            onClick={() => {
-                                                                setOidcConfig({
-                                                                    client_id: '',
-                                                                    client_secret: '',
-                                                                    issuer_url: '',
-                                                                    authorization_url: '',
-                                                                    token_url: '',
-                                                                    identifier_path: 'sub',
-                                                                    name_path: 'name',
-                                                                    scopes: 'openid email profile'
-                                                                });
-                                                            }}
-                                                        >
-                                                            Reset
-                                                        </Button>
-                                                    </div>
-
-                                                    {oidcSuccess && (
-                                                        <Alert>
-                                                            <AlertTitle>Success</AlertTitle>
-                                                            <AlertDescription>{oidcSuccess}</AlertDescription>
-                                                        </Alert>
-                                                    )}
-                                                </form>
-                                            </div>
-                                        </TabsContent>
-
-                                        {/* Users Management Tab */}
-                                        <TabsContent value="users" className="space-y-6">
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <h3 className="text-lg font-semibold">User Management</h3>
-                                                    <Button
-                                                        onClick={fetchUsers}
-                                                        disabled={usersLoading}
-                                                        variant="outline"
-                                                        size="sm"
-                                                    >
-                                                        {usersLoading ? "Loading..." : "Refresh"}
-                                                    </Button>
-                                                </div>
-
-                                                {usersLoading ? (
-                                                    <div className="text-center py-8 text-muted-foreground">
-                                                        Loading users...
-                                                    </div>
-                                                ) : (
-                                                    <div className="border rounded-md overflow-hidden">
-                                                        <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead className="px-4">Username</TableHead>
-                                                                    <TableHead className="px-4">Type</TableHead>
-                                                                    <TableHead className="px-4">Actions</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {users.map((user) => (
-                                                                    <TableRow key={user.id}>
-                                                                        <TableCell className="px-4 font-medium">
-                                                                            {user.username}
-                                                                            {user.is_admin && (
-                                                                                <span
-                                                                                    className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">
-                                                                                    Admin
-                                                                                </span>
-                                                                            )}
-                                                                        </TableCell>
-                                                                        <TableCell className="px-4">
-                                                                            {user.is_oidc ? "External" : "Local"}
-                                                                        </TableCell>
-                                                                        <TableCell className="px-4">
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => deleteUser(user.username)}
-                                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                                                disabled={user.is_admin}
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4"/>
-                                                                            </Button>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </TabsContent>
-
-                                        {/* Admins Management Tab */}
-                                        <TabsContent value="admins" className="space-y-6">
-                                            <div className="space-y-6">
-                                                <h3 className="text-lg font-semibold">Admin Management</h3>
-
-                                                {/* Add New Admin Form */}
-                                                <div className="space-y-4 p-6 border rounded-md bg-muted/50">
-                                                    <h4 className="font-medium">Make User Admin</h4>
-                                                    <form onSubmit={makeUserAdmin} className="space-y-4">
-                                                        <div className="space-y-2">
-                                                            <Label htmlFor="new-admin-username">Username</Label>
-                                                            <div className="flex gap-2">
-                                                                <Input
-                                                                    id="new-admin-username"
-                                                                    value={newAdminUsername}
-                                                                    onChange={(e) => setNewAdminUsername(e.target.value)}
-                                                                    placeholder="Enter username to make admin"
-                                                                    required
-                                                                />
-                                                                <Button
-                                                                    type="submit"
-                                                                    disabled={makeAdminLoading || !newAdminUsername.trim()}
-                                                                >
-                                                                    {makeAdminLoading ? "Adding..." : "Make Admin"}
-                                                                </Button>
-                                                            </div>
-                                                        </div>
-
-                                                        {makeAdminError && (
-                                                            <Alert variant="destructive">
-                                                                <AlertTitle>Error</AlertTitle>
-                                                                <AlertDescription>{makeAdminError}</AlertDescription>
-                                                            </Alert>
-                                                        )}
-
-                                                        {makeAdminSuccess && (
-                                                            <Alert>
-                                                                <AlertTitle>Success</AlertTitle>
-                                                                <AlertDescription>{makeAdminSuccess}</AlertDescription>
-                                                            </Alert>
-                                                        )}
-                                                    </form>
-                                                </div>
-
-                                                {/* Current Admins Table */}
-                                                <div className="space-y-4">
-                                                    <h4 className="font-medium">Current Admins</h4>
-                                                    <div className="border rounded-md overflow-hidden">
-                                                        <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead className="px-4">Username</TableHead>
-                                                                    <TableHead className="px-4">Type</TableHead>
-                                                                    <TableHead className="px-4">Actions</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {users.filter(user => user.is_admin).map((admin) => (
-                                                                    <TableRow key={admin.id}>
-                                                                        <TableCell className="px-4 font-medium">
-                                                                            {admin.username}
-                                                                            <span
-                                                                                className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">
-                                                                                Admin
-                                                                            </span>
-                                                                        </TableCell>
-                                                                        <TableCell className="px-4">
-                                                                            {admin.is_oidc ? "External" : "Local"}
-                                                                        </TableCell>
-                                                                        <TableCell className="px-4">
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                onClick={() => removeAdminStatus(admin.username)}
-                                                                                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                                                                                disabled={admin.username === username}
-                                                                            >
-                                                                                <Shield className="h-4 w-4"/>
-                                                                                Remove Admin
-                                                                            </Button>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                ))}
-                                                            </TableBody>
-                                                        </Table>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </TabsContent>
-                                    </Tabs>
-                                </div>
-
-                                <SheetFooter className="px-6 pt-6 pb-6">
-                                    <Separator className="p-0.25 mt-2 mb-2"/>
-                                    <SheetClose asChild>
-                                        <Button variant="outline">Close</Button>
-                                    </SheetClose>
-                                </SheetFooter>
-                            </SheetContent>
-                        </Sheet>
-                    )}
-
-                    {/* Delete Account Confirmation Sheet */}
-                    <Sheet modal={false} open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen}>
-                        <SheetContent side="left" className="w-[400px]">
-                            <SheetHeader className="pb-0">
-                                <SheetTitle>Delete Account</SheetTitle>
-                                <SheetDescription>
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <div className="space-y-4">
+                                <div className="text-sm text-gray-300">
                                     This action cannot be undone. This will permanently delete your account and all
                                     associated data.
-                                </SheetDescription>
-                            </SheetHeader>
-                            <div className="pb-4 px-4 flex flex-col gap-4">
+                                </div>
+
                                 <Alert variant="destructive">
                                     <AlertTitle>Warning</AlertTitle>
                                     <AlertDescription>
@@ -1076,19 +672,18 @@ export function LeftSidebar({
                                     </div>
                                 </form>
                             </div>
-                        </SheetContent>
-                    </Sheet>
-                </Sidebar>
-                <SidebarInset>
-                    {children}
-                </SidebarInset>
-            </SidebarProvider>
+                        </div>
+                    </div>
 
-            {!isSidebarOpen && (
-                <div
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="absolute top-0 left-0 w-[10px] h-full bg-[#18181b] cursor-pointer z-20 flex items-center justify-center rounded-tr-md rounded-br-md">
-                    <ChevronRight size={10} />
+                    <div
+                        className="flex-1"
+                        onClick={() => {
+                            setDeleteAccountOpen(false);
+                            setDeletePassword("");
+                            setDeleteError(null);
+                        }}
+                        style={{cursor: 'pointer'}}
+                    />
                 </div>
             )}
         </div>

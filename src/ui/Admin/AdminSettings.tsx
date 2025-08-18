@@ -19,7 +19,7 @@ import {Shield, Trash2, Users} from "lucide-react";
 import axios from "axios";
 
 const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
-const API = axios.create({ baseURL: apiBase });
+const API = axios.create({baseURL: apiBase});
 
 function getCookie(name: string) {
     return document.cookie.split('; ').reduce((r, v) => {
@@ -32,14 +32,12 @@ interface AdminSettingsProps {
     isTopbarOpen?: boolean;
 }
 
-export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): React.ReactElement {
-    const { state: sidebarState } = useSidebar();
+export function AdminSettings({isTopbarOpen = true}: AdminSettingsProps): React.ReactElement {
+    const {state: sidebarState} = useSidebar();
 
-    // Registration toggle
     const [allowRegistration, setAllowRegistration] = React.useState(true);
     const [regLoading, setRegLoading] = React.useState(false);
 
-    // OIDC config
     const [oidcConfig, setOidcConfig] = React.useState({
         client_id: '',
         client_secret: '',
@@ -54,8 +52,12 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
     const [oidcError, setOidcError] = React.useState<string | null>(null);
     const [oidcSuccess, setOidcSuccess] = React.useState<string | null>(null);
 
-    // Users/admins
-    const [users, setUsers] = React.useState<Array<{ id: string; username: string; is_admin: boolean; is_oidc: boolean }>>([]);
+    const [users, setUsers] = React.useState<Array<{
+        id: string;
+        username: string;
+        is_admin: boolean;
+        is_oidc: boolean
+    }>>([]);
     const [usersLoading, setUsersLoading] = React.useState(false);
     const [newAdminUsername, setNewAdminUsername] = React.useState("");
     const [makeAdminLoading, setMakeAdminLoading] = React.useState(false);
@@ -65,15 +67,15 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
     React.useEffect(() => {
         const jwt = getCookie("jwt");
         if (!jwt) return;
-        // Preload OIDC config and users
-        API.get("/oidc-config", { headers: { Authorization: `Bearer ${jwt}` } })
-            .then(res => { if (res.data) setOidcConfig(res.data); })
-            .catch(() => {});
+        API.get("/oidc-config", {headers: {Authorization: `Bearer ${jwt}`}})
+            .then(res => {
+                if (res.data) setOidcConfig(res.data);
+            })
+            .catch(() => {
+            });
         fetchUsers();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Load initial registration toggle status
     React.useEffect(() => {
         API.get("/registration-allowed")
             .then(res => {
@@ -81,7 +83,8 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                     setAllowRegistration(res.data.allowed);
                 }
             })
-            .catch(() => {});
+            .catch(() => {
+            });
     }, []);
 
     const fetchUsers = async () => {
@@ -89,7 +92,7 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
         if (!jwt) return;
         setUsersLoading(true);
         try {
-            const response = await API.get("/list", { headers: { Authorization: `Bearer ${jwt}` } });
+            const response = await API.get("/list", {headers: {Authorization: `Bearer ${jwt}`}});
             setUsers(response.data.users);
         } finally {
             setUsersLoading(false);
@@ -100,7 +103,7 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
         setRegLoading(true);
         const jwt = getCookie("jwt");
         try {
-            await API.patch("/registration-allowed", { allowed: checked }, { headers: { Authorization: `Bearer ${jwt}` } });
+            await API.patch("/registration-allowed", {allowed: checked}, {headers: {Authorization: `Bearer ${jwt}`}});
             setAllowRegistration(checked);
         } finally {
             setRegLoading(false);
@@ -113,7 +116,7 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
         setOidcError(null);
         setOidcSuccess(null);
 
-        const required = ['client_id','client_secret','issuer_url','authorization_url','token_url'];
+        const required = ['client_id', 'client_secret', 'issuer_url', 'authorization_url', 'token_url'];
         const missing = required.filter(f => !oidcConfig[f as keyof typeof oidcConfig]);
         if (missing.length > 0) {
             setOidcError(`Missing required fields: ${missing.join(', ')}`);
@@ -123,7 +126,7 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
 
         const jwt = getCookie("jwt");
         try {
-            await API.post("/oidc-config", oidcConfig, { headers: { Authorization: `Bearer ${jwt}` } });
+            await API.post("/oidc-config", oidcConfig, {headers: {Authorization: `Bearer ${jwt}`}});
             setOidcSuccess("OIDC configuration updated successfully!");
         } catch (err: any) {
             setOidcError(err?.response?.data?.error || "Failed to update OIDC configuration");
@@ -133,7 +136,7 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
     };
 
     const handleOIDCConfigChange = (field: string, value: string) => {
-        setOidcConfig(prev => ({ ...prev, [field]: value }));
+        setOidcConfig(prev => ({...prev, [field]: value}));
     };
 
     const makeUserAdmin = async (e: React.FormEvent) => {
@@ -144,7 +147,7 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
         setMakeAdminSuccess(null);
         const jwt = getCookie("jwt");
         try {
-            await API.post("/make-admin", { username: newAdminUsername.trim() }, { headers: { Authorization: `Bearer ${jwt}` } });
+            await API.post("/make-admin", {username: newAdminUsername.trim()}, {headers: {Authorization: `Bearer ${jwt}`}});
             setMakeAdminSuccess(`User ${newAdminUsername} is now an admin`);
             setNewAdminUsername("");
             fetchUsers();
@@ -159,18 +162,20 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
         if (!confirm(`Remove admin status from ${username}?`)) return;
         const jwt = getCookie("jwt");
         try {
-            await API.post("/remove-admin", { username }, { headers: { Authorization: `Bearer ${jwt}` } });
+            await API.post("/remove-admin", {username}, {headers: {Authorization: `Bearer ${jwt}`}});
             fetchUsers();
-        } catch {}
+        } catch {
+        }
     };
 
     const deleteUser = async (username: string) => {
         if (!confirm(`Delete user ${username}? This cannot be undone.`)) return;
         const jwt = getCookie("jwt");
         try {
-            await API.delete("/delete-user", { headers: { Authorization: `Bearer ${jwt}` }, data: { username } });
+            await API.delete("/delete-user", {headers: {Authorization: `Bearer ${jwt}`}, data: {username}});
             fetchUsers();
-        } catch {}
+        } catch {
+        }
     };
 
     const topMarginPx = isTopbarOpen ? 74 : 26;
@@ -185,7 +190,8 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
     };
 
     return (
-        <div style={wrapperStyle} className="bg-[#18181b] text-white rounded-lg border-2 border-[#303032] overflow-hidden">
+        <div style={wrapperStyle}
+             className="bg-[#18181b] text-white rounded-lg border-2 border-[#303032] overflow-hidden">
             <div className="h-full w-full flex flex-col">
                 <div className="flex items-center justify-between px-3 pt-2 pb-2">
                     <h1 className="font-bold text-lg">Admin Settings</h1>
@@ -217,7 +223,8 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                             <div className="space-y-4">
                                 <h3 className="text-lg font-semibold">User Registration</h3>
                                 <label className="flex items-center gap-2">
-                                    <Checkbox checked={allowRegistration} onCheckedChange={handleToggleRegistration} disabled={regLoading}/>
+                                    <Checkbox checked={allowRegistration} onCheckedChange={handleToggleRegistration}
+                                              disabled={regLoading}/>
                                     Allow new account registration
                                 </label>
                             </div>
@@ -226,7 +233,8 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                         <TabsContent value="oidc" className="space-y-6">
                             <div className="space-y-4">
                                 <h3 className="text-lg font-semibold">External Authentication (OIDC)</h3>
-                                <p className="text-sm text-muted-foreground">Configure external identity provider for OIDC/OAuth2 authentication.</p>
+                                <p className="text-sm text-muted-foreground">Configure external identity provider for
+                                    OIDC/OAuth2 authentication.</p>
 
                                 {oidcError && (
                                     <Alert variant="destructive">
@@ -238,39 +246,66 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                                 <form onSubmit={handleOIDCConfigSubmit} className="space-y-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="client_id">Client ID</Label>
-                                        <Input id="client_id" value={oidcConfig.client_id} onChange={(e) => handleOIDCConfigChange('client_id', e.target.value)} placeholder="your-client-id" required />
+                                        <Input id="client_id" value={oidcConfig.client_id}
+                                               onChange={(e) => handleOIDCConfigChange('client_id', e.target.value)}
+                                               placeholder="your-client-id" required/>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="client_secret">Client Secret</Label>
-                                        <Input id="client_secret" type="password" value={oidcConfig.client_secret} onChange={(e) => handleOIDCConfigChange('client_secret', e.target.value)} placeholder="your-client-secret" required />
+                                        <Input id="client_secret" type="password" value={oidcConfig.client_secret}
+                                               onChange={(e) => handleOIDCConfigChange('client_secret', e.target.value)}
+                                               placeholder="your-client-secret" required/>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="authorization_url">Authorization URL</Label>
-                                        <Input id="authorization_url" value={oidcConfig.authorization_url} onChange={(e) => handleOIDCConfigChange('authorization_url', e.target.value)} placeholder="https://your-provider.com/application/o/authorize/" required />
+                                        <Input id="authorization_url" value={oidcConfig.authorization_url}
+                                               onChange={(e) => handleOIDCConfigChange('authorization_url', e.target.value)}
+                                               placeholder="https://your-provider.com/application/o/authorize/"
+                                               required/>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="issuer_url">Issuer URL</Label>
-                                        <Input id="issuer_url" value={oidcConfig.issuer_url} onChange={(e) => handleOIDCConfigChange('issuer_url', e.target.value)} placeholder="https://your-provider.com/application/o/termix/" required />
+                                        <Input id="issuer_url" value={oidcConfig.issuer_url}
+                                               onChange={(e) => handleOIDCConfigChange('issuer_url', e.target.value)}
+                                               placeholder="https://your-provider.com/application/o/termix/" required/>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="token_url">Token URL</Label>
-                                        <Input id="token_url" value={oidcConfig.token_url} onChange={(e) => handleOIDCConfigChange('token_url', e.target.value)} placeholder="https://your-provider.com/application/o/token/" required />
+                                        <Input id="token_url" value={oidcConfig.token_url}
+                                               onChange={(e) => handleOIDCConfigChange('token_url', e.target.value)}
+                                               placeholder="https://your-provider.com/application/o/token/" required/>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="identifier_path">User Identifier Path</Label>
-                                        <Input id="identifier_path" value={oidcConfig.identifier_path} onChange={(e) => handleOIDCConfigChange('identifier_path', e.target.value)} placeholder="sub" required />
+                                        <Input id="identifier_path" value={oidcConfig.identifier_path}
+                                               onChange={(e) => handleOIDCConfigChange('identifier_path', e.target.value)}
+                                               placeholder="sub" required/>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="name_path">Display Name Path</Label>
-                                        <Input id="name_path" value={oidcConfig.name_path} onChange={(e) => handleOIDCConfigChange('name_path', e.target.value)} placeholder="name" required />
+                                        <Input id="name_path" value={oidcConfig.name_path}
+                                               onChange={(e) => handleOIDCConfigChange('name_path', e.target.value)}
+                                               placeholder="name" required/>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="scopes">Scopes</Label>
-                                        <Input id="scopes" value={oidcConfig.scopes} onChange={(e) => handleOIDCConfigChange('scopes', (e.target as HTMLInputElement).value)} placeholder="openid email profile" required />
+                                        <Input id="scopes" value={oidcConfig.scopes}
+                                               onChange={(e) => handleOIDCConfigChange('scopes', (e.target as HTMLInputElement).value)}
+                                               placeholder="openid email profile" required/>
                                     </div>
                                     <div className="flex gap-2 pt-2">
-                                        <Button type="submit" className="flex-1" disabled={oidcLoading}>{oidcLoading ? "Saving..." : "Save Configuration"}</Button>
-                                        <Button type="button" variant="outline" onClick={() => setOidcConfig({ client_id: '', client_secret: '', issuer_url: '', authorization_url: '', token_url: '', identifier_path: 'sub', name_path: 'name', scopes: 'openid email profile' })}>Reset</Button>
+                                        <Button type="submit" className="flex-1"
+                                                disabled={oidcLoading}>{oidcLoading ? "Saving..." : "Save Configuration"}</Button>
+                                        <Button type="button" variant="outline" onClick={() => setOidcConfig({
+                                            client_id: '',
+                                            client_secret: '',
+                                            issuer_url: '',
+                                            authorization_url: '',
+                                            token_url: '',
+                                            identifier_path: 'sub',
+                                            name_path: 'name',
+                                            scopes: 'openid email profile'
+                                        })}>Reset</Button>
                                     </div>
 
                                     {oidcSuccess && (
@@ -287,7 +322,8 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-lg font-semibold">User Management</h3>
-                                    <Button onClick={fetchUsers} disabled={usersLoading} variant="outline" size="sm">{usersLoading ? "Loading..." : "Refresh"}</Button>
+                                    <Button onClick={fetchUsers} disabled={usersLoading} variant="outline"
+                                            size="sm">{usersLoading ? "Loading..." : "Refresh"}</Button>
                                 </div>
                                 {usersLoading ? (
                                     <div className="text-center py-8 text-muted-foreground">Loading users...</div>
@@ -307,12 +343,17 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                                                         <TableCell className="px-4 font-medium">
                                                             {user.username}
                                                             {user.is_admin && (
-                                                                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">Admin</span>
+                                                                <span
+                                                                    className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">Admin</span>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell className="px-4">{user.is_oidc ? "External" : "Local"}</TableCell>
+                                                        <TableCell
+                                                            className="px-4">{user.is_oidc ? "External" : "Local"}</TableCell>
                                                         <TableCell className="px-4">
-                                                            <Button variant="ghost" size="sm" onClick={() => deleteUser(user.username)} className="text-red-600 hover:text-red-700 hover:bg-red-50" disabled={user.is_admin}>
+                                                            <Button variant="ghost" size="sm"
+                                                                    onClick={() => deleteUser(user.username)}
+                                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                                    disabled={user.is_admin}>
                                                                 <Trash2 className="h-4 w-4"/>
                                                             </Button>
                                                         </TableCell>
@@ -334,8 +375,11 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                                         <div className="space-y-2">
                                             <Label htmlFor="new-admin-username">Username</Label>
                                             <div className="flex gap-2">
-                                                <Input id="new-admin-username" value={newAdminUsername} onChange={(e) => setNewAdminUsername(e.target.value)} placeholder="Enter username to make admin" required />
-                                                <Button type="submit" disabled={makeAdminLoading || !newAdminUsername.trim()}>{makeAdminLoading ? "Adding..." : "Make Admin"}</Button>
+                                                <Input id="new-admin-username" value={newAdminUsername}
+                                                       onChange={(e) => setNewAdminUsername(e.target.value)}
+                                                       placeholder="Enter username to make admin" required/>
+                                                <Button type="submit"
+                                                        disabled={makeAdminLoading || !newAdminUsername.trim()}>{makeAdminLoading ? "Adding..." : "Make Admin"}</Button>
                                             </div>
                                         </div>
                                         {makeAdminError && (
@@ -369,11 +413,15 @@ export function AdminSettings({ isTopbarOpen = true }: AdminSettingsProps): Reac
                                                     <TableRow key={admin.id}>
                                                         <TableCell className="px-4 font-medium">
                                                             {admin.username}
-                                                            <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">Admin</span>
+                                                            <span
+                                                                className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground border border-border">Admin</span>
                                                         </TableCell>
-                                                        <TableCell className="px-4">{admin.is_oidc ? "External" : "Local"}</TableCell>
+                                                        <TableCell
+                                                            className="px-4">{admin.is_oidc ? "External" : "Local"}</TableCell>
                                                         <TableCell className="px-4">
-                                                            <Button variant="ghost" size="sm" onClick={() => removeAdminStatus(admin.username)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                                                            <Button variant="ghost" size="sm"
+                                                                    onClick={() => removeAdminStatus(admin.username)}
+                                                                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
                                                                 <Shield className="h-4 w-4"/>
                                                                 Remove Admin
                                                             </Button>

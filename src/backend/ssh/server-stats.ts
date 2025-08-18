@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import fetch from 'node-fetch';
 import net from 'net';
 import cors from 'cors';
-import { Client, type ConnectConfig } from 'ssh2';
+import {Client, type ConnectConfig} from 'ssh2';
 
 type HostRecord = {
     id: number;
@@ -21,7 +21,7 @@ type HostStatus = 'online' | 'offline';
 
 type StatusEntry = {
     status: HostStatus;
-    lastChecked: string; // ISO string
+    lastChecked: string;
 };
 
 const app = express();
@@ -30,7 +30,6 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-// Fallback explicit CORS headers to cover any edge cases
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -42,7 +41,6 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 
-// Logger (customized for Server Stats)
 const statsIconSymbol = '📡';
 const getTimeStamp = (): string => chalk.gray(`[${new Date().toLocaleTimeString()}]`);
 const formatMessage = (level: string, colorFn: chalk.Chalk, message: string): string => {
@@ -69,15 +67,13 @@ const logger = {
     }
 };
 
-// In-memory state of last known statuses
 const hostStatuses: Map<number, StatusEntry> = new Map();
 
-// Fetch all hosts from the database service (internal endpoint, no JWT)
 async function fetchAllHosts(): Promise<HostRecord[]> {
     const url = 'http://localhost:8081/ssh/db/host/internal';
     try {
         const resp = await fetch(url, {
-            headers: { 'x-internal-request': '1' }
+            headers: {'x-internal-request': '1'}
         });
         if (!resp.ok) {
             throw new Error(`DB service error: ${resp.status} ${resp.statusText}`);
@@ -112,9 +108,7 @@ function buildSshConfig(host: HostRecord): ConnectConfig {
         port: host.port || 22,
         username: host.username || 'root',
         readyTimeout: 10_000,
-        algorithms: {
-            // keep defaults minimal to avoid negotiation issues
-        }
+        algorithms: {}
     } as ConnectConfig;
 
     if (host.authType === 'password') {
@@ -138,7 +132,10 @@ async function withSshConnection<T>(host: HostRecord, fn: (client: Client) => Pr
         const onError = (err: Error) => {
             if (!settled) {
                 settled = true;
-                try { client.end(); } catch {}
+                try {
+                    client.end();
+                } catch {
+                }
                 reject(err);
             }
         };
@@ -148,7 +145,10 @@ async function withSshConnection<T>(host: HostRecord, fn: (client: Client) => Pr
                 const result = await fn(client);
                 if (!settled) {
                     settled = true;
-                    try { client.end(); } catch {}
+                    try {
+                        client.end();
+                    } catch {
+                    }
                     resolve(result);
                 }
             } catch (err: any) {
@@ -166,16 +166,20 @@ async function withSshConnection<T>(host: HostRecord, fn: (client: Client) => Pr
     });
 }
 
-function execCommand(client: Client, command: string): Promise<{ stdout: string; stderr: string; code: number | null; }> {
+function execCommand(client: Client, command: string): Promise<{
+    stdout: string;
+    stderr: string;
+    code: number | null;
+}> {
     return new Promise((resolve, reject) => {
-        client.exec(command, { pty: false }, (err, stream) => {
+        client.exec(command, {pty: false}, (err, stream) => {
             if (err) return reject(err);
             let stdout = '';
             let stderr = '';
             let exitCode: number | null = null;
             stream.on('close', (code: number | undefined) => {
                 exitCode = typeof code === 'number' ? code : null;
-                resolve({ stdout, stderr, code: exitCode });
+                resolve({stdout, stderr, code: exitCode});
             }).on('data', (data: Buffer) => {
                 stdout += data.toString('utf8');
             }).stderr.on('data', (data: Buffer) => {
@@ -190,9 +194,9 @@ function parseCpuLine(cpuLine: string): { total: number; idle: number } | undefi
     if (parts[0] !== 'cpu') return undefined;
     const nums = parts.slice(1).map(n => Number(n)).filter(n => Number.isFinite(n));
     if (nums.length < 4) return undefined;
-    const idle = (nums[3] ?? 0) + (nums[4] ?? 0); // idle + iowait
+    const idle = (nums[3] ?? 0) + (nums[4] ?? 0);
     const total = nums.reduce((a, b) => a + b, 0);
-    return { total, idle };
+    return {total, idle};
 }
 
 function toFixedNum(n: number | null | undefined, digits = 2): number | null {
@@ -210,7 +214,6 @@ async function collectMetrics(host: HostRecord): Promise<{
     disk: { percent: number | null; usedHuman: string | null; totalHuman: string | null };
 }> {
     return withSshConnection(host, async (client) => {
-        // CPU
         let cpuPercent: number | null = null;
         let cores: number | null = null;
         let loadTriplet: [number, number, number] | null = null;
@@ -245,7 +248,6 @@ async function collectMetrics(host: HostRecord): Promise<{
             loadTriplet = null;
         }
 
-        // Memory
         let memPercent: number | null = null;
         let usedGiB: number | null = null;
         let totalGiB: number | null = null;
@@ -256,7 +258,7 @@ async function collectMetrics(host: HostRecord): Promise<{
                 const line = lines.find(l => l.startsWith(key));
                 if (!line) return null;
                 const m = line.match(/\d+/);
-                return m ? Number(m[0]) : null; // in kB
+                return m ? Number(m[0]) : null;
             };
             const totalKb = getVal('MemTotal:');
             const availKb = getVal('MemAvailable:');
@@ -272,14 +274,12 @@ async function collectMetrics(host: HostRecord): Promise<{
             totalGiB = null;
         }
 
-        // Disk
         let diskPercent: number | null = null;
         let usedHuman: string | null = null;
         let totalHuman: string | null = null;
         try {
             const diskOut = await execCommand(client, 'df -h -P / | tail -n +2');
             const line = diskOut.stdout.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
-            // Expected columns: Filesystem Size Used Avail Use% Mounted
             const parts = line.split(/\s+/);
             if (parts.length >= 6) {
                 totalHuman = parts[1] || null;
@@ -295,9 +295,13 @@ async function collectMetrics(host: HostRecord): Promise<{
         }
 
         return {
-            cpu: { percent: toFixedNum(cpuPercent, 0), cores, load: loadTriplet },
-            memory: { percent: toFixedNum(memPercent, 0), usedGiB: usedGiB ? toFixedNum(usedGiB, 2) : null, totalGiB: totalGiB ? toFixedNum(totalGiB, 2) : null },
-            disk: { percent: toFixedNum(diskPercent, 0), usedHuman, totalHuman },
+            cpu: {percent: toFixedNum(cpuPercent, 0), cores, load: loadTriplet},
+            memory: {
+                percent: toFixedNum(memPercent, 0),
+                usedGiB: usedGiB ? toFixedNum(usedGiB, 2) : null,
+                totalGiB: totalGiB ? toFixedNum(totalGiB, 2) : null
+            },
+            disk: {percent: toFixedNum(diskPercent, 0), usedHuman, totalHuman},
         };
     });
 }
@@ -310,7 +314,10 @@ function tcpPing(host: string, port: number, timeoutMs = 5000): Promise<boolean>
         const onDone = (result: boolean) => {
             if (settled) return;
             settled = true;
-            try { socket.destroy(); } catch {}
+            try {
+                socket.destroy();
+            } catch {
+            }
             resolve(result);
         };
 
@@ -334,7 +341,7 @@ async function pollStatusesOnce(): Promise<void> {
 
     const checks = hosts.map(async (h) => {
         const isOnline = await tcpPing(h.ip, h.port, 5000);
-        hostStatuses.set(h.id, { status: isOnline ? 'online' : 'offline', lastChecked: now });
+        hostStatuses.set(h.id, {status: isOnline ? 'online' : 'offline', lastChecked: now});
         return isOnline;
     });
 
@@ -344,7 +351,6 @@ async function pollStatusesOnce(): Promise<void> {
 }
 
 app.get('/status', async (req, res) => {
-    // Return current cached statuses; if empty, trigger a poll
     if (hostStatuses.size === 0) {
         await pollStatusesOnce();
     }
@@ -358,7 +364,7 @@ app.get('/status', async (req, res) => {
 app.get('/status/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!id) {
-        return res.status(400).json({ error: 'Invalid id' });
+        return res.status(400).json({error: 'Invalid id'});
     }
 
     if (!hostStatuses.has(id)) {
@@ -367,34 +373,34 @@ app.get('/status/:id', async (req, res) => {
 
     const entry = hostStatuses.get(id);
     if (!entry) {
-        return res.status(404).json({ error: 'Host not found' });
+        return res.status(404).json({error: 'Host not found'});
     }
     res.json(entry);
 });
 
 app.post('/refresh', async (req, res) => {
     await pollStatusesOnce();
-    res.json({ message: 'Refreshed' });
+    res.json({message: 'Refreshed'});
 });
 
 app.get('/metrics/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!id) {
-        return res.status(400).json({ error: 'Invalid id' });
+        return res.status(400).json({error: 'Invalid id'});
     }
     try {
         const host = await fetchHostById(id);
         if (!host) {
-            return res.status(404).json({ error: 'Host not found' });
+            return res.status(404).json({error: 'Host not found'});
         }
         const metrics = await collectMetrics(host);
-        res.json({ ...metrics, lastChecked: new Date().toISOString() });
+        res.json({...metrics, lastChecked: new Date().toISOString()});
     } catch (err) {
         logger.error('Failed to collect metrics', err);
         return res.json({
-            cpu: { percent: null, cores: null, load: null },
-            memory: { percent: null, usedGiB: null, totalGiB: null },
-            disk: { percent: null, usedHuman: null, totalHuman: null },
+            cpu: {percent: null, cores: null, load: null},
+            memory: {percent: null, usedGiB: null, totalGiB: null},
+            disk: {percent: null, usedHuman: null, totalHuman: null},
             lastChecked: new Date().toISOString()
         });
     }
@@ -409,7 +415,6 @@ app.listen(PORT, async () => {
     }
 });
 
-// Background polling every minute
 setInterval(() => {
     pollStatusesOnce().catch(err => logger.error('Background poll failed', err));
 }, 60_000);

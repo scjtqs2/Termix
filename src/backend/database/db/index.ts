@@ -41,94 +41,340 @@ const dbPath = path.join(dataDir, 'db.sqlite');
 const sqlite = new Database(dbPath);
 
 sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        username TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        is_admin INTEGER NOT NULL DEFAULT 0,
-        
-        is_oidc INTEGER NOT NULL DEFAULT 0,
-        client_id TEXT NOT NULL,
-        client_secret  TEXT NOT NULL,
-        issuer_url TEXT NOT NULL,
-        authorization_url TEXT NOT NULL,
-        token_url TEXT NOT NULL,
-        redirect_uri TEXT,
-        identifier_path TEXT NOT NULL,
-        name_path TEXT NOT NULL,
-        scopes TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS users
+    (
+        id
+        TEXT
+        PRIMARY
+        KEY,
+        username
+        TEXT
+        NOT
+        NULL,
+        password_hash
+        TEXT
+        NOT
+        NULL,
+        is_admin
+        INTEGER
+        NOT
+        NULL
+        DEFAULT
+        0,
+
+        is_oidc
+        INTEGER
+        NOT
+        NULL
+        DEFAULT
+        0,
+        client_id
+        TEXT
+        NOT
+        NULL,
+        client_secret
+        TEXT
+        NOT
+        NULL,
+        issuer_url
+        TEXT
+        NOT
+        NULL,
+        authorization_url
+        TEXT
+        NOT
+        NULL,
+        token_url
+        TEXT
+        NOT
+        NULL,
+        redirect_uri
+        TEXT,
+        identifier_path
+        TEXT
+        NOT
+        NULL,
+        name_path
+        TEXT
+        NOT
+        NULL,
+        scopes
+        TEXT
+        NOT
+        NULL
     );
 
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS settings
+    (
+        key
+        TEXT
+        PRIMARY
+        KEY,
+        value
+        TEXT
+        NOT
+        NULL
     );
 
-    CREATE TABLE IF NOT EXISTS ssh_data (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        name TEXT,
-        ip TEXT NOT NULL,
-        port INTEGER NOT NULL,
-        username TEXT NOT NULL,
-        folder TEXT,
-        tags TEXT,
-        pin INTEGER NOT NULL DEFAULT 0,
-        auth_type TEXT NOT NULL,
-        password TEXT,
-        key TEXT,
-        key_password TEXT,
-        key_type TEXT,
-        enable_terminal INTEGER NOT NULL DEFAULT 1,
-        enable_tunnel INTEGER NOT NULL DEFAULT 1,
-        tunnel_connections TEXT,
-        enable_file_manager INTEGER NOT NULL DEFAULT 1,
-        default_path TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    );
+    CREATE TABLE IF NOT EXISTS ssh_data
+    (
+        id
+        INTEGER
+        PRIMARY
+        KEY
+        AUTOINCREMENT,
+        user_id
+        TEXT
+        NOT
+        NULL,
+        name
+        TEXT,
+        ip
+        TEXT
+        NOT
+        NULL,
+        port
+        INTEGER
+        NOT
+        NULL,
+        username
+        TEXT
+        NOT
+        NULL,
+        folder
+        TEXT,
+        tags
+        TEXT,
+        pin
+        INTEGER
+        NOT
+        NULL
+        DEFAULT
+        0,
+        auth_type
+        TEXT
+        NOT
+        NULL,
+        password
+        TEXT,
+        key
+        TEXT,
+        key_password
+        TEXT,
+        key_type
+        TEXT,
+        enable_terminal
+        INTEGER
+        NOT
+        NULL
+        DEFAULT
+        1,
+        enable_tunnel
+        INTEGER
+        NOT
+        NULL
+        DEFAULT
+        1,
+        tunnel_connections
+        TEXT,
+        enable_file_manager
+        INTEGER
+        NOT
+        NULL
+        DEFAULT
+        1,
+        default_path
+        TEXT,
+        created_at
+        TEXT
+        NOT
+        NULL
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        updated_at
+        TEXT
+        NOT
+        NULL
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        FOREIGN
+        KEY
+    (
+        user_id
+    ) REFERENCES users
+    (
+        id
+    )
+        );
 
-    CREATE TABLE IF NOT EXISTS file_manager_recent (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        host_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL,
-        last_opened TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (host_id) REFERENCES ssh_data(id)
-    );
+    CREATE TABLE IF NOT EXISTS file_manager_recent
+    (
+        id
+        INTEGER
+        PRIMARY
+        KEY
+        AUTOINCREMENT,
+        user_id
+        TEXT
+        NOT
+        NULL,
+        host_id
+        INTEGER
+        NOT
+        NULL,
+        name
+        TEXT
+        NOT
+        NULL,
+        path
+        TEXT
+        NOT
+        NULL,
+        last_opened
+        TEXT
+        NOT
+        NULL
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        FOREIGN
+        KEY
+    (
+        user_id
+    ) REFERENCES users
+    (
+        id
+    ),
+        FOREIGN KEY
+    (
+        host_id
+    ) REFERENCES ssh_data
+    (
+        id
+    )
+        );
 
-    CREATE TABLE IF NOT EXISTS file_manager_pinned (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        host_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL,
-        pinned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (host_id) REFERENCES ssh_data(id)
-    );
+    CREATE TABLE IF NOT EXISTS file_manager_pinned
+    (
+        id
+        INTEGER
+        PRIMARY
+        KEY
+        AUTOINCREMENT,
+        user_id
+        TEXT
+        NOT
+        NULL,
+        host_id
+        INTEGER
+        NOT
+        NULL,
+        name
+        TEXT
+        NOT
+        NULL,
+        path
+        TEXT
+        NOT
+        NULL,
+        pinned_at
+        TEXT
+        NOT
+        NULL
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        FOREIGN
+        KEY
+    (
+        user_id
+    ) REFERENCES users
+    (
+        id
+    ),
+        FOREIGN KEY
+    (
+        host_id
+    ) REFERENCES ssh_data
+    (
+        id
+    )
+        );
 
-    CREATE TABLE IF NOT EXISTS file_manager_shortcuts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        host_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (host_id) REFERENCES ssh_data(id)
-    );
+    CREATE TABLE IF NOT EXISTS file_manager_shortcuts
+    (
+        id
+        INTEGER
+        PRIMARY
+        KEY
+        AUTOINCREMENT,
+        user_id
+        TEXT
+        NOT
+        NULL,
+        host_id
+        INTEGER
+        NOT
+        NULL,
+        name
+        TEXT
+        NOT
+        NULL,
+        path
+        TEXT
+        NOT
+        NULL,
+        created_at
+        TEXT
+        NOT
+        NULL
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        FOREIGN
+        KEY
+    (
+        user_id
+    ) REFERENCES users
+    (
+        id
+    ),
+        FOREIGN KEY
+    (
+        host_id
+    ) REFERENCES ssh_data
+    (
+        id
+    )
+        );
 
-    CREATE TABLE IF NOT EXISTS dismissed_alerts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        alert_id TEXT NOT NULL,
-        dismissed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    );
+    CREATE TABLE IF NOT EXISTS dismissed_alerts
+    (
+        id
+        INTEGER
+        PRIMARY
+        KEY
+        AUTOINCREMENT,
+        user_id
+        TEXT
+        NOT
+        NULL,
+        alert_id
+        TEXT
+        NOT
+        NULL,
+        dismissed_at
+        TEXT
+        NOT
+        NULL
+        DEFAULT
+        CURRENT_TIMESTAMP,
+        FOREIGN
+        KEY
+    (
+        user_id
+    ) REFERENCES users
+    (
+        id
+    )
+        );
 `);
 
 const addColumnIfNotExists = (table: string, column: string, definition: string) => {
@@ -162,7 +408,7 @@ const migrateSchema = () => {
         logger.info('Removed redirect_uri column from users table');
     } catch (e) {
     }
-    
+
     addColumnIfNotExists('users', 'identifier_path', 'TEXT');
     addColumnIfNotExists('users', 'name_path', 'TEXT');
     addColumnIfNotExists('users', 'scopes', 'TEXT');

@@ -42,17 +42,17 @@ export function HomepageAlertManager({userId, loggedIn}: AlertManagerProps): Rea
 
         setLoading(true);
         setError(null);
-        
+
         try {
             const response = await API.get(`/user/${userId}`);
-            
+
             const userAlerts = response.data.alerts || [];
 
             const sortedAlerts = userAlerts.sort((a: TermixAlert, b: TermixAlert) => {
-                const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+                const priorityOrder = {critical: 4, high: 3, medium: 2, low: 1};
                 const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
                 const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-                
+
                 if (aPriority !== bPriority) {
                     return bPriority - aPriority;
                 }
@@ -71,7 +71,7 @@ export function HomepageAlertManager({userId, loggedIn}: AlertManagerProps): Rea
 
     const handleDismissAlert = async (alertId: string) => {
         if (!userId) return;
-        
+
         try {
             const response = await API.post('/dismiss', {
                 userId,
@@ -130,8 +130,8 @@ export function HomepageAlertManager({userId, loggedIn}: AlertManagerProps): Rea
     if (!currentAlert) {
         return null;
     }
-    
-    const priorityCounts = { critical: 0, high: 0, medium: 0, low: 0 };
+
+    const priorityCounts = {critical: 0, high: 0, medium: 0, low: 0};
     alerts.forEach(alert => {
         const priority = alert.priority || 'low';
         priorityCounts[priority as keyof typeof priorityCounts]++;

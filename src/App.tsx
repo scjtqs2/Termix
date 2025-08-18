@@ -49,7 +49,6 @@ function AppContent() {
                         setIsAuthenticated(false);
                         setIsAdmin(false);
                         setUsername(null);
-                        // Clear invalid JWT
                         document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
                     })
                     .finally(() => setAuthLoading(false));
@@ -85,27 +84,19 @@ function AppContent() {
         setUsername(authData.username)
     }
 
-    // Determine what to show based on current tab
     const currentTabData = tabs.find(tab => tab.id === currentTab);
     const showTerminalView = currentTabData?.type === 'terminal' || currentTabData?.type === 'server' || currentTabData?.type === 'file_manager';
     const showHome = currentTabData?.type === 'home';
     const showSshManager = currentTabData?.type === 'ssh_manager';
     const showAdmin = currentTabData?.type === 'admin';
-    
-    console.log('Current tab:', currentTab);
-    console.log('Current tab data:', currentTabData);
-    console.log('Show terminal view:', showTerminalView);
-    console.log('All tabs:', tabs);
 
     return (
         <div>
-            {/* Enhanced background overlay - detailed pattern when not authenticated */}
             {!isAuthenticated && !authLoading && (
                 <div 
                     className="fixed inset-0 bg-gradient-to-br from-background via-muted/20 to-background z-[9999]"
                     aria-hidden="true"
                 >
-                    {/* Diagonal stripes pattern */}
                     <div className="absolute inset-0 opacity-20">
                         <div className="absolute inset-0" style={{
                             backgroundImage: `repeating-linear-gradient(
@@ -117,8 +108,7 @@ function AppContent() {
                             )`
                         }} />
                     </div>
-                    
-                    {/* Subtle grid pattern */}
+
                     <div className="absolute inset-0 opacity-10">
                         <div className="absolute inset-0" style={{
                             backgroundImage: `linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
@@ -126,13 +116,11 @@ function AppContent() {
                             backgroundSize: '40px 40px'
                         }} />
                     </div>
-                    
-                    {/* Radial gradient overlay */}
+
                     <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-background/60" />
                 </div>
             )}
-            
-            {/* Show login form directly when not authenticated */}
+
             {!isAuthenticated && !authLoading && (
                 <div className="fixed inset-0 flex items-center justify-center z-[10000]">
                     <Homepage 
@@ -144,8 +132,7 @@ function AppContent() {
                     />
                 </div>
             )}
-            
-            {/* Show sidebar layout only when authenticated */}
+
             {isAuthenticated && (
                 <LeftSidebar
                     onSelectView={handleSelectView}
@@ -153,7 +140,6 @@ function AppContent() {
                     isAdmin={isAdmin}
                     username={username}
                 >
-                    {/* Always render TerminalView to maintain terminal persistence */}
                     <div
                         className="h-screen w-full"
                         style={{
@@ -167,8 +153,7 @@ function AppContent() {
                     >
                         <AppView isTopbarOpen={isTopbarOpen} />
                     </div>
-                    
-                    {/* Always render Homepage to keep it mounted */}
+
                     <div
                         className="h-screen w-full"
                         style={{
@@ -189,7 +174,6 @@ function AppContent() {
                         />
                     </div>
 
-                    {/* Always render SSH Manager but toggle visibility for persistence */}
                     <div
                         className="h-screen w-full"
                         style={{
@@ -204,7 +188,6 @@ function AppContent() {
                         <HostManager onSelectView={handleSelectView} isTopbarOpen={isTopbarOpen} />
                     </div>
 
-                    {/* Admin Settings tab */}
                     <div
                         className="h-screen w-full"
                         style={{
@@ -218,8 +201,7 @@ function AppContent() {
                     >
                         <AdminSettings isTopbarOpen={isTopbarOpen} />
                     </div>
-                    
-                    {/* Legacy views removed; tab system controls main content */}
+
                     <TopNavbar isTopbarOpen={isTopbarOpen} setIsTopbarOpen={setIsTopbarOpen}/>
                 </LeftSidebar>
             )}

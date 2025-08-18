@@ -811,7 +811,9 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
                                                                             render={({field: sourcePortField}) => (
                                                                                 <FormItem className="col-span-4">
                                                                                     <FormLabel>Source Port
-                                                                                        (Source refers to the Current Connection Details in the General tab)</FormLabel>
+                                                                                        (Source refers to the Current
+                                                                                        Connection Details in the
+                                                                                        General tab)</FormLabel>
                                                                                     <FormControl>
                                                                                         <Input
                                                                                             placeholder="22" {...sourcePortField} />
@@ -1029,8 +1031,8 @@ export function HostManagerHostEditor({editingHost, onFormSubmit}: SSHManagerHos
                     </ScrollArea>
                     <footer className="shrink-0 w-full pb-0">
                         <Separator className="p-0.25"/>
-                        <Button 
-                            className="" 
+                        <Button
+                            className=""
                             type="submit"
                             variant="outline"
                             style={{

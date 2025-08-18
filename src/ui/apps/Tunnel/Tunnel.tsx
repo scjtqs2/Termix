@@ -48,8 +48,7 @@ interface SSHTunnelProps {
     filterHostKey?: string;
 }
 
-export function Tunnel({ filterHostKey }: SSHTunnelProps): React.ReactElement {
-    // Keep full list for endpoint lookups; keep a separate visible list for UI
+export function Tunnel({filterHostKey}: SSHTunnelProps): React.ReactElement {
     const [allHosts, setAllHosts] = useState<SSHHost[]>([]);
     const [visibleHosts, setVisibleHosts] = useState<SSHHost[]>([]);
     const [tunnelStatuses, setTunnelStatuses] = useState<Record<string, TunnelStatus>>({});
@@ -86,7 +85,6 @@ export function Tunnel({ filterHostKey }: SSHTunnelProps): React.ReactElement {
             })
             : hostsData;
 
-        // Silent update: only set state if meaningful changes
         const prev = prevVisibleHostRef.current;
         const curr = nextVisible[0] ?? null;
         let changed = false;
@@ -120,7 +118,6 @@ export function Tunnel({ filterHostKey }: SSHTunnelProps): React.ReactElement {
         fetchHosts();
         const interval = setInterval(fetchHosts, 5000);
 
-        // Refresh immediately when hosts are changed elsewhere (e.g., SSH Manager)
         const handleHostsChanged = () => {
             fetchHosts();
         };

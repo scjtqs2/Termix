@@ -132,15 +132,14 @@
     }
 }
 
-/* Thin scrollbar utility for scrollable containers */
 .thin-scrollbar {
-    scrollbar-width: thin; /* Firefox */
-    scrollbar-color: #303032 transparent; /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: #303032 transparent;
 }
 
 .thin-scrollbar::-webkit-scrollbar {
-    height: 6px; /* horizontal */
-    width: 6px; /* vertical, if any */
+    height: 6px;
+    width: 6px;
 }
 
 .thin-scrollbar::-webkit-scrollbar-track {
@@ -154,7 +153,6 @@
     background-clip: content-box;
 }
 
-/* Thin scrollbar styles */
 .thin-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -173,7 +171,6 @@
   background: #5a5a5d;
 }
 
-/* Custom scrollbar for Firefox */
 .thin-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #434345 #18181b;

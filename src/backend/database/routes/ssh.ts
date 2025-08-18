@@ -695,7 +695,7 @@ router.delete('/file_manager/shortcuts', authenticateJWT, async (req: Request, r
 // POST /ssh/bulk-import
 router.post('/bulk-import', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
-    const { hosts } = req.body;
+    const {hosts} = req.body;
 
     if (!Array.isArray(hosts) || hosts.length === 0) {
         logger.warn('Invalid bulk import data - hosts array is required and must not be empty');
@@ -715,7 +715,7 @@ router.post('/bulk-import', authenticateJWT, async (req: Request, res: Response)
 
     for (let i = 0; i < hosts.length; i++) {
         const hostData = hosts[i];
-        
+
         try {
             if (!isNonEmptyString(hostData.ip) || !isValidPort(hostData.port) || !isNonEmptyString(hostData.username)) {
                 results.failed++;

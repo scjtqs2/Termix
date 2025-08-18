@@ -47,12 +47,11 @@ interface SSHTunnelViewerProps {
 }
 
 export function TunnelViewer({
-                                    hosts = [],
-                                    tunnelStatuses = {},
-                                    tunnelActions = {},
-                                    onTunnelAction
-                                }: SSHTunnelViewerProps): React.ReactElement {
-    // Single-host view: use first host if present
+                                 hosts = [],
+                                 tunnelStatuses = {},
+                                 tunnelActions = {},
+                                 onTunnelAction
+                             }: SSHTunnelViewerProps): React.ReactElement {
     const activeHost: SSHHost | undefined = Array.isArray(hosts) && hosts.length > 0 ? hosts[0] : undefined;
 
     if (!activeHost || !activeHost.tunnelConnections || activeHost.tunnelConnections.length === 0) {
@@ -60,7 +59,8 @@ export function TunnelViewer({
             <div className="w-full h-full flex flex-col items-center justify-center text-center p-3">
                 <h3 className="text-lg font-semibold text-foreground mb-2">No SSH Tunnels</h3>
                 <p className="text-muted-foreground max-w-md">
-                    Create your first SSH tunnel to get started. Use the SSH Manager to add hosts with tunnel connections.
+                    Create your first SSH tunnel to get started. Use the SSH Manager to add hosts with tunnel
+                    connections.
                 </p>
             </div>
         );
@@ -72,7 +72,8 @@ export function TunnelViewer({
                 <h1 className="text-xl font-semibold text-foreground">SSH Tunnels</h1>
             </div>
             <div className="min-h-0 flex-1 overflow-auto pr-1">
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3 auto-rows-min content-start w-full">
+                <div
+                    className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3 auto-rows-min content-start w-full">
                     {activeHost.tunnelConnections.map((t, idx) => (
                         <TunnelObject
                             key={`tunnel-${activeHost.id}-${t.endpointHost}-${t.sourcePort}-${t.endpointPort}`}

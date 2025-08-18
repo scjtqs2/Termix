@@ -83,7 +83,6 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
     }>>({});
     const [fetchingFiles, setFetchingFiles] = useState(false);
 
-    // Context menu state
     const [contextMenu, setContextMenu] = useState<{
         visible: boolean;
         x: number;
@@ -96,21 +95,18 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
         item: null
     });
 
-    // Rename state
     const [renamingItem, setRenamingItem] = useState<{
         item: any;
         newName: string;
     } | null>(null);
 
     useEffect(() => {
-        // when host changes, set path and connect
         const nextPath = host?.defaultPath || '/';
         setCurrentPath(nextPath);
         onPathChange?.(nextPath);
         (async () => {
             await connectToSSH(host);
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [host?.id]);
 
     async function connectToSSH(server: SSHHost): Promise<string | null> {
@@ -282,35 +278,28 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
 
     const handleContextMenu = (e: React.MouseEvent, item: any) => {
         e.preventDefault();
-        
-        // Get viewport dimensions
+
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
-        
-        // Context menu dimensions (approximate)
-        const menuWidth = 160; // min-w-[160px]
-        const menuHeight = 80; // Approximate height for 2 menu items
-        
-        // Calculate position
+
+        const menuWidth = 160;
+        const menuHeight = 80;
+
         let x = e.clientX;
         let y = e.clientY;
-        
-        // Adjust X position if menu would go off right edge
+
         if (x + menuWidth > viewportWidth) {
             x = e.clientX - menuWidth;
         }
-        
-        // Adjust Y position if menu would go off bottom edge
+
         if (y + menuHeight > viewportHeight) {
             y = e.clientY - menuHeight;
         }
-        
-        // Ensure menu doesn't go off left edge
+
         if (x < 0) {
             x = 0;
         }
-        
-        // Ensure menu doesn't go off top edge
+
         if (y < 0) {
             y = 0;
         }
@@ -369,12 +358,10 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
     };
 
     const startDelete = (item: any) => {
-        // Call the parent's delete handler instead of managing locally
         onDeleteItem?.(item);
         closeContextMenu();
     };
 
-    // Close context menu when clicking outside
     useEffect(() => {
         const handleClickOutside = () => closeContextMenu();
         document.addEventListener('click', handleClickOutside);
@@ -392,7 +379,7 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
                 <div className="flex-1 w-full h-full flex flex-col bg-[#09090b] border-r-2 border-[#303032] overflow-hidden p-0 relative min-h-0">
                     {host && (
                         <div className="flex flex-col h-full w-full" style={{maxWidth: 260}}>
-                            <div className="flex items-center gap-2 px-2 py-2 border-b-2 border-[#303032] bg-[#18181b] z-20" style={{maxWidth: 260}}>
+                            <div className="flex items-center gap-2 px-2 py-1.5 border-b-2 border-[#303032] bg-[#18181b] z-20" style={{maxWidth: 260}}>
                                 <Button
                                     size="icon"
                                     variant="outline"
@@ -440,7 +427,7 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
                                                 {filteredFiles.map((item: any) => {
                                                     const isOpen = (tabs || []).some((t: any) => t.id === item.path);
                                                     const isRenaming = renamingItem?.item?.path === item.path;
-                                                    const isDeleting = false; // Deletion is handled by parent
+                                                    const isDeleting = false;
                                                     
                                                     return (
                                                         <div
@@ -519,7 +506,6 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
                                                                                                 ));
                                                                                             }
                                                                                         } catch (err) {
-                                                                                            console.error('Failed to pin/unpin file:', err);
                                                                                         }
                                                                                     }}
                                                                             >
@@ -555,7 +541,6 @@ const FileManagerLeftSidebar = forwardRef(function FileManagerSidebar(
                 </div>
             </div>
 
-            {/* Context Menu */}
             {contextMenu.visible && contextMenu.item && (
                 <div
                     className="fixed z-[99998] bg-[#18181b] border-2 border-[#303032] rounded-lg shadow-xl py-1 min-w-[160px]"

@@ -581,7 +581,7 @@ EXAMPLE STRUCTURE:
                         Format Guide
                     </Button>
 
-                    <div className="w-px h-6 bg-border mx-2" />
+                    <div className="w-px h-6 bg-border mx-2"/>
 
                     <Button onClick={fetchHosts} variant="outline" size="sm">
                         Refresh

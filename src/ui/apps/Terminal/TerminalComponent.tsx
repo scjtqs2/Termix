@@ -17,7 +17,6 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
     {hostConfig, isVisible, splitScreen = false},
     ref
 ) {
-    console.log('TerminalComponent rendered with:', { hostConfig, isVisible, splitScreen });
     const {instance: terminal, ref: xtermRef} = useXTerm();
     const fitAddonRef = useRef<FitAddon | null>(null);
     const webSocketRef = useRef<WebSocket | null>(null);
@@ -27,20 +26,22 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
     const [visible, setVisible] = useState(false);
     const isVisibleRef = useRef<boolean>(false);
 
-    // Debounce/stabilize resize notifications
-    const lastSentSizeRef = useRef<{cols:number; rows:number} | null>(null);
-    const pendingSizeRef = useRef<{cols:number; rows:number} | null>(null);
+    const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+    const pendingSizeRef = useRef<{ cols: number; rows: number } | null>(null);
     const notifyTimerRef = useRef<NodeJS.Timeout | null>(null);
     const DEBOUNCE_MS = 140;
 
-    useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
+    useEffect(() => {
+        isVisibleRef.current = isVisible;
+    }, [isVisible]);
 
     function hardRefresh() {
         try {
             if (terminal && typeof (terminal as any).refresh === 'function') {
                 (terminal as any).refresh(0, terminal.rows - 1);
             }
-        } catch (_) {}
+        } catch (_) {
+        }
     }
 
     function scheduleNotify(cols: number, rows: number) {
@@ -85,7 +86,8 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
                     scheduleNotify(cols, rows);
                     hardRefresh();
                 }
-            } catch (_) {}
+            } catch (_) {
+            }
         },
         refresh: () => hardRefresh(),
     }), [terminal]);
@@ -119,7 +121,8 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
                 await navigator.clipboard.writeText(text);
                 return;
             }
-        } catch (_) {}
+        } catch (_) {
+        }
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';
@@ -127,7 +130,11 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
         document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();
-        try { document.execCommand('copy'); } finally { document.body.removeChild(textarea); }
+        try {
+            document.execCommand('copy');
+        } finally {
+            document.body.removeChild(textarea);
+        }
     }
 
     async function readTextFromClipboard(): Promise<string> {
@@ -135,7 +142,8 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
             if (navigator.clipboard && navigator.clipboard.readText) {
                 return await navigator.clipboard.readText();
             }
-        } catch (_) {}
+        } catch (_) {
+        }
         return '';
     }
 
@@ -148,7 +156,7 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
             scrollback: 10000,
             fontSize: 14,
             fontFamily: '"JetBrains Mono Nerd Font", "MesloLGS NF", "FiraCode Nerd Font", "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace',
-            theme: { background: '#18181b', foreground: '#f7f7f7' },
+            theme: {background: '#18181b', foreground: '#f7f7f7'},
             allowTransparency: true,
             convertEol: true,
             windowsMode: false,
@@ -175,16 +183,21 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
         const element = xtermRef.current;
         const handleContextMenu = async (e: MouseEvent) => {
             if (!getUseRightClickCopyPaste()) return;
-            e.preventDefault(); e.stopPropagation();
+            e.preventDefault();
+            e.stopPropagation();
             try {
                 if (terminal.hasSelection()) {
                     const selection = terminal.getSelection();
-                    if (selection) { await writeTextToClipboard(selection); terminal.clearSelection(); }
+                    if (selection) {
+                        await writeTextToClipboard(selection);
+                        terminal.clearSelection();
+                    }
                 } else {
                     const pasteText = await readTextFromClipboard();
                     if (pasteText) terminal.paste(pasteText);
                 }
-            } catch (_) {}
+            } catch (_) {
+            }
         };
         element?.addEventListener('contextmenu', handleContextMenu);
 
@@ -221,8 +234,14 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
 
                 ws.addEventListener('open', () => {
                     ws.send(JSON.stringify({type: 'connectToHost', data: {cols, rows, hostConfig}}));
-                    terminal.onData((data) => { ws.send(JSON.stringify({type: 'input', data})); });
-                    pingIntervalRef.current = setInterval(() => { if (ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({type: 'ping'})); } }, 30000);
+                    terminal.onData((data) => {
+                        ws.send(JSON.stringify({type: 'input', data}));
+                    });
+                    pingIntervalRef.current = setInterval(() => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({type: 'ping'}));
+                        }
+                    }, 30000);
                 });
 
                 ws.addEventListener('message', (event) => {
@@ -230,13 +249,21 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
                         const msg = JSON.parse(event.data);
                         if (msg.type === 'data') terminal.write(msg.data);
                         else if (msg.type === 'error') terminal.writeln(`\r\n[ERROR] ${msg.message}`);
-                        else if (msg.type === 'connected') { }
-                        else if (msg.type === 'disconnected') { wasDisconnectedBySSH.current = true; terminal.writeln(`\r\n[${msg.message || 'Disconnected'}]`); }
-                    } catch (error) { console.error('Error parsing WebSocket message:', error); }
+                        else if (msg.type === 'connected') {
+                        } else if (msg.type === 'disconnected') {
+                            wasDisconnectedBySSH.current = true;
+                            terminal.writeln(`\r\n[${msg.message || 'Disconnected'}]`);
+                        }
+                    } catch (error) {
+                    }
                 });
 
-                ws.addEventListener('close', () => { if (!wasDisconnectedBySSH.current) terminal.writeln('\r\n[Connection closed]'); });
-                ws.addEventListener('error', () => { terminal.writeln('\r\n[Connection error]'); });
+                ws.addEventListener('close', () => {
+                    if (!wasDisconnectedBySSH.current) terminal.writeln('\r\n[Connection closed]');
+                });
+                ws.addEventListener('error', () => {
+                    terminal.writeln('\r\n[Connection error]');
+                });
             }, 300);
         });
 
@@ -245,7 +272,10 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
             element?.removeEventListener('contextmenu', handleContextMenu);
             if (notifyTimerRef.current) clearTimeout(notifyTimerRef.current);
             if (resizeTimeout.current) clearTimeout(resizeTimeout.current);
-            if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
+            if (pingIntervalRef.current) {
+                clearInterval(pingIntervalRef.current);
+                pingIntervalRef.current = null;
+            }
             webSocketRef.current?.close();
         };
     }, [xtermRef, terminal, hostConfig]);
@@ -260,7 +290,6 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
         }
     }, [isVisible]);
 
-    // Ensure a fit when split mode toggles to account for new pane geometry
     useEffect(() => {
         if (!fitAddonRef.current) return;
         setTimeout(() => {
@@ -271,7 +300,8 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
     }, [splitScreen]);
 
     return (
-        <div ref={xtermRef} className="h-full w-full m-1" style={{ opacity: visible && isVisible ? 1 : 0, overflow: 'hidden' }} />
+        <div ref={xtermRef} className="h-full w-full m-1"
+             style={{opacity: visible && isVisible ? 1 : 0, overflow: 'hidden'}}/>
     );
 });
 

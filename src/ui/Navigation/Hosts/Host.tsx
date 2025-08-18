@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, {useEffect, useState} from "react";
 import {Status, StatusIndicator} from "@/components/ui/shadcn-io/status";
 import {Button} from "@/components/ui/button.tsx";
 import {ButtonGroup} from "@/components/ui/button-group.tsx";
 import {Server, Terminal} from "lucide-react";
 import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
-import { getServerStatusById } from "@/ui/main-axios.ts";
+import {getServerStatusById} from "@/ui/main-axios.ts";
 
 interface SSHHost {
     id: number;
@@ -33,12 +33,12 @@ interface HostProps {
     host: SSHHost;
 }
 
-export function Host({ host }: HostProps): React.ReactElement {
-    const { addTab } = useTabs();
+export function Host({host}: HostProps): React.ReactElement {
+    const {addTab} = useTabs();
     const [serverStatus, setServerStatus] = useState<'online' | 'offline'>('offline');
     const tags = Array.isArray(host.tags) ? host.tags : [];
     const hasTags = tags.length > 0;
-    
+
     const title = host.name?.trim() ? host.name : `${host.username}@${host.ip}:${host.port}`;
 
     useEffect(() => {
@@ -66,13 +66,13 @@ export function Host({ host }: HostProps): React.ReactElement {
     }, [host.id]);
 
     const handleTerminalClick = () => {
-        addTab({ type: 'terminal', title, hostConfig: host });
+        addTab({type: 'terminal', title, hostConfig: host});
     };
 
     const handleServerClick = () => {
-        addTab({ type: 'server', title, hostConfig: host });
+        addTab({type: 'server', title, hostConfig: host});
     };
-    
+
     return (
         <div>
             <div className="flex items-center gap-2">
@@ -87,8 +87,8 @@ export function Host({ host }: HostProps): React.ReactElement {
                         <Server/>
                     </Button>
                     {host.enableTerminal && (
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             className="!px-2 border-1 border-[#303032]"
                             onClick={handleTerminalClick}
                         >

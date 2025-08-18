@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, {useState} from "react";
 import {CardTitle} from "@/components/ui/card.tsx";
 import {ChevronDown, Folder} from "lucide-react";
 import {Button} from "@/components/ui/button.tsx";
@@ -35,7 +35,7 @@ interface FolderCardProps {
     isLast: boolean;
 }
 
-export function FolderCard({ folderName, hosts, isFirst, isLast }: FolderCardProps): React.ReactElement {
+export function FolderCard({folderName, hosts, isFirst, isLast}: FolderCardProps): React.ReactElement {
     const [isExpanded, setIsExpanded] = useState(true);
 
     const toggleExpanded = () => {
@@ -43,7 +43,8 @@ export function FolderCard({ folderName, hosts, isFirst, isLast }: FolderCardPro
     };
 
     return (
-        <div className="bg-[#0e0e10] border-2 border-[#303032] rounded-lg overflow-hidden" style={{padding: '0', margin: '0'}}>
+        <div className="bg-[#0e0e10] border-2 border-[#303032] rounded-lg overflow-hidden"
+             style={{padding: '0', margin: '0'}}>
             <div className={`px-4 py-3 relative ${isExpanded ? 'border-b-2' : ''} bg-[#131316]`}>
                 <div className="flex gap-2 pr-10">
                     <div className="flex-shrink-0 flex items-center">
@@ -65,10 +66,10 @@ export function FolderCard({ folderName, hosts, isFirst, isLast }: FolderCardPro
                 <div className="flex flex-col p-2 gap-y-3">
                     {hosts.map((host, index) => (
                         <React.Fragment key={`${folderName}-host-${host.id}-${host.name || host.ip}`}>
-                            <Host host={host} />
+                            <Host host={host}/>
                             {index < hosts.length - 1 && (
                                 <div className="relative -mx-2">
-                                    <Separator className="p-0.25 absolute inset-x-0" />
+                                    <Separator className="p-0.25 absolute inset-x-0"/>
                                 </div>
                             )}
                         </React.Fragment>

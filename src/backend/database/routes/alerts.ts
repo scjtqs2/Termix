@@ -90,10 +90,10 @@ async function fetchAlertsFromGitHub(): Promise<TermixAlert[]> {
     if (cachedData) {
         return cachedData;
     }
-    
+
     try {
         const url = `${GITHUB_RAW_BASE}/${REPO_OWNER}/${REPO_NAME}/${ALERTS_FILE}`;
-        
+
         const response = await fetch(url, {
             headers: {
                 'Accept': 'application/json',
@@ -108,13 +108,13 @@ async function fetchAlertsFromGitHub(): Promise<TermixAlert[]> {
         const alerts: TermixAlert[] = await response.json() as TermixAlert[];
 
         const now = new Date();
-        
+
         const validAlerts = alerts.filter(alert => {
             const expiryDate = new Date(alert.expiresAt);
             const isValid = expiryDate > now;
             return isValid;
         });
-        
+
         alertCache.set(cacheKey, validAlerts);
         return validAlerts;
     } catch (error) {
@@ -146,11 +146,11 @@ router.get('/', async (req, res) => {
 router.get('/user/:userId', async (req, res) => {
     try {
         const {userId} = req.params;
-        
+
         if (!userId) {
             return res.status(400).json({error: 'User ID is required'});
         }
-        
+
         const allAlerts = await fetchAlertsFromGitHub();
 
         const dismissedAlertRecords = await db
@@ -215,7 +215,7 @@ router.post('/dismiss', async (req, res) => {
 router.get('/dismissed/:userId', async (req, res) => {
     try {
         const {userId} = req.params;
-        
+
         if (!userId) {
             return res.status(400).json({error: 'User ID is required'});
         }

@@ -149,13 +149,11 @@ export function HomepageAuth({
             setUsername(meRes.data.username || null);
             setUserId(meRes.data.id || null);
             setDbError(null);
-            // Call onAuthSuccess to update App state
             onAuthSuccess({
                 isAdmin: !!meRes.data.is_admin,
                 username: meRes.data.username || null,
                 userId: meRes.data.id || null
             });
-            // Update internal state immediately
             setInternalLoggedIn(true);
             if (tab === "signup") {
                 setSignupConfirmPassword("");
@@ -309,13 +307,11 @@ export function HomepageAuth({
                     setUsername(meRes.data.username || null);
                     setUserId(meRes.data.id || null);
                     setDbError(null);
-                    // Call onAuthSuccess to update App state
                     onAuthSuccess({
                         isAdmin: !!meRes.data.is_admin,
                         username: meRes.data.username || null,
                         userId: meRes.data.id || null
                     });
-                    // Update internal state immediately
                     setInternalLoggedIn(true);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 })
@@ -347,341 +343,341 @@ export function HomepageAuth({
             className={`w-[420px] max-w-full p-6 flex flex-col ${className || ''}`}
             {...props}
         >
-                {dbError && (
-                    <Alert variant="destructive" className="mb-4">
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{dbError}</AlertDescription>
-                    </Alert>
-                )}
-                {firstUser && !dbError && !internalLoggedIn && (
-                    <Alert variant="default" className="mb-4">
-                        <AlertTitle>First User</AlertTitle>
-                        <AlertDescription className="inline">
-                            You are the first user and will be made an admin. You can view admin settings in the sidebar
-                            user dropdown. If you think this is a mistake, check the docker logs, or create a{" "}
-                            <a
-                                href="https://github.com/LukeGus/Termix/issues/new"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline hover:text-blue-800 inline"
-                            >
-                                GitHub issue
-                            </a>.
-                        </AlertDescription>
-                    </Alert>
-                )}
-                {!registrationAllowed && !internalLoggedIn && (
-                    <Alert variant="destructive" className="mb-4">
-                        <AlertTitle>Registration Disabled</AlertTitle>
-                        <AlertDescription>
-                            New account registration is currently disabled by an admin. Please log in or contact an
-                            administrator.
-                        </AlertDescription>
-                    </Alert>
-                )}
-                {(!internalLoggedIn && (!authLoading || !getCookie("jwt"))) && (
-                    <>
-                        <div className="flex gap-2 mb-6">
-                            <button
-                                type="button"
-                                className={cn(
-                                    "flex-1 py-2 text-base font-medium rounded-md transition-all",
-                                    tab === "login"
-                                        ? "bg-primary text-primary-foreground shadow"
-                                        : "bg-muted text-muted-foreground hover:bg-accent"
-                                )}
-                                onClick={() => {
-                                    setTab("login");
-                                    if (tab === "reset") resetPasswordState();
-                                    if (tab === "signup") clearFormFields();
-                                }}
-                                aria-selected={tab === "login"}
-                                disabled={loading || firstUser}
-                            >
-                                Login
-                            </button>
-                            <button
-                                type="button"
-                                className={cn(
-                                    "flex-1 py-2 text-base font-medium rounded-md transition-all",
-                                    tab === "signup"
-                                        ? "bg-primary text-primary-foreground shadow"
-                                        : "bg-muted text-muted-foreground hover:bg-accent"
-                                )}
-                                onClick={() => {
-                                    setTab("signup");
-                                    if (tab === "reset") resetPasswordState();
-                                    if (tab === "login") clearFormFields();
-                                }}
-                                aria-selected={tab === "signup"}
-                                disabled={loading || !registrationAllowed}
-                            >
-                                Sign Up
-                            </button>
-                            {oidcConfigured && (
-                                <button
-                                    type="button"
-                                    className={cn(
-                                        "flex-1 py-2 text-base font-medium rounded-md transition-all",
-                                        tab === "external"
-                                            ? "bg-primary text-primary-foreground shadow"
-                                            : "bg-muted text-muted-foreground hover:bg-accent"
-                                    )}
-                                    onClick={() => {
-                                        setTab("external");
-                                        if (tab === "reset") resetPasswordState();
-                                        if (tab === "login" || tab === "signup") clearFormFields();
-                                    }}
-                                    aria-selected={tab === "external"}
-                                    disabled={oidcLoading}
-                                >
-                                    External
-                                </button>
+            {dbError && (
+                <Alert variant="destructive" className="mb-4">
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{dbError}</AlertDescription>
+                </Alert>
+            )}
+            {firstUser && !dbError && !internalLoggedIn && (
+                <Alert variant="default" className="mb-4">
+                    <AlertTitle>First User</AlertTitle>
+                    <AlertDescription className="inline">
+                        You are the first user and will be made an admin. You can view admin settings in the sidebar
+                        user dropdown. If you think this is a mistake, check the docker logs, or create a{" "}
+                        <a
+                            href="https://github.com/LukeGus/Termix/issues/new"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 underline hover:text-blue-800 inline"
+                        >
+                            GitHub issue
+                        </a>.
+                    </AlertDescription>
+                </Alert>
+            )}
+            {!registrationAllowed && !internalLoggedIn && (
+                <Alert variant="destructive" className="mb-4">
+                    <AlertTitle>Registration Disabled</AlertTitle>
+                    <AlertDescription>
+                        New account registration is currently disabled by an admin. Please log in or contact an
+                        administrator.
+                    </AlertDescription>
+                </Alert>
+            )}
+            {(!internalLoggedIn && (!authLoading || !getCookie("jwt"))) && (
+                <>
+                    <div className="flex gap-2 mb-6">
+                        <button
+                            type="button"
+                            className={cn(
+                                "flex-1 py-2 text-base font-medium rounded-md transition-all",
+                                tab === "login"
+                                    ? "bg-primary text-primary-foreground shadow"
+                                    : "bg-muted text-muted-foreground hover:bg-accent"
                             )}
-                        </div>
-                        <div className="mb-6 text-center">
-                            <h2 className="text-xl font-bold mb-1">
-                                {tab === "login" ? "Login to your account" :
-                                    tab === "signup" ? "Create a new account" :
-                                        tab === "external" ? "Login with external provider" :
-                                            "Reset your password"}
-                            </h2>
-                        </div>
-
-                        {tab === "external" || tab === "reset" ? (
-                            <div className="flex flex-col gap-5">
-                                {tab === "external" && (
-                                    <>
-                                        <div className="text-center text-muted-foreground mb-4">
-                                            <p>Login using your configured external identity provider</p>
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            className="w-full h-11 mt-2 text-base font-semibold"
-                                            disabled={oidcLoading}
-                                            onClick={handleOIDCLogin}
-                                        >
-                                            {oidcLoading ? Spinner : "Login with External Provider"}
-                                        </Button>
-                                    </>
+                            onClick={() => {
+                                setTab("login");
+                                if (tab === "reset") resetPasswordState();
+                                if (tab === "signup") clearFormFields();
+                            }}
+                            aria-selected={tab === "login"}
+                            disabled={loading || firstUser}
+                        >
+                            Login
+                        </button>
+                        <button
+                            type="button"
+                            className={cn(
+                                "flex-1 py-2 text-base font-medium rounded-md transition-all",
+                                tab === "signup"
+                                    ? "bg-primary text-primary-foreground shadow"
+                                    : "bg-muted text-muted-foreground hover:bg-accent"
+                            )}
+                            onClick={() => {
+                                setTab("signup");
+                                if (tab === "reset") resetPasswordState();
+                                if (tab === "login") clearFormFields();
+                            }}
+                            aria-selected={tab === "signup"}
+                            disabled={loading || !registrationAllowed}
+                        >
+                            Sign Up
+                        </button>
+                        {oidcConfigured && (
+                            <button
+                                type="button"
+                                className={cn(
+                                    "flex-1 py-2 text-base font-medium rounded-md transition-all",
+                                    tab === "external"
+                                        ? "bg-primary text-primary-foreground shadow"
+                                        : "bg-muted text-muted-foreground hover:bg-accent"
                                 )}
-                                {tab === "reset" && (
-                                    <>
-                                        {resetStep === "initiate" && (
-                                            <>
-                                                <div className="text-center text-muted-foreground mb-4">
-                                                    <p>Enter your username to receive a password reset code. The code
-                                                        will be logged in the docker container logs.</p>
-                                                </div>
-                                                <div className="flex flex-col gap-4">
-                                                    <div className="flex flex-col gap-2">
-                                                        <Label htmlFor="reset-username">Username</Label>
-                                                        <Input
-                                                            id="reset-username"
-                                                            type="text"
-                                                            required
-                                                            className="h-11 text-base"
-                                                            value={localUsername}
-                                                            onChange={e => setLocalUsername(e.target.value)}
-                                                            disabled={resetLoading}
-                                                        />
-                                                    </div>
-                                                    <Button
-                                                        type="button"
-                                                        className="w-full h-11 text-base font-semibold"
-                                                        disabled={resetLoading || !localUsername.trim()}
-                                                        onClick={initiatePasswordReset}
-                                                    >
-                                                        {resetLoading ? Spinner : "Send Reset Code"}
-                                                    </Button>
-                                                </div>
-                                            </>
-                                        )}
+                                onClick={() => {
+                                    setTab("external");
+                                    if (tab === "reset") resetPasswordState();
+                                    if (tab === "login" || tab === "signup") clearFormFields();
+                                }}
+                                aria-selected={tab === "external"}
+                                disabled={oidcLoading}
+                            >
+                                External
+                            </button>
+                        )}
+                    </div>
+                    <div className="mb-6 text-center">
+                        <h2 className="text-xl font-bold mb-1">
+                            {tab === "login" ? "Login to your account" :
+                                tab === "signup" ? "Create a new account" :
+                                    tab === "external" ? "Login with external provider" :
+                                        "Reset your password"}
+                        </h2>
+                    </div>
 
-                                        {resetStep === "verify" && (
-                                            <>
-                                                <div className="text-center text-muted-foreground mb-4">
-                                                    <p>Enter the 6-digit code from the docker container logs for
-                                                        user: <strong>{localUsername}</strong></p>
-                                                </div>
-                                                <div className="flex flex-col gap-4">
-                                                    <div className="flex flex-col gap-2">
-                                                        <Label htmlFor="reset-code">Reset Code</Label>
-                                                        <Input
-                                                            id="reset-code"
-                                                            type="text"
-                                                            required
-                                                            maxLength={6}
-                                                            className="h-11 text-base text-center text-lg tracking-widest"
-                                                            value={resetCode}
-                                                            onChange={e => setResetCode(e.target.value.replace(/\D/g, ''))}
-                                                            disabled={resetLoading}
-                                                            placeholder="000000"
-                                                        />
-                                                    </div>
-                                                    <Button
-                                                        type="button"
-                                                        className="w-full h-11 text-base font-semibold"
-                                                        disabled={resetLoading || resetCode.length !== 6}
-                                                        onClick={verifyResetCode}
-                                                    >
-                                                        {resetLoading ? Spinner : "Verify Code"}
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="w-full h-11 text-base font-semibold"
+                    {tab === "external" || tab === "reset" ? (
+                        <div className="flex flex-col gap-5">
+                            {tab === "external" && (
+                                <>
+                                    <div className="text-center text-muted-foreground mb-4">
+                                        <p>Login using your configured external identity provider</p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        className="w-full h-11 mt-2 text-base font-semibold"
+                                        disabled={oidcLoading}
+                                        onClick={handleOIDCLogin}
+                                    >
+                                        {oidcLoading ? Spinner : "Login with External Provider"}
+                                    </Button>
+                                </>
+                            )}
+                            {tab === "reset" && (
+                                <>
+                                    {resetStep === "initiate" && (
+                                        <>
+                                            <div className="text-center text-muted-foreground mb-4">
+                                                <p>Enter your username to receive a password reset code. The code
+                                                    will be logged in the docker container logs.</p>
+                                            </div>
+                                            <div className="flex flex-col gap-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="reset-username">Username</Label>
+                                                    <Input
+                                                        id="reset-username"
+                                                        type="text"
+                                                        required
+                                                        className="h-11 text-base"
+                                                        value={localUsername}
+                                                        onChange={e => setLocalUsername(e.target.value)}
                                                         disabled={resetLoading}
-                                                        onClick={() => {
-                                                            setResetStep("initiate");
-                                                            setResetCode("");
-                                                        }}
-                                                    >
-                                                        Back
-                                                    </Button>
+                                                    />
                                                 </div>
-                                            </>
-                                        )}
-
-                                        {resetSuccess && (
-                                            <>
-                                                <Alert className="mb-4">
-                                                    <AlertTitle>Success!</AlertTitle>
-                                                    <AlertDescription>
-                                                        Your password has been successfully reset! You can now log in
-                                                        with your new password.
-                                                    </AlertDescription>
-                                                </Alert>
                                                 <Button
                                                     type="button"
                                                     className="w-full h-11 text-base font-semibold"
+                                                    disabled={resetLoading || !localUsername.trim()}
+                                                    onClick={initiatePasswordReset}
+                                                >
+                                                    {resetLoading ? Spinner : "Send Reset Code"}
+                                                </Button>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {resetStep === "verify" && (
+                                        <>
+                                            <div className="text-center text-muted-foreground mb-4">
+                                                <p>Enter the 6-digit code from the docker container logs for
+                                                    user: <strong>{localUsername}</strong></p>
+                                            </div>
+                                            <div className="flex flex-col gap-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="reset-code">Reset Code</Label>
+                                                    <Input
+                                                        id="reset-code"
+                                                        type="text"
+                                                        required
+                                                        maxLength={6}
+                                                        className="h-11 text-base text-center text-lg tracking-widest"
+                                                        value={resetCode}
+                                                        onChange={e => setResetCode(e.target.value.replace(/\D/g, ''))}
+                                                        disabled={resetLoading}
+                                                        placeholder="000000"
+                                                    />
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    className="w-full h-11 text-base font-semibold"
+                                                    disabled={resetLoading || resetCode.length !== 6}
+                                                    onClick={verifyResetCode}
+                                                >
+                                                    {resetLoading ? Spinner : "Verify Code"}
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="w-full h-11 text-base font-semibold"
+                                                    disabled={resetLoading}
                                                     onClick={() => {
-                                                        setTab("login");
-                                                        resetPasswordState();
+                                                        setResetStep("initiate");
+                                                        setResetCode("");
                                                     }}
                                                 >
-                                                    Go to Login
+                                                    Back
                                                 </Button>
-                                            </>
-                                        )}
+                                            </div>
+                                        </>
+                                    )}
 
-                                        {resetStep === "newPassword" && !resetSuccess && (
-                                            <>
-                                                <div className="text-center text-muted-foreground mb-4">
-                                                    <p>Enter your new password for
-                                                        user: <strong>{localUsername}</strong></p>
-                                                </div>
-                                                <div className="flex flex-col gap-5">
-                                                    <div className="flex flex-col gap-2">
-                                                        <Label htmlFor="new-password">New Password</Label>
-                                                        <Input
-                                                            id="new-password"
-                                                            type="password"
-                                                            required
-                                                            className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
-                                                            value={newPassword}
-                                                            onChange={e => setNewPassword(e.target.value)}
-                                                            disabled={resetLoading}
-                                                            autoComplete="new-password"
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <Label htmlFor="confirm-password">Confirm Password</Label>
-                                                        <Input
-                                                            id="confirm-password"
-                                                            type="password"
-                                                            required
-                                                            className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
-                                                            value={confirmPassword}
-                                                            onChange={e => setConfirmPassword(e.target.value)}
-                                                            disabled={resetLoading}
-                                                            autoComplete="new-password"
-                                                        />
-                                                    </div>
-                                                    <Button
-                                                        type="button"
-                                                        className="w-full h-11 text-base font-semibold"
-                                                        disabled={resetLoading || !newPassword || !confirmPassword}
-                                                        onClick={completePasswordReset}
-                                                    >
-                                                        {resetLoading ? Spinner : "Reset Password"}
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="w-full h-11 text-base font-semibold"
+                                    {resetSuccess && (
+                                        <>
+                                            <Alert className="mb-4">
+                                                <AlertTitle>Success!</AlertTitle>
+                                                <AlertDescription>
+                                                    Your password has been successfully reset! You can now log in
+                                                    with your new password.
+                                                </AlertDescription>
+                                            </Alert>
+                                            <Button
+                                                type="button"
+                                                className="w-full h-11 text-base font-semibold"
+                                                onClick={() => {
+                                                    setTab("login");
+                                                    resetPasswordState();
+                                                }}
+                                            >
+                                                Go to Login
+                                            </Button>
+                                        </>
+                                    )}
+
+                                    {resetStep === "newPassword" && !resetSuccess && (
+                                        <>
+                                            <div className="text-center text-muted-foreground mb-4">
+                                                <p>Enter your new password for
+                                                    user: <strong>{localUsername}</strong></p>
+                                            </div>
+                                            <div className="flex flex-col gap-5">
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="new-password">New Password</Label>
+                                                    <Input
+                                                        id="new-password"
+                                                        type="password"
+                                                        required
+                                                        className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                                                        value={newPassword}
+                                                        onChange={e => setNewPassword(e.target.value)}
                                                         disabled={resetLoading}
-                                                        onClick={() => {
-                                                            setResetStep("verify");
-                                                            setNewPassword("");
-                                                            setConfirmPassword("");
-                                                        }}
-                                                    >
-                                                        Back
-                                                    </Button>
+                                                        autoComplete="new-password"
+                                                    />
                                                 </div>
-                                            </>
-                                        )}
-                                    </>
-                                )}
+                                                <div className="flex flex-col gap-2">
+                                                    <Label htmlFor="confirm-password">Confirm Password</Label>
+                                                    <Input
+                                                        id="confirm-password"
+                                                        type="password"
+                                                        required
+                                                        className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                                                        value={confirmPassword}
+                                                        onChange={e => setConfirmPassword(e.target.value)}
+                                                        disabled={resetLoading}
+                                                        autoComplete="new-password"
+                                                    />
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    className="w-full h-11 text-base font-semibold"
+                                                    disabled={resetLoading || !newPassword || !confirmPassword}
+                                                    onClick={completePasswordReset}
+                                                >
+                                                    {resetLoading ? Spinner : "Reset Password"}
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="w-full h-11 text-base font-semibold"
+                                                    disabled={resetLoading}
+                                                    onClick={() => {
+                                                        setResetStep("verify");
+                                                        setNewPassword("");
+                                                        setConfirmPassword("");
+                                                    }}
+                                                >
+                                                    Back
+                                                </Button>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    ) : (
+                        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+                            <div className="flex flex-col gap-2">
+                                <Label htmlFor="username">Username</Label>
+                                <Input
+                                    id="username"
+                                    type="text"
+                                    required
+                                    className="h-11 text-base"
+                                    value={localUsername}
+                                    onChange={e => setLocalUsername(e.target.value)}
+                                    disabled={loading || internalLoggedIn}
+                                />
                             </div>
-                        ) : (
-                            <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+                            <div className="flex flex-col gap-2">
+                                <Label htmlFor="password">Password</Label>
+                                <Input id="password" type="password" required className="h-11 text-base"
+                                       value={password} onChange={e => setPassword(e.target.value)}
+                                       disabled={loading || internalLoggedIn}/>
+                            </div>
+                            {tab === "signup" && (
                                 <div className="flex flex-col gap-2">
-                                    <Label htmlFor="username">Username</Label>
-                                    <Input
-                                        id="username"
-                                        type="text"
-                                        required
-                                        className="h-11 text-base"
-                                        value={localUsername}
-                                        onChange={e => setLocalUsername(e.target.value)}
-                                        disabled={loading || internalLoggedIn}
-                                    />
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="password">Password</Label>
-                                    <Input id="password" type="password" required className="h-11 text-base"
-                                           value={password} onChange={e => setPassword(e.target.value)}
+                                    <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                                    <Input id="signup-confirm-password" type="password" required
+                                           className="h-11 text-base"
+                                           value={signupConfirmPassword}
+                                           onChange={e => setSignupConfirmPassword(e.target.value)}
                                            disabled={loading || internalLoggedIn}/>
                                 </div>
-                                {tab === "signup" && (
-                                    <div className="flex flex-col gap-2">
-                                        <Label htmlFor="signup-confirm-password">Confirm Password</Label>
-                                        <Input id="signup-confirm-password" type="password" required
-                                               className="h-11 text-base"
-                                               value={signupConfirmPassword}
-                                               onChange={e => setSignupConfirmPassword(e.target.value)}
-                                               disabled={loading || internalLoggedIn}/>
-                                    </div>
-                                )}
-                                <Button type="submit" className="w-full h-11 mt-2 text-base font-semibold"
-                                        disabled={loading || internalLoggedIn}>
-                                    {loading ? Spinner : (tab === "login" ? "Login" : "Sign Up")}
+                            )}
+                            <Button type="submit" className="w-full h-11 mt-2 text-base font-semibold"
+                                    disabled={loading || internalLoggedIn}>
+                                {loading ? Spinner : (tab === "login" ? "Login" : "Sign Up")}
+                            </Button>
+                            {tab === "login" && (
+                                <Button type="button" variant="outline"
+                                        className="w-full h-11 text-base font-semibold"
+                                        disabled={loading || internalLoggedIn}
+                                        onClick={() => {
+                                            setTab("reset");
+                                            resetPasswordState();
+                                            clearFormFields();
+                                        }}
+                                >
+                                    Reset Password
                                 </Button>
-                                {tab === "login" && (
-                                    <Button type="button" variant="outline"
-                                            className="w-full h-11 text-base font-semibold"
-                                            disabled={loading || internalLoggedIn}
-                                            onClick={() => {
-                                                setTab("reset");
-                                                resetPasswordState();
-                                                clearFormFields();
-                                            }}
-                                    >
-                                        Reset Password
-                                    </Button>
-                                )}
-                            </form>
-                        )}
-                    </>
-                )}
-                {error && (
-                    <Alert variant="destructive" className="mt-4">
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                )}
-            </div>
+                            )}
+                        </form>
+                    )}
+                </>
+            )}
+            {error && (
+                <Alert variant="destructive" className="mt-4">
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+        </div>
     );
 }

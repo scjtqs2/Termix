@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, type ReactNode } from 'react';
+import React, {createContext, useContext, useState, useRef, type ReactNode} from 'react';
 
 export interface Tab {
     id: number;
@@ -33,9 +33,9 @@ interface TabProviderProps {
     children: ReactNode;
 }
 
-export function TabProvider({ children }: TabProviderProps) {
+export function TabProvider({children}: TabProviderProps) {
     const [tabs, setTabs] = useState<Tab[]>([
-        { id: 1, type: 'home', title: 'Home' }
+        {id: 1, type: 'home', title: 'Home'}
     ]);
     const [currentTab, setCurrentTab] = useState<number>(1);
     const [allSplitScreenTab, setAllSplitScreenTab] = useState<number[]>([]);
@@ -44,7 +44,6 @@ export function TabProvider({ children }: TabProviderProps) {
     function computeUniqueTitle(tabType: Tab['type'], desiredTitle: string | undefined): string {
         const defaultTitle = tabType === 'server' ? 'Server' : (tabType === 'file_manager' ? 'File Manager' : 'Terminal');
         const baseTitle = (desiredTitle || defaultTitle).trim();
-        // Extract base name without trailing " (n)"
         const match = baseTitle.match(/^(.*) \((\d+)\)$/);
         const root = match ? match[1] : baseTitle;
 
@@ -64,7 +63,6 @@ export function TabProvider({ children }: TabProviderProps) {
         });
 
         if (!rootUsed) return root;
-        // Start at (2) for the second instance
         let n = 2;
         while (usedNumbers.has(n)) n += 1;
         return `${root} (${n})`;
@@ -74,8 +72,8 @@ export function TabProvider({ children }: TabProviderProps) {
         const id = nextTabId.current++;
         const needsUniqueTitle = tabData.type === 'terminal' || tabData.type === 'server' || tabData.type === 'file_manager';
         const effectiveTitle = needsUniqueTitle ? computeUniqueTitle(tabData.type, tabData.title) : (tabData.title || '');
-        const newTab: Tab = { 
-            ...tabData, 
+        const newTab: Tab = {
+            ...tabData,
             id,
             title: effectiveTitle,
             terminalRef: tabData.type === 'terminal' ? React.createRef<any>() : undefined
@@ -92,10 +90,10 @@ export function TabProvider({ children }: TabProviderProps) {
         if (tab && tab.terminalRef?.current && typeof tab.terminalRef.current.disconnect === "function") {
             tab.terminalRef.current.disconnect();
         }
-        
+
         setTabs(prev => prev.filter(tab => tab.id !== tabId));
         setAllSplitScreenTab(prev => prev.filter(id => id !== tabId));
-        
+
         if (currentTab === tabId) {
             const remainingTabs = tabs.filter(tab => tab.id !== tabId);
             setCurrentTab(remainingTabs.length > 0 ? remainingTabs[0].id : 1);

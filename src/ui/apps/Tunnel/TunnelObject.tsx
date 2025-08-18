@@ -76,17 +76,17 @@ interface SSHTunnelObjectProps {
     tunnelActions: Record<string, boolean>;
     onTunnelAction: (action: 'connect' | 'disconnect' | 'cancel', host: SSHHost, tunnelIndex: number) => Promise<any>;
     compact?: boolean;
-    bare?: boolean; // when true, render without Card wrapper/background
+    bare?: boolean;
 }
 
 export function TunnelObject({
-                                    host,
-                                    tunnelStatuses,
-                                    tunnelActions,
-                                    onTunnelAction,
-                                    compact = false,
-                                    bare = false
-                                }: SSHTunnelObjectProps): React.ReactElement {
+                                 host,
+                                 tunnelStatuses,
+                                 tunnelActions,
+                                 onTunnelAction,
+                                 compact = false,
+                                 bare = false
+                             }: SSHTunnelObjectProps): React.ReactElement {
 
     const getTunnelStatus = (tunnelIndex: number): TunnelStatus | undefined => {
         const tunnel = host.tunnelConnections[tunnelIndex];
@@ -168,7 +168,6 @@ export function TunnelObject({
     if (bare) {
         return (
             <div className="w-full min-w-0">
-                {/* Tunnel Connections (bare) */}
                 <div className="space-y-3">
                     {host.tunnelConnections && host.tunnelConnections.length > 0 ? (
                         <div className="space-y-3">
@@ -187,7 +186,6 @@ export function TunnelObject({
                                 return (
                                     <div key={tunnelIndex}
                                          className={`border rounded-lg p-3 min-w-0 ${statusDisplay.bgColor} ${statusDisplay.borderColor}`}>
-                                        {/* Tunnel Header */}
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex items-start gap-2 flex-1 min-w-0">
                                                 <span className={`${statusDisplay.color} mt-0.5 flex-shrink-0`}>
@@ -203,7 +201,6 @@ export function TunnelObject({
                                                 </div>
                                             </div>
                                             <div className="flex flex-col items-end gap-1 flex-shrink-0 min-w-[120px]">
-                                                {/* Action Buttons */}
                                                 {!isActionLoading ? (
                                                     <div className="flex flex-col gap-1">
                                                         {isConnected ? (
@@ -255,7 +252,6 @@ export function TunnelObject({
                                             </div>
                                         </div>
 
-                                        {/* Error/Status Reason */}
                                         {(statusValue === 'ERROR' || statusValue === 'FAILED') && status?.reason && (
                                             <div
                                                 className="mt-2 text-xs text-red-600 dark:text-red-400 bg-red-500/10 dark:bg-red-400/10 rounded px-3 py-2 border border-red-500/20 dark:border-red-400/20">
@@ -280,7 +276,6 @@ export function TunnelObject({
                                             </div>
                                         )}
 
-                                        {/* Retry Info */}
                                         {(statusValue === 'RETRYING' || statusValue === 'WAITING') && status?.retryCount && status?.maxRetries && (
                                             <div
                                                 className="mt-2 text-xs text-yellow-700 dark:text-yellow-300 bg-yellow-500/10 dark:bg-yellow-400/10 rounded px-3 py-2 border border-yellow-500/20 dark:border-yellow-400/20">
@@ -313,7 +308,6 @@ export function TunnelObject({
     return (
         <Card className="w-full bg-card border-border shadow-sm hover:shadow-md transition-shadow relative group p-0">
             <div className="p-4">
-                {/* Host Header */}
                 {!compact && (
                     <div className="flex items-center justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -330,7 +324,6 @@ export function TunnelObject({
                     </div>
                 )}
 
-                {/* Tags */}
                 {!compact && host.tags && host.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-3">
                         {host.tags.slice(0, 3).map((tag, index) => (
@@ -349,7 +342,6 @@ export function TunnelObject({
 
                 {!compact && <Separator className="mb-3"/>}
 
-                {/* Tunnel Connections */}
                 <div className="space-y-3">
                     {!compact && (
                         <h4 className="text-sm font-medium text-card-foreground flex items-center gap-2">
@@ -374,7 +366,6 @@ export function TunnelObject({
                                 return (
                                     <div key={tunnelIndex}
                                          className={`border rounded-lg p-3 ${statusDisplay.bgColor} ${statusDisplay.borderColor}`}>
-                                        {/* Tunnel Header */}
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex items-start gap-2 flex-1 min-w-0">
                                                 <span className={`${statusDisplay.color} mt-0.5 flex-shrink-0`}>
@@ -390,7 +381,6 @@ export function TunnelObject({
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-1 flex-shrink-0">
-                                                {/* Action Buttons */}
                                                 {!isActionLoading && (
                                                     <div className="flex flex-col gap-1">
                                                         {isConnected ? (
@@ -443,7 +433,6 @@ export function TunnelObject({
                                             </div>
                                         </div>
 
-                                        {/* Error/Status Reason */}
                                         {(statusValue === 'ERROR' || statusValue === 'FAILED') && status?.reason && (
                                             <div
                                                 className="mt-2 text-xs text-red-600 dark:text-red-400 bg-red-500/10 dark:bg-red-400/10 rounded px-3 py-2 border border-red-500/20 dark:border-red-400/20">
@@ -468,7 +457,6 @@ export function TunnelObject({
                                             </div>
                                         )}
 
-                                        {/* Retry Info */}
                                         {(statusValue === 'RETRYING' || statusValue === 'WAITING') && status?.retryCount && status?.maxRetries && (
                                             <div
                                                 className="mt-2 text-xs text-yellow-700 dark:text-yellow-300 bg-yellow-500/10 dark:bg-yellow-400/10 rounded px-3 py-2 border border-yellow-500/20 dark:border-yellow-400/20">

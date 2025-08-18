@@ -10,13 +10,9 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-// Increase JSON body parser limit for larger file uploads
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ limit: '100mb', extended: true }));
-
-// Add raw body parser for very large files
-app.use(express.raw({ limit: '200mb', type: 'application/octet-stream' }));
+app.use(express.json({limit: '100mb'}));
+app.use(express.urlencoded({limit: '100mb', extended: true}));
+app.use(express.raw({limit: '200mb', type: 'application/octet-stream'}));
 
 const sshIconSymbol = '📁';
 const getTimeStamp = (): string => chalk.gray(`[${new Date().toLocaleTimeString()}]`);
@@ -314,9 +310,8 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
         if (!res.headersSent) {
             res.status(500).json({error: 'SSH command timed out'});
         }
-    }, 60000); // Increased timeout to 60 seconds
+    }, 60000);
 
-    // Try SFTP first, fallback to command line if it fails
     const trySFTP = () => {
         try {
             sshConn.client.sftp((err, sftp) => {
@@ -326,7 +321,6 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
                     return;
                 }
 
-                // Convert content to buffer
                 let fileBuffer;
                 try {
                     if (typeof content === 'string') {
@@ -345,9 +339,8 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
                     return;
                 }
 
-                // Create write stream with error handling
                 const writeStream = sftp.createWriteStream(filePath);
-                
+
                 let hasError = false;
                 let hasFinished = false;
 
@@ -378,7 +371,6 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
                     }
                 });
 
-                // Write the buffer to the stream
                 try {
                     writeStream.write(fileBuffer);
                     writeStream.end();
@@ -395,14 +387,13 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
         }
     };
 
-    // Fallback method using command line
     const tryFallbackMethod = () => {
         try {
             const base64Content = Buffer.from(content, 'utf8').toString('base64');
             const escapedPath = filePath.replace(/'/g, "'\"'\"'");
 
             const writeCommand = `echo '${base64Content}' | base64 -d > '${escapedPath}' && echo "SUCCESS"`;
-            
+
             sshConn.client.exec(writeCommand, (err, stream) => {
                 if (err) {
                     clearTimeout(commandTimeout);
@@ -426,7 +417,7 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
 
                 stream.on('close', (code) => {
                     clearTimeout(commandTimeout);
-                    
+
                     if (outputData.includes('SUCCESS')) {
                         logger.success(`File written successfully via fallback: ${filePath}`);
                         if (!res.headersSent) {
@@ -457,11 +448,9 @@ app.post('/ssh/file_manager/ssh/writeFile', (req, res) => {
         }
     };
 
-    // Start with SFTP
     trySFTP();
 });
 
-// Upload file route
 app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
     const {sessionId, path: filePath, content, fileName} = req.body;
     const sshConn = sshSessions[sessionId];
@@ -488,9 +477,8 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
         if (!res.headersSent) {
             res.status(500).json({error: 'SSH command timed out'});
         }
-    }, 60000); // Increased timeout to 60 seconds
+    }, 60000);
 
-    // Try SFTP first, fallback to command line if it fails
     const trySFTP = () => {
         try {
             sshConn.client.sftp((err, sftp) => {
@@ -500,7 +488,6 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
                     return;
                 }
 
-                // Convert content to buffer
                 let fileBuffer;
                 try {
                     if (typeof content === 'string') {
@@ -519,9 +506,8 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
                     return;
                 }
 
-                // Create write stream with error handling
                 const writeStream = sftp.createWriteStream(fullPath);
-                
+
                 let hasError = false;
                 let hasFinished = false;
 
@@ -552,7 +538,6 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
                     }
                 });
 
-                // Write the buffer to the stream
                 try {
                     writeStream.write(fileBuffer);
                     writeStream.end();
@@ -569,26 +554,23 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
         }
     };
 
-    // Fallback method using command line with chunked approach
     const tryFallbackMethod = () => {
         try {
-            // Convert content to base64 and split into smaller chunks if needed
             const base64Content = Buffer.from(content, 'utf8').toString('base64');
-            const chunkSize = 1000000; // 1MB chunks
+            const chunkSize = 1000000;
             const chunks = [];
-            
+
             for (let i = 0; i < base64Content.length; i += chunkSize) {
                 chunks.push(base64Content.slice(i, i + chunkSize));
             }
 
             if (chunks.length === 1) {
-                // Single chunk - use simple approach
                 const tempFile = `/tmp/upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 const escapedTempFile = tempFile.replace(/'/g, "'\"'\"'");
                 const escapedPath = fullPath.replace(/'/g, "'\"'\"'");
 
                 const writeCommand = `echo '${chunks[0]}' | base64 -d > '${escapedPath}' && echo "SUCCESS"`;
-                
+
                 sshConn.client.exec(writeCommand, (err, stream) => {
                     if (err) {
                         clearTimeout(commandTimeout);
@@ -612,7 +594,7 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
 
                     stream.on('close', (code) => {
                         clearTimeout(commandTimeout);
-                        
+
                         if (outputData.includes('SUCCESS')) {
                             logger.success(`File uploaded successfully via fallback: ${fullPath}`);
                             if (!res.headersSent) {
@@ -635,17 +617,16 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
                     });
                 });
             } else {
-                // Multiple chunks - use chunked approach
                 const tempFile = `/tmp/upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 const escapedTempFile = tempFile.replace(/'/g, "'\"'\"'");
                 const escapedPath = fullPath.replace(/'/g, "'\"'\"'");
 
-                let writeCommand = `> '${escapedPath}'`; // Start with empty file
-                
+                let writeCommand = `> '${escapedPath}'`;
+
                 chunks.forEach((chunk, index) => {
                     writeCommand += ` && echo '${chunk}' | base64 -d >> '${escapedPath}'`;
                 });
-                
+
                 writeCommand += ` && echo "SUCCESS"`;
 
                 sshConn.client.exec(writeCommand, (err, stream) => {
@@ -671,7 +652,7 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
 
                     stream.on('close', (code) => {
                         clearTimeout(commandTimeout);
-                        
+
                         if (outputData.includes('SUCCESS')) {
                             logger.success(`File uploaded successfully via chunked fallback: ${fullPath}`);
                             if (!res.headersSent) {
@@ -703,11 +684,9 @@ app.post('/ssh/file_manager/ssh/uploadFile', (req, res) => {
         }
     };
 
-    // Start with SFTP
     trySFTP();
 });
 
-// Create new file route
 app.post('/ssh/file_manager/ssh/createFile', (req, res) => {
     const {sessionId, path: filePath, fileName, content = ''} = req.body;
     const sshConn = sshSessions[sessionId];
@@ -804,7 +783,6 @@ app.post('/ssh/file_manager/ssh/createFile', (req, res) => {
     });
 });
 
-// Create folder route
 app.post('/ssh/file_manager/ssh/createFolder', (req, res) => {
     const {sessionId, path: folderPath, folderName} = req.body;
     const sshConn = sshSessions[sessionId];
@@ -901,7 +879,6 @@ app.post('/ssh/file_manager/ssh/createFolder', (req, res) => {
     });
 });
 
-// Delete file/folder route
 app.delete('/ssh/file_manager/ssh/deleteItem', (req, res) => {
     const {sessionId, path: itemPath, isDirectory} = req.body;
     const sshConn = sshSessions[sessionId];
@@ -930,7 +907,7 @@ app.delete('/ssh/file_manager/ssh/deleteItem', (req, res) => {
         }
     }, 15000);
 
-    const deleteCommand = isDirectory 
+    const deleteCommand = isDirectory
         ? `rm -rf '${escapedPath}' && echo "SUCCESS" && exit 0`
         : `rm -f '${escapedPath}' && echo "SUCCESS" && exit 0`;
 
@@ -999,7 +976,6 @@ app.delete('/ssh/file_manager/ssh/deleteItem', (req, res) => {
     });
 });
 
-// Rename file/folder route
 app.put('/ssh/file_manager/ssh/renameItem', (req, res) => {
     const {sessionId, oldPath, newName} = req.body;
     const sshConn = sshSessions[sessionId];

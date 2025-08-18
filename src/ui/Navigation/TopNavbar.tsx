@@ -24,7 +24,6 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
     const {tabs, currentTab, setCurrentTab, setSplitScreenTab, removeTab, allSplitScreenTab} = useTabs() as any;
     const leftPosition = state === "collapsed" ? "26px" : "264px";
 
-    // SSH Tools state
     const [toolsSheetOpen, setToolsSheetOpen] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [selectedTabIds, setSelectedTabIds] = useState<number[]>([]);
@@ -47,7 +46,6 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
 
     const handleStartRecording = () => {
         setIsRecording(true);
-        // Focus on the input when recording starts
         setTimeout(() => {
             const input = document.getElementById('ssh-tools-input') as HTMLInputElement;
             if (input) input.focus();
@@ -60,7 +58,6 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Don't handle input change for special keys - let onKeyDown handle them
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -69,9 +66,7 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
         const value = e.currentTarget.value;
         let commandToSend = '';
 
-        // Handle special keys and control sequences
         if (e.ctrlKey || e.metaKey) {
-            // Control sequences
             if (e.key === 'c') {
                 commandToSend = '\x03'; // Ctrl+C (SIGINT)
                 e.preventDefault();
@@ -177,7 +172,6 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
             e.preventDefault();
         }
 
-        // Send the command to all selected terminals
         if (commandToSend) {
             selectedTabIds.forEach(tabId => {
                 const tab = tabs.find((t: any) => t.id === tabId);
@@ -190,8 +184,7 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
 
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (selectedTabIds.length === 0) return;
-        
-        // Handle regular character input
+
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
             const char = e.key;
             selectedTabIds.forEach(tabId => {
@@ -209,7 +202,6 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
     const currentTabIsSshManager = currentTabObj?.type === 'ssh_manager';
     const currentTabIsAdmin = currentTabObj?.type === 'admin';
 
-    // Get terminal tabs for selection
     const terminalTabs = tabs.filter((tab: any) => tab.type === 'terminal');
 
     function getCookie(name: string) {
@@ -237,7 +229,8 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                     padding: "0"
                 }}
             >
-                <div className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-6rem)] flex items-center overflow-x-auto overflow-y-hidden gap-2 thin-scrollbar">
+                <div
+                    className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-6rem)] flex items-center overflow-x-auto overflow-y-hidden gap-2 thin-scrollbar">
                     {tabs.map((tab: any) => {
                         const isActive = tab.id === currentTab;
                         const isSplit = Array.isArray(allSplitScreenTab) && allSplitScreenTab.includes(tab.id);
@@ -246,9 +239,7 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                         const isFileManager = tab.type === 'file_manager';
                         const isSshManager = tab.type === 'ssh_manager';
                         const isAdmin = tab.type === 'admin';
-                        // Split availability
                         const isSplittable = isTerminal || isServer || isFileManager;
-                        // Disable split entirely when on Home or SSH Manager
                         const isSplitButtonDisabled = (isActive && !isSplitScreenActive) || ((allSplitScreenTab?.length || 0) >= 3 && !isSplit);
                         const disableSplit = !isSplittable || isSplitButtonDisabled || isActive || currentTabIsHome || currentTabIsSshManager || currentTabIsAdmin;
                         const disableActivate = isSplit || ((tab.type === 'home' || tab.type === 'ssh_manager' || tab.type === 'admin') && isSplitScreenActive);
@@ -296,13 +287,12 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                 <div
                     onClick={() => setIsTopbarOpen(true)}
                     className="absolute top-0 left-0 w-full h-[10px] bg-[#18181b] cursor-pointer z-20 flex items-center justify-center rounded-bl-md rounded-br-md">
-                    <ChevronDown size={10} />
+                    <ChevronDown size={10}/>
                 </div>
             )}
 
-            {/* Custom SSH Tools Overlay */}
             {toolsSheetOpen && (
-                <div 
+                <div
                     className="fixed inset-0 z-[999999] flex justify-end"
                     style={{
                         position: 'fixed',
@@ -316,13 +306,13 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                         transform: 'translateZ(0)'
                     }}
                 >
-                    <div 
+                    <div
                         className="flex-1"
                         onClick={() => setToolsSheetOpen(false)}
-                        style={{ cursor: 'pointer' }}
+                        style={{cursor: 'pointer'}}
                     />
-                    
-                    <div 
+
+                    <div
                         className="w-[400px] h-full bg-[#18181b] border-l-2 border-[#303032] flex flex-col shadow-2xl"
                         style={{
                             backgroundColor: '#18181b',
@@ -346,7 +336,7 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                 <span className="text-lg font-bold leading-none">×</span>
                             </Button>
                         </div>
-                        
+
                         <div className="flex-1 overflow-y-auto p-4">
                             <div className="space-y-4">
                                 <h1 className="font-semibold">
@@ -374,11 +364,12 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                                 </Button>
                                             )}
                                         </div>
-                                        
+
                                         {isRecording && (
                                             <>
                                                 <div className="space-y-2">
-                                                    <label className="text-sm font-medium text-white">Select terminals:</label>
+                                                    <label className="text-sm font-medium text-white">Select
+                                                        terminals:</label>
                                                     <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto mt-2">
                                                         {terminalTabs.map(tab => (
                                                             <Button
@@ -387,8 +378,8 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                                                 variant="outline"
                                                                 size="sm"
                                                                 className={`rounded-full px-3 py-1 text-xs flex items-center gap-1 ${
-                                                                    selectedTabIds.includes(tab.id) 
-                                                                        ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700' 
+                                                                    selectedTabIds.includes(tab.id)
+                                                                        ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                                                                         : 'bg-transparent text-gray-300 border-gray-500 hover:bg-gray-700'
                                                                 }`}
                                                                 onClick={() => handleTabToggle(tab.id)}
@@ -398,9 +389,10 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                                         ))}
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="space-y-2">
-                                                    <label className="text-sm font-medium text-white">Type commands (all keys supported):</label>
+                                                    <label className="text-sm font-medium text-white">Type commands (all
+                                                        keys supported):</label>
                                                     <Input
                                                         id="ssh-tools-input"
                                                         placeholder="Type here"
@@ -411,7 +403,8 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                                         readOnly
                                                     />
                                                     <p className="text-xs text-muted-foreground">
-                                                        Commands will be sent to {selectedTabIds.length} selected terminal(s).
+                                                        Commands will be sent to {selectedTabIds.length} selected
+                                                        terminal(s).
                                                     </p>
                                                 </div>
                                             </>
@@ -426,8 +419,8 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                 </h1>
 
                                 <div className="flex items-center space-x-2">
-                                    <Checkbox 
-                                        id="enable-copy-paste" 
+                                    <Checkbox
+                                        id="enable-copy-paste"
                                         onCheckedChange={updateRightClickCopyPaste}
                                         defaultChecked={getCookie("rightClickCopyPaste") === "true"}
                                     />

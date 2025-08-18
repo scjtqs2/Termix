@@ -44,7 +44,6 @@ export function Homepage({
     const [userId, setUserId] = useState<string | null>(null);
     const [dbError, setDbError] = useState<string | null>(null);
 
-    // Update local state when props change
     useEffect(() => {
         setLoggedIn(isAuthenticated);
     }, [isAuthenticated]);

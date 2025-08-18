@@ -74,11 +74,9 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
     const [currentHost, setCurrentHost] = useState<SSHHost | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    // New state for operations
     const [showOperations, setShowOperations] = useState(false);
     const [currentPath, setCurrentPath] = useState('/');
 
-    // Delete modal state
     const [deletingItem, setDeletingItem] = useState<any | null>(null);
 
     const sidebarRef = useRef<any>(null);
@@ -86,7 +84,6 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
     useEffect(() => {
         if (initialHost && (!currentHost || currentHost.id !== initialHost.id)) {
             setCurrentHost(initialHost);
-            // Defer to ensure sidebar is mounted
             setTimeout(() => {
                 try {
                     const path = initialHost.defaultPath || '/';
@@ -448,16 +445,13 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
         }
     };
 
-    // Host is locked; no external host change from UI
     const handleHostChange = (_host: SSHHost | null) => {
     };
 
     const handleOperationComplete = () => {
-        // Refresh the sidebar files
         if (sidebarRef.current && sidebarRef.current.fetchFiles) {
             sidebarRef.current.fetchFiles();
         }
-        // Refresh home data
         if (currentHost) {
             fetchHomeData();
         }
@@ -471,22 +465,19 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
         toast.error(error);
     };
 
-    // Function to update current path from sidebar
     const updateCurrentPath = (newPath: string) => {
         setCurrentPath(newPath);
     };
 
-    // Function to handle delete from sidebar
     const handleDeleteFromSidebar = (item: any) => {
         setDeletingItem(item);
     };
 
-    // Function to perform the actual delete
     const performDelete = async (item: any) => {
         if (!currentHost?.id) return;
 
         try {
-            const { deleteSSHItem } = await import('@/ui/main-axios.ts');
+            const {deleteSSHItem} = await import('@/ui/main-axios.ts');
             await deleteSSHItem(currentHost.id.toString(), item.path, item.type === 'directory');
             toast.success(`${item.type === 'directory' ? 'Folder' : 'File'} deleted successfully`);
             setDeletingItem(null);
@@ -552,8 +543,8 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
             </div>
             <div style={{position: 'absolute', top: 0, left: 256, right: 0, height: 50, zIndex: 30}}>
                 <div className="flex items-center w-full bg-[#18181b] border-b-2 border-[#303032] h-[50px] relative">
-                    {/* Tab list scrollable area */}
-                    <div className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-6rem)] flex items-center overflow-x-auto overflow-y-hidden gap-2 thin-scrollbar">
+                    <div
+                        className="h-full p-1 pr-2 border-r-2 border-[#303032] w-[calc(100%-6rem)] flex items-center overflow-x-auto overflow-y-hidden gap-2 thin-scrollbar">
                         <FIleManagerTopNavbar
                             tabs={tabs.map(t => ({id: t.id, title: t.title}))}
                             activeTab={activeTab}
@@ -577,7 +568,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                             )}
                             title="File Operations"
                         >
-                            <Settings className="h-4 w-4" />
+                            <Settings className="h-4 w-4"/>
                         </Button>
                         <Button
                             variant="outline"
@@ -591,7 +582,7 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                                 activeTab === 'home' || !tabs.find(t => t.id === activeTab)?.dirty || isSaving ? 'opacity-60 cursor-not-allowed' : ''
                             )}
                         >
-                            {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                            {isSaving ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}
                         </Button>
                     </div>
                 </div>
@@ -608,9 +599,6 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                 display: 'flex',
                 flexDirection: 'column'
             }}>
-                {/* Success/Error Messages */}
-                {/* The custom alert divs are removed, so this block is no longer needed. */}
-
                 {activeTab === 'home' ? (
                     <div className="flex h-full">
                         <div className="flex-1">
@@ -658,17 +646,14 @@ export function FileManager({onSelectView, embedded = false, initialHost = null}
                 )}
             </div>
 
-            {/* Delete Confirmation Modal */}
             {deletingItem && (
                 <div className="fixed inset-0 z-[99999]">
-                    {/* Backdrop */}
                     <div className="absolute inset-0 bg-black/60"></div>
-                    
-                    {/* Modal */}
+
                     <div className="relative h-full flex items-center justify-center">
                         <div className="bg-[#18181b] border-2 border-[#303032] rounded-lg p-6 max-w-md mx-4 shadow-2xl">
                             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                <Trash2 className="w-5 h-5 text-red-400" />
+                                <Trash2 className="w-5 h-5 text-red-400"/>
                                 Confirm Delete
                             </h3>
                             <p className="text-white mb-4">

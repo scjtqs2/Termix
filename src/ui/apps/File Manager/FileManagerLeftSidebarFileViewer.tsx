@@ -42,69 +42,27 @@ interface FileManagerLeftSidebarVileViewerProps {
 }
 
 export function FileManagerLeftSidebarFileViewer({
-                                            sshConnections,
-                                            onAddSSH,
-                                            onConnectSSH,
-                                            onEditSSH,
-                                            onDeleteSSH,
-                                            onPinSSH,
-                                            currentPath,
-                                            files,
-                                            onOpenFile,
-                                            onOpenFolder,
-                                            onStarFile,
-                                            onDeleteFile,
-                                            isLoading,
-                                            error,
-                                            isSSHMode,
-                                            onSwitchToLocal,
-                                            onSwitchToSSH,
-                                            currentSSH,
-                                        }: FileManagerLeftSidebarVileViewerProps) {
+                                                     sshConnections,
+                                                     onAddSSH,
+                                                     onConnectSSH,
+                                                     onEditSSH,
+                                                     onDeleteSSH,
+                                                     onPinSSH,
+                                                     currentPath,
+                                                     files,
+                                                     onOpenFile,
+                                                     onOpenFolder,
+                                                     onStarFile,
+                                                     onDeleteFile,
+                                                     isLoading,
+                                                     error,
+                                                     isSSHMode,
+                                                     onSwitchToLocal,
+                                                     onSwitchToSSH,
+                                                     currentSSH,
+                                                 }: FileManagerLeftSidebarVileViewerProps) {
     return (
         <div className="flex flex-col h-full">
-            {/* SSH Connections */}
-            <div className="p-2 bg-[#18181b] border-b-2 border-[#303032]">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-muted-foreground font-semibold">SSH Connections</span>
-                    <Button size="icon" variant="outline" onClick={onAddSSH} className="ml-2 h-7 w-7">
-                        <Plus className="w-4 h-4"/>
-                    </Button>
-                </div>
-                <div className="flex flex-col gap-1">
-                    <Button
-                        variant={!isSSHMode ? 'secondary' : 'ghost'}
-                        className="w-full justify-start text-left px-2 py-1.5 rounded"
-                        onClick={onSwitchToLocal}
-                    >
-                        <Server className="w-4 h-4 mr-2"/> Local Files
-                    </Button>
-                    {sshConnections.map((conn) => (
-                        <div key={conn.id} className="flex items-center gap-1 group">
-                            <Button
-                                variant={isSSHMode && currentSSH?.id === conn.id ? 'secondary' : 'ghost'}
-                                className="flex-1 justify-start text-left px-2 py-1.5 rounded"
-                                onClick={() => onSwitchToSSH(conn)}
-                            >
-                                <Link2 className="w-4 h-4 mr-2"/>
-                                {conn.name || conn.ip}
-                                {conn.isPinned && <Pin className="w-3 h-3 ml-1 text-yellow-400"/>}
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onPinSSH(conn)}>
-                                <Pin
-                                    className={`w-4 h-4 ${conn.isPinned ? 'text-yellow-400' : 'text-muted-foreground'}`}/>
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEditSSH(conn)}>
-                                <Edit className="w-4 h-4"/>
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onDeleteSSH(conn)}>
-                                <Trash2 className="w-4 h-4 text-red-500"/>
-                            </Button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            {/* File/Folder Viewer */}
             <div className="flex-1 bg-[#09090b] p-2 overflow-y-auto">
                 <div className="mb-2 flex items-center gap-2">
                     <span
