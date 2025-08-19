@@ -379,8 +379,8 @@ export function TopNavbar({isTopbarOpen, setIsTopbarOpen}: TopNavbarProps): Reac
                                                                 size="sm"
                                                                 className={`rounded-full px-3 py-1 text-xs flex items-center gap-1 ${
                                                                     selectedTabIds.includes(tab.id)
-                                                                        ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
-                                                                        : 'bg-transparent text-gray-300 border-gray-500 hover:bg-gray-700'
+                                                                        ? 'text-white bg-gray-700'
+                                                                        : 'text-gray-500'
                                                                 }`}
                                                                 onClick={() => handleTabToggle(tab.id)}
                                                             >
