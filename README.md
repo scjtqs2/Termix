@@ -19,13 +19,6 @@
     <img alt="Termix Banner" src=./repo-images/HeaderImage.png style="width: auto; height: auto;">  </a>
 </p>
 
-
-<br />
-<p align="center">
-  <a href="https://github.com/LukeGus/Termix">
-    <img alt="Termix Banner" src=./public/icon.svg style="width: 250px; height: auto;">  </a>
-</p>
-
 If you would like, you can support the project here!\
 [![GitHub Sponsor](https://img.shields.io/badge/Sponsor-LukeGus-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sponsors/LukeGus)
 
@@ -85,7 +78,7 @@ If you need help with Termix, you can join the [Discord](https://discord.gg/jVQG
 </p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/0f95495d-c5db-48f5-b18b-9ab48bb10d31" width="800" controls>
+  <video src="https://github.com/user-attachments/assets/29e086e5-fabf-413e-a7d9-e535bf63efde" width="800" controls>
     Your browser does not support the video tag.
   </video>
 </p>
