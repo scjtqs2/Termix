@@ -13,6 +13,12 @@
 [![SQLite Badge](https://img.shields.io/badge/-SQLite-003B57?style=flat-square&labelColor=black&logo=sqlite&logoColor=003B57)](#)
 [![Radix UI Badge](https://img.shields.io/badge/-Radix%20UI-161618?style=flat-square&labelColor=black&logo=radixui&logoColor=161618)](#)
 
+<br />
+<p align="center">
+  <a href="https://github.com/LukeGus/Termix">
+    <img alt="Termix Banner" src=./repo-images/HeaderImage.png style="width: auto; height: auto;">  </a>
+</p>
+
 
 <br />
 <p align="center">
