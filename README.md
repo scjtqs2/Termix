@@ -78,7 +78,7 @@ If you need help with Termix, you can join the [Discord](https://discord.gg/jVQG
 </p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/29e086e5-fabf-413e-a7d9-e535bf63efde" width="800" controls>
+  <video src="https://github.com/user-attachments/assets/f9caa061-10dc-4173-ae7d-c6d42f05cf56" width="800" controls>
     Your browser does not support the video tag.
   </video>
 </p>
