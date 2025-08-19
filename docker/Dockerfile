@@ -72,7 +72,7 @@ RUN chown -R node:node /app
 
 VOLUME ["/app/data"]
 
-EXPOSE ${PORT} 8081 8082 8083 8084
+EXPOSE ${PORT} 8081 8082 8083 8084 8085
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

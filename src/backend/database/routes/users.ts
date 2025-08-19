@@ -959,9 +959,9 @@ router.delete('/delete-user', authenticateJWT, async (req, res) => {
         const targetUserId = targetUser[0].id;
 
         try {
-            db.$client.prepare('DELETE FROM config_editor_recent WHERE user_id = ?').run(targetUserId);
-            db.$client.prepare('DELETE FROM config_editor_pinned WHERE user_id = ?').run(targetUserId);
-            db.$client.prepare('DELETE FROM config_editor_shortcuts WHERE user_id = ?').run(targetUserId);
+            db.$client.prepare('DELETE FROM file_manager_recent WHERE user_id = ?').run(targetUserId);
+            db.$client.prepare('DELETE FROM file_manager_pinned WHERE user_id = ?').run(targetUserId);
+            db.$client.prepare('DELETE FROM file_manager_shortcuts WHERE user_id = ?').run(targetUserId);
             db.$client.prepare('DELETE FROM ssh_data WHERE user_id = ?').run(targetUserId);
         } catch (cleanupError) {
             logger.error(`Cleanup failed for user ${username}:`, cleanupError);
