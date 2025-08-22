@@ -105,35 +105,51 @@ export type ServerMetrics = {
     lastChecked: string;
 };
 
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+interface AuthResponse {
+    token: string;
+}
 
-const sshHostApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8081' : '',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
+interface UserInfo {
+    id: string;
+    username: string;
+    is_admin: boolean;
+}
 
-const tunnelApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8083' : '',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
+interface RegistrationResponse {
+    allowed: boolean;
+}
 
-const fileManagerApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8084' : '',
-    headers: {
-        'Content-Type': 'application/json',
-    }
-})
+interface OIDCConfig {
+    configured: boolean;
+}
 
-const statsApi = axios.create({
-    baseURL: isLocalhost ? 'http://localhost:8085' : '',
-    headers: {
-        'Content-Type': 'application/json',
-    }
-})
+interface UserCount {
+    count: number;
+}
+
+interface PasswordResetInitiate {
+    username: string;
+}
+
+interface PasswordResetVerify {
+    username: string;
+    resetCode: string;
+}
+
+interface PasswordResetComplete {
+    username: string;
+    tempToken: string;
+    newPassword: string;
+}
+
+interface OIDCAuthorize {
+    auth_url: string;
+}
+
+function setCookie(name: string, value: string, days = 7) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+}
 
 function getCookie(name: string): string | undefined {
     const value = `; ${document.cookie}`;
@@ -141,41 +157,54 @@ function getCookie(name: string): string | undefined {
     if (parts.length === 2) return parts.pop()?.split(';').shift();
 }
 
-sshHostApi.interceptors.request.use((config) => {
-    const token = getCookie('jwt');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+const sshHostApi = axios.create({
+    baseURL: import.meta.env.DEV ? 'http://localhost:8081/ssh' : '/ssh',
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
-statsApi.interceptors.request.use((config) => {
-    const token = getCookie('jwt');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+const tunnelApi = axios.create({
+    baseURL: import.meta.env.DEV ? 'http://localhost:8083/ssh' : '/ssh',
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
-tunnelApi.interceptors.request.use((config) => {
-    const token = getCookie('jwt');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+const fileManagerApi = axios.create({
+    baseURL: import.meta.env.DEV ? 'http://localhost:8084/ssh' : '/ssh',
+    headers: {
+        'Content-Type': 'application/json',
     }
-    return config;
 });
 
-fileManagerApi.interceptors.request.use((config) => {
-    const token = getCookie('jwt');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+const statsApi = axios.create({
+    baseURL: import.meta.env.DEV ? 'http://localhost:8085' : '',
+    headers: {
+        'Content-Type': 'application/json',
     }
-    return config;
+});
+
+const authApi = axios.create({
+    baseURL: import.meta.env.DEV ? 'http://localhost:8081/users' : '/users',
+    headers: {
+        'Content-Type': 'application/json',
+    }
+});
+
+[sshHostApi, tunnelApi, fileManagerApi, statsApi, authApi].forEach(api => {
+    api.interceptors.request.use((config) => {
+        const token = getCookie('jwt');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    });
 });
 
 export async function getSSHHosts(): Promise<SSHHost[]> {
     try {
-        const response = await sshHostApi.get('/ssh/db/host');
+        const response = await sshHostApi.get('/db/host');
         return response.data;
     } catch (error) {
         throw error;
@@ -220,7 +249,7 @@ export async function createSSHHost(hostData: SSHHostData): Promise<SSHHost> {
             delete dataWithoutFile.key;
             formData.append('data', JSON.stringify(dataWithoutFile));
 
-            const response = await sshHostApi.post('/ssh/db/host', formData, {
+            const response = await sshHostApi.post('/db/host', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -228,7 +257,7 @@ export async function createSSHHost(hostData: SSHHostData): Promise<SSHHost> {
 
             return response.data;
         } else {
-            const response = await sshHostApi.post('/ssh/db/host', submitData);
+            const response = await sshHostApi.post('/db/host', submitData);
             return response.data;
         }
     } catch (error) {
@@ -273,7 +302,7 @@ export async function updateSSHHost(hostId: number, hostData: SSHHostData): Prom
             delete dataWithoutFile.key;
             formData.append('data', JSON.stringify(dataWithoutFile));
 
-            const response = await sshHostApi.put(`/ssh/db/host/${hostId}`, formData, {
+            const response = await sshHostApi.put(`/db/host/${hostId}`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -281,7 +310,7 @@ export async function updateSSHHost(hostId: number, hostData: SSHHostData): Prom
 
             return response.data;
         } else {
-            const response = await sshHostApi.put(`/ssh/db/host/${hostId}`, submitData);
+            const response = await sshHostApi.put(`/db/host/${hostId}`, submitData);
             return response.data;
         }
     } catch (error) {
@@ -296,7 +325,7 @@ export async function bulkImportSSHHosts(hosts: SSHHostData[]): Promise<{
     errors: string[];
 }> {
     try {
-        const response = await sshHostApi.post('/ssh/bulk-import', {hosts});
+        const response = await sshHostApi.post('/bulk-import', {hosts});
         return response.data;
     } catch (error) {
         throw error;
@@ -305,7 +334,7 @@ export async function bulkImportSSHHosts(hosts: SSHHostData[]): Promise<{
 
 export async function deleteSSHHost(hostId: number): Promise<any> {
     try {
-        const response = await sshHostApi.delete(`/ssh/db/host/${hostId}`);
+        const response = await sshHostApi.delete(`/db/host/${hostId}`);
         return response.data;
     } catch (error) {
         throw error;
@@ -314,7 +343,7 @@ export async function deleteSSHHost(hostId: number): Promise<any> {
 
 export async function getSSHHostById(hostId: number): Promise<SSHHost> {
     try {
-        const response = await sshHostApi.get(`/ssh/db/host/${hostId}`);
+        const response = await sshHostApi.get(`/db/host/${hostId}`);
         return response.data;
     } catch (error) {
         throw error;
@@ -323,7 +352,7 @@ export async function getSSHHostById(hostId: number): Promise<SSHHost> {
 
 export async function getTunnelStatuses(): Promise<Record<string, TunnelStatus>> {
     try {
-        const response = await tunnelApi.get('/ssh/tunnel/status');
+        const response = await tunnelApi.get('/tunnel/status');
         return response.data || {};
     } catch (error) {
         throw error;
@@ -337,7 +366,7 @@ export async function getTunnelStatusByName(tunnelName: string): Promise<TunnelS
 
 export async function connectTunnel(tunnelConfig: TunnelConfig): Promise<any> {
     try {
-        const response = await tunnelApi.post('/ssh/tunnel/connect', tunnelConfig);
+        const response = await tunnelApi.post('/tunnel/connect', tunnelConfig);
         return response.data;
     } catch (error) {
         throw error;
@@ -346,7 +375,7 @@ export async function connectTunnel(tunnelConfig: TunnelConfig): Promise<any> {
 
 export async function disconnectTunnel(tunnelName: string): Promise<any> {
     try {
-        const response = await tunnelApi.post('/ssh/tunnel/disconnect', {tunnelName});
+        const response = await tunnelApi.post('/tunnel/disconnect', {tunnelName});
         return response.data;
     } catch (error) {
         throw error;
@@ -355,7 +384,7 @@ export async function disconnectTunnel(tunnelName: string): Promise<any> {
 
 export async function cancelTunnel(tunnelName: string): Promise<any> {
     try {
-        const response = await tunnelApi.post('/ssh/tunnel/cancel', {tunnelName});
+        const response = await tunnelApi.post('/tunnel/cancel', {tunnelName});
         return response.data;
     } catch (error) {
         throw error;
@@ -364,7 +393,7 @@ export async function cancelTunnel(tunnelName: string): Promise<any> {
 
 export async function getFileManagerRecent(hostId: number): Promise<FileManagerFile[]> {
     try {
-        const response = await sshHostApi.get(`/ssh/file_manager/recent?hostId=${hostId}`);
+        const response = await sshHostApi.get(`/file_manager/recent?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
         return [];
@@ -379,7 +408,7 @@ export async function addFileManagerRecent(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.post('/ssh/file_manager/recent', file);
+        const response = await sshHostApi.post('/file_manager/recent', file);
         return response.data;
     } catch (error) {
         throw error;
@@ -394,7 +423,7 @@ export async function removeFileManagerRecent(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/ssh/file_manager/recent', {data: file});
+        const response = await sshHostApi.delete('/file_manager/recent', {data: file});
         return response.data;
     } catch (error) {
         throw error;
@@ -403,7 +432,7 @@ export async function removeFileManagerRecent(file: {
 
 export async function getFileManagerPinned(hostId: number): Promise<FileManagerFile[]> {
     try {
-        const response = await sshHostApi.get(`/ssh/file_manager/pinned?hostId=${hostId}`);
+        const response = await sshHostApi.get(`/file_manager/pinned?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
         return [];
@@ -418,7 +447,7 @@ export async function addFileManagerPinned(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.post('/ssh/file_manager/pinned', file);
+        const response = await sshHostApi.post('/file_manager/pinned', file);
         return response.data;
     } catch (error) {
         throw error;
@@ -433,7 +462,7 @@ export async function removeFileManagerPinned(file: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/ssh/file_manager/pinned', {data: file});
+        const response = await sshHostApi.delete('/file_manager/pinned', {data: file});
         return response.data;
     } catch (error) {
         throw error;
@@ -442,7 +471,7 @@ export async function removeFileManagerPinned(file: {
 
 export async function getFileManagerShortcuts(hostId: number): Promise<FileManagerShortcut[]> {
     try {
-        const response = await sshHostApi.get(`/ssh/file_manager/shortcuts?hostId=${hostId}`);
+        const response = await sshHostApi.get(`/file_manager/shortcuts?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
         return [];
@@ -457,7 +486,7 @@ export async function addFileManagerShortcut(shortcut: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.post('/ssh/file_manager/shortcuts', shortcut);
+        const response = await sshHostApi.post('/file_manager/shortcuts', shortcut);
         return response.data;
     } catch (error) {
         throw error;
@@ -472,7 +501,7 @@ export async function removeFileManagerShortcut(shortcut: {
     hostId: number
 }): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/ssh/file_manager/shortcuts', {data: shortcut});
+        const response = await sshHostApi.delete('/file_manager/shortcuts', {data: shortcut});
         return response.data;
     } catch (error) {
         throw error;
@@ -488,7 +517,7 @@ export async function connectSSH(sessionId: string, config: {
     keyPassword?: string;
 }): Promise<any> {
     try {
-        const response = await fileManagerApi.post('/ssh/file_manager/ssh/connect', {
+        const response = await fileManagerApi.post('/ssh/connect', {
             sessionId,
             ...config
         });
@@ -500,7 +529,7 @@ export async function connectSSH(sessionId: string, config: {
 
 export async function disconnectSSH(sessionId: string): Promise<any> {
     try {
-        const response = await fileManagerApi.post('/ssh/file_manager/ssh/disconnect', {sessionId});
+        const response = await fileManagerApi.post('/ssh/disconnect', {sessionId});
         return response.data;
     } catch (error) {
         throw error;
@@ -509,7 +538,7 @@ export async function disconnectSSH(sessionId: string): Promise<any> {
 
 export async function getSSHStatus(sessionId: string): Promise<{ connected: boolean }> {
     try {
-        const response = await fileManagerApi.get('/ssh/file_manager/ssh/status', {
+        const response = await fileManagerApi.get('/ssh/status', {
             params: {sessionId}
         });
         return response.data;
@@ -520,7 +549,7 @@ export async function getSSHStatus(sessionId: string): Promise<{ connected: bool
 
 export async function listSSHFiles(sessionId: string, path: string): Promise<any[]> {
     try {
-        const response = await fileManagerApi.get('/ssh/file_manager/ssh/listFiles', {
+        const response = await fileManagerApi.get('/ssh/listFiles', {
             params: {sessionId, path}
         });
         return response.data || [];
@@ -531,7 +560,7 @@ export async function listSSHFiles(sessionId: string, path: string): Promise<any
 
 export async function readSSHFile(sessionId: string, path: string): Promise<{ content: string; path: string }> {
     try {
-        const response = await fileManagerApi.get('/ssh/file_manager/ssh/readFile', {
+        const response = await fileManagerApi.get('/ssh/readFile', {
             params: {sessionId, path}
         });
         return response.data;
@@ -542,7 +571,7 @@ export async function readSSHFile(sessionId: string, path: string): Promise<{ co
 
 export async function writeSSHFile(sessionId: string, path: string, content: string): Promise<any> {
     try {
-        const response = await fileManagerApi.post('/ssh/file_manager/ssh/writeFile', {
+        const response = await fileManagerApi.post('/ssh/writeFile', {
             sessionId,
             path,
             content
@@ -560,7 +589,7 @@ export async function writeSSHFile(sessionId: string, path: string, content: str
 
 export async function uploadSSHFile(sessionId: string, path: string, fileName: string, content: string): Promise<any> {
     try {
-        const response = await fileManagerApi.post('/ssh/file_manager/ssh/uploadFile', {
+        const response = await fileManagerApi.post('/ssh/uploadFile', {
             sessionId,
             path,
             fileName,
@@ -574,7 +603,7 @@ export async function uploadSSHFile(sessionId: string, path: string, fileName: s
 
 export async function createSSHFile(sessionId: string, path: string, fileName: string, content: string = ''): Promise<any> {
     try {
-        const response = await fileManagerApi.post('/ssh/file_manager/ssh/createFile', {
+        const response = await fileManagerApi.post('/ssh/createFile', {
             sessionId,
             path,
             fileName,
@@ -588,7 +617,7 @@ export async function createSSHFile(sessionId: string, path: string, fileName: s
 
 export async function createSSHFolder(sessionId: string, path: string, folderName: string): Promise<any> {
     try {
-        const response = await fileManagerApi.post('/ssh/file_manager/ssh/createFolder', {
+        const response = await fileManagerApi.post('/ssh/createFolder', {
             sessionId,
             path,
             folderName
@@ -601,7 +630,7 @@ export async function createSSHFolder(sessionId: string, path: string, folderNam
 
 export async function deleteSSHItem(sessionId: string, path: string, isDirectory: boolean): Promise<any> {
     try {
-        const response = await fileManagerApi.delete('/ssh/file_manager/ssh/deleteItem', {
+        const response = await fileManagerApi.delete('/ssh/deleteItem', {
             data: {
                 sessionId,
                 path,
@@ -616,7 +645,7 @@ export async function deleteSSHItem(sessionId: string, path: string, isDirectory
 
 export async function renameSSHItem(sessionId: string, oldPath: string, newName: string): Promise<any> {
     try {
-        const response = await fileManagerApi.put('/ssh/file_manager/ssh/renameItem', {
+        const response = await fileManagerApi.put('/ssh/renameItem', {
             sessionId,
             oldPath,
             newName
@@ -627,7 +656,7 @@ export async function renameSSHItem(sessionId: string, oldPath: string, newName:
     }
 }
 
-export {sshHostApi, tunnelApi, fileManagerApi};
+
 
 export async function getAllServerStatuses(): Promise<Record<number, ServerStatus>> {
     try {
@@ -655,3 +684,96 @@ export async function getServerMetricsById(id: number): Promise<ServerMetrics> {
         throw error;
     }
 }
+
+// Auth-related functions
+export async function registerUser(username: string, password: string): Promise<any> {
+    try {
+        const response = await authApi.post('/create', { username, password });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function loginUser(username: string, password: string): Promise<AuthResponse> {
+    try {
+        const response = await authApi.post('/login', { username, password });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function getUserInfo(): Promise<UserInfo> {
+    try {
+        const response = await authApi.get('/me');
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function getRegistrationAllowed(): Promise<{ allowed: boolean }> {
+    try {
+        const response = await authApi.get('/registration-allowed');
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function getOIDCConfig(): Promise<any> {
+    try {
+        const response = await authApi.get('/oidc-config');
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function getUserCount(): Promise<UserCount> {
+    try {
+        const response = await authApi.get('/count');
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function initiatePasswordReset(username: string): Promise<any> {
+    try {
+        const response = await authApi.post('/initiate-reset', { username });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function verifyPasswordResetCode(username: string, resetCode: string): Promise<any> {
+    try {
+        const response = await authApi.post('/verify-reset-code', { username, resetCode });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function completePasswordReset(username: string, tempToken: string, newPassword: string): Promise<any> {
+    try {
+        const response = await authApi.post('/complete-reset', { username, tempToken, newPassword });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function getOIDCAuthorizeUrl(): Promise<OIDCAuthorize> {
+    try {
+        const response = await authApi.get('/oidc/authorize');
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export {sshHostApi, tunnelApi, fileManagerApi, authApi};
