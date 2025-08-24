@@ -1,4 +1,8 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
+
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
 
 interface SSHHostData {
     name?: string;
@@ -93,15 +97,41 @@ interface FileManagerShortcut {
     path: string;
 }
 
+interface FileManagerOperation {
+    name: string;
+    path: string;
+    isSSH: boolean;
+    sshSessionId?: string;
+    hostId: number;
+}
+
 export type ServerStatus = {
     status: 'online' | 'offline';
     lastChecked: string;
 };
 
+interface CpuMetrics {
+    percent: number | null;
+    cores: number | null;
+    load: [number, number, number] | null;
+}
+
+interface MemoryMetrics {
+    percent: number | null;
+    usedGiB: number | null;
+    totalGiB: number | null;
+}
+
+interface DiskMetrics {
+    percent: number | null;
+    usedHuman: string | null;
+    totalHuman: string | null;
+}
+
 export type ServerMetrics = {
-    cpu: { percent: number | null; cores: number | null; load: [number, number, number] | null };
-    memory: { percent: number | null; usedGiB: number | null; totalGiB: number | null };
-    disk: { percent: number | null; usedHuman: string | null; totalHuman: string | null };
+    cpu: CpuMetrics;
+    memory: MemoryMetrics;
+    disk: DiskMetrics;
     lastChecked: string;
 };
 
@@ -115,38 +145,19 @@ interface UserInfo {
     is_admin: boolean;
 }
 
-interface RegistrationResponse {
-    allowed: boolean;
-}
-
-interface OIDCConfig {
-    configured: boolean;
-}
-
 interface UserCount {
     count: number;
-}
-
-interface PasswordResetInitiate {
-    username: string;
-}
-
-interface PasswordResetVerify {
-    username: string;
-    resetCode: string;
-}
-
-interface PasswordResetComplete {
-    username: string;
-    tempToken: string;
-    newPassword: string;
 }
 
 interface OIDCAuthorize {
     auth_url: string;
 }
 
-function setCookie(name: string, value: string, days = 7) {
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function setCookie(name: string, value: string, days = 7): void {
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
     document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
 }
@@ -157,57 +168,118 @@ function getCookie(name: string): string | undefined {
     if (parts.length === 2) return parts.pop()?.split(';').shift();
 }
 
-const sshHostApi = axios.create({
-    baseURL: import.meta.env.DEV ? 'http://localhost:8081/ssh' : '/ssh',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
+function createApiInstance(baseURL: string): AxiosInstance {
+    const instance = axios.create({
+        baseURL,
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000,
+    });
 
-const tunnelApi = axios.create({
-    baseURL: import.meta.env.DEV ? 'http://localhost:8083/ssh' : '/ssh',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
-
-const fileManagerApi = axios.create({
-    baseURL: import.meta.env.DEV ? 'http://localhost:8084/ssh' : '/ssh',
-    headers: {
-        'Content-Type': 'application/json',
-    }
-});
-
-const statsApi = axios.create({
-    baseURL: import.meta.env.DEV ? 'http://localhost:8085' : '',
-    headers: {
-        'Content-Type': 'application/json',
-    }
-});
-
-const authApi = axios.create({
-    baseURL: import.meta.env.DEV ? 'http://localhost:8081/users' : '/users',
-    headers: {
-        'Content-Type': 'application/json',
-    }
-});
-
-[sshHostApi, tunnelApi, fileManagerApi, statsApi, authApi].forEach(api => {
-    api.interceptors.request.use((config) => {
+    // Add JWT token to all requests
+    instance.interceptors.request.use((config) => {
         const token = getCookie('jwt');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
     });
-});
+
+    // Global error handling
+    instance.interceptors.response.use(
+        (response) => response,
+        (error: AxiosError) => {
+            if (error.response?.status === 401) {
+                // Token expired or invalid - clear cookie
+                document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            }
+            return Promise.reject(error);
+        }
+    );
+
+    return instance;
+}
+
+// ============================================================================
+// API INSTANCES
+// ============================================================================
+
+const isDev = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost';
+
+// SSH Host Management API (port 8081)
+export const sshHostApi = createApiInstance(
+    isDev ? 'http://localhost:8081/ssh' : '/ssh'
+);
+
+// Tunnel Management API (port 8083)
+export const tunnelApi = createApiInstance(
+    isDev ? 'http://localhost:8083/ssh' : '/ssh'
+);
+
+// File Manager Operations API (port 8084) - SSH file operations
+export const fileManagerApi = createApiInstance(
+    isDev ? 'http://localhost:8084/ssh/file_manager' : '/ssh/file_manager'
+);
+
+// Server Statistics API (port 8085)
+export const statsApi = createApiInstance(
+    isDev ? 'http://localhost:8085' : ''
+);
+
+// Authentication API (port 8081)
+export const authApi = createApiInstance(
+    isDev ? 'http://localhost:8081/users' : '/users'
+);
+
+// ============================================================================
+// ERROR HANDLING
+// ============================================================================
+
+class ApiError extends Error {
+    constructor(
+        message: string,
+        public status?: number,
+        public code?: string
+    ) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
+function handleApiError(error: unknown, operation: string): never {
+    if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const message = error.response?.data?.error || error.message;
+        
+        if (status === 401) {
+            throw new ApiError('Authentication required', 401);
+        } else if (status === 403) {
+            throw new ApiError('Access denied', 403);
+        } else if (status === 404) {
+            throw new ApiError('Resource not found', 404);
+        } else if (status && status >= 500) {
+            throw new ApiError('Server error occurred', status);
+        } else {
+            throw new ApiError(message || `Failed to ${operation}`, status);
+        }
+    }
+    
+    if (error instanceof ApiError) {
+        throw error;
+    }
+    
+    throw new ApiError(`Unexpected error during ${operation}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+}
+
+// ============================================================================
+// SSH HOST MANAGEMENT
+// ============================================================================
 
 export async function getSSHHosts(): Promise<SSHHost[]> {
     try {
         const response = await sshHostApi.get('/db/host');
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch SSH hosts');
     }
 }
 
@@ -245,23 +317,20 @@ export async function createSSHHost(hostData: SSHHostData): Promise<SSHHost> {
             const formData = new FormData();
             formData.append('key', hostData.key);
 
-            const dataWithoutFile = {...submitData};
+            const dataWithoutFile = { ...submitData };
             delete dataWithoutFile.key;
             formData.append('data', JSON.stringify(dataWithoutFile));
 
             const response = await sshHostApi.post('/db/host', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+                headers: { 'Content-Type': 'multipart/form-data' },
             });
-
             return response.data;
         } else {
             const response = await sshHostApi.post('/db/host', submitData);
             return response.data;
         }
     } catch (error) {
-        throw error;
+        handleApiError(error, 'create SSH host');
     }
 }
 
@@ -298,23 +367,20 @@ export async function updateSSHHost(hostId: number, hostData: SSHHostData): Prom
             const formData = new FormData();
             formData.append('key', hostData.key);
 
-            const dataWithoutFile = {...submitData};
+            const dataWithoutFile = { ...submitData };
             delete dataWithoutFile.key;
             formData.append('data', JSON.stringify(dataWithoutFile));
 
             const response = await sshHostApi.put(`/db/host/${hostId}`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+                headers: { 'Content-Type': 'multipart/form-data' },
             });
-
             return response.data;
         } else {
             const response = await sshHostApi.put(`/db/host/${hostId}`, submitData);
             return response.data;
         }
     } catch (error) {
-        throw error;
+        handleApiError(error, 'update SSH host');
     }
 }
 
@@ -325,10 +391,10 @@ export async function bulkImportSSHHosts(hosts: SSHHostData[]): Promise<{
     errors: string[];
 }> {
     try {
-        const response = await sshHostApi.post('/bulk-import', {hosts});
+        const response = await sshHostApi.post('/bulk-import', { hosts });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'bulk import SSH hosts');
     }
 }
 
@@ -337,7 +403,7 @@ export async function deleteSSHHost(hostId: number): Promise<any> {
         const response = await sshHostApi.delete(`/db/host/${hostId}`);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'delete SSH host');
     }
 }
 
@@ -346,16 +412,20 @@ export async function getSSHHostById(hostId: number): Promise<SSHHost> {
         const response = await sshHostApi.get(`/db/host/${hostId}`);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch SSH host');
     }
 }
+
+// ============================================================================
+// TUNNEL MANAGEMENT
+// ============================================================================
 
 export async function getTunnelStatuses(): Promise<Record<string, TunnelStatus>> {
     try {
         const response = await tunnelApi.get('/tunnel/status');
         return response.data || {};
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch tunnel statuses');
     }
 }
 
@@ -369,64 +439,57 @@ export async function connectTunnel(tunnelConfig: TunnelConfig): Promise<any> {
         const response = await tunnelApi.post('/tunnel/connect', tunnelConfig);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'connect tunnel');
     }
 }
 
 export async function disconnectTunnel(tunnelName: string): Promise<any> {
     try {
-        const response = await tunnelApi.post('/tunnel/disconnect', {tunnelName});
+        const response = await tunnelApi.post('/tunnel/disconnect', { tunnelName });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'disconnect tunnel');
     }
 }
 
 export async function cancelTunnel(tunnelName: string): Promise<any> {
     try {
-        const response = await tunnelApi.post('/tunnel/cancel', {tunnelName});
+        const response = await tunnelApi.post('/tunnel/cancel', { tunnelName });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'cancel tunnel');
     }
 }
+
+// ============================================================================
+// FILE MANAGER METADATA (Recent, Pinned, Shortcuts)
+// ============================================================================
 
 export async function getFileManagerRecent(hostId: number): Promise<FileManagerFile[]> {
     try {
         const response = await sshHostApi.get(`/file_manager/recent?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
+        // Don't throw for file manager metadata - return empty array
         return [];
     }
 }
 
-export async function addFileManagerRecent(file: {
-    name: string;
-    path: string;
-    isSSH: boolean;
-    sshSessionId?: string;
-    hostId: number
-}): Promise<any> {
+export async function addFileManagerRecent(file: FileManagerOperation): Promise<any> {
     try {
         const response = await sshHostApi.post('/file_manager/recent', file);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'add recent file');
     }
 }
 
-export async function removeFileManagerRecent(file: {
-    name: string;
-    path: string;
-    isSSH: boolean;
-    sshSessionId?: string;
-    hostId: number
-}): Promise<any> {
+export async function removeFileManagerRecent(file: FileManagerOperation): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/file_manager/recent', {data: file});
+        const response = await sshHostApi.delete('/file_manager/recent', { data: file });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'remove recent file');
     }
 }
 
@@ -439,33 +502,21 @@ export async function getFileManagerPinned(hostId: number): Promise<FileManagerF
     }
 }
 
-export async function addFileManagerPinned(file: {
-    name: string;
-    path: string;
-    isSSH: boolean;
-    sshSessionId?: string;
-    hostId: number
-}): Promise<any> {
+export async function addFileManagerPinned(file: FileManagerOperation): Promise<any> {
     try {
         const response = await sshHostApi.post('/file_manager/pinned', file);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'add pinned file');
     }
 }
 
-export async function removeFileManagerPinned(file: {
-    name: string;
-    path: string;
-    isSSH: boolean;
-    sshSessionId?: string;
-    hostId: number
-}): Promise<any> {
+export async function removeFileManagerPinned(file: FileManagerOperation): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/file_manager/pinned', {data: file});
+        const response = await sshHostApi.delete('/file_manager/pinned', { data: file });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'remove pinned file');
     }
 }
 
@@ -478,35 +529,27 @@ export async function getFileManagerShortcuts(hostId: number): Promise<FileManag
     }
 }
 
-export async function addFileManagerShortcut(shortcut: {
-    name: string;
-    path: string;
-    isSSH: boolean;
-    sshSessionId?: string;
-    hostId: number
-}): Promise<any> {
+export async function addFileManagerShortcut(shortcut: FileManagerOperation): Promise<any> {
     try {
         const response = await sshHostApi.post('/file_manager/shortcuts', shortcut);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'add shortcut');
     }
 }
 
-export async function removeFileManagerShortcut(shortcut: {
-    name: string;
-    path: string;
-    isSSH: boolean;
-    sshSessionId?: string;
-    hostId: number
-}): Promise<any> {
+export async function removeFileManagerShortcut(shortcut: FileManagerOperation): Promise<any> {
     try {
-        const response = await sshHostApi.delete('/file_manager/shortcuts', {data: shortcut});
+        const response = await sshHostApi.delete('/file_manager/shortcuts', { data: shortcut });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'remove shortcut');
     }
 }
+
+// ============================================================================
+// SSH FILE OPERATIONS
+// ============================================================================
 
 export async function connectSSH(sessionId: string, config: {
     ip: string;
@@ -523,49 +566,49 @@ export async function connectSSH(sessionId: string, config: {
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'connect SSH');
     }
 }
 
 export async function disconnectSSH(sessionId: string): Promise<any> {
     try {
-        const response = await fileManagerApi.post('/ssh/disconnect', {sessionId});
+        const response = await fileManagerApi.post('/ssh/disconnect', { sessionId });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'disconnect SSH');
     }
 }
 
 export async function getSSHStatus(sessionId: string): Promise<{ connected: boolean }> {
     try {
         const response = await fileManagerApi.get('/ssh/status', {
-            params: {sessionId}
+            params: { sessionId }
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'get SSH status');
     }
 }
 
 export async function listSSHFiles(sessionId: string, path: string): Promise<any[]> {
     try {
         const response = await fileManagerApi.get('/ssh/listFiles', {
-            params: {sessionId, path}
+            params: { sessionId, path }
         });
         return response.data || [];
     } catch (error) {
-        throw error;
+        handleApiError(error, 'list SSH files');
     }
 }
 
 export async function readSSHFile(sessionId: string, path: string): Promise<{ content: string; path: string }> {
     try {
         const response = await fileManagerApi.get('/ssh/readFile', {
-            params: {sessionId, path}
+            params: { sessionId, path }
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'read SSH file');
     }
 }
 
@@ -583,7 +626,7 @@ export async function writeSSHFile(sessionId: string, path: string, content: str
             throw new Error('File write operation did not return success status');
         }
     } catch (error) {
-        throw error;
+        handleApiError(error, 'write SSH file');
     }
 }
 
@@ -597,7 +640,7 @@ export async function uploadSSHFile(sessionId: string, path: string, fileName: s
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'upload SSH file');
     }
 }
 
@@ -611,7 +654,7 @@ export async function createSSHFile(sessionId: string, path: string, fileName: s
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'create SSH file');
     }
 }
 
@@ -624,7 +667,7 @@ export async function createSSHFolder(sessionId: string, path: string, folderNam
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'create SSH folder');
     }
 }
 
@@ -639,7 +682,7 @@ export async function deleteSSHItem(sessionId: string, path: string, isDirectory
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'delete SSH item');
     }
 }
 
@@ -652,18 +695,20 @@ export async function renameSSHItem(sessionId: string, oldPath: string, newName:
         });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'rename SSH item');
     }
 }
 
-
+// ============================================================================
+// SERVER STATISTICS
+// ============================================================================
 
 export async function getAllServerStatuses(): Promise<Record<number, ServerStatus>> {
     try {
         const response = await statsApi.get('/status');
         return response.data || {};
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch server statuses');
     }
 }
 
@@ -672,7 +717,7 @@ export async function getServerStatusById(id: number): Promise<ServerStatus> {
         const response = await statsApi.get(`/status/${id}`);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch server status');
     }
 }
 
@@ -681,17 +726,20 @@ export async function getServerMetricsById(id: number): Promise<ServerMetrics> {
         const response = await statsApi.get(`/metrics/${id}`);
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch server metrics');
     }
 }
 
-// Auth-related functions
+// ============================================================================
+// AUTHENTICATION
+// ============================================================================
+
 export async function registerUser(username: string, password: string): Promise<any> {
     try {
         const response = await authApi.post('/create', { username, password });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'register user');
     }
 }
 
@@ -700,7 +748,7 @@ export async function loginUser(username: string, password: string): Promise<Aut
         const response = await authApi.post('/login', { username, password });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'login user');
     }
 }
 
@@ -709,7 +757,7 @@ export async function getUserInfo(): Promise<UserInfo> {
         const response = await authApi.get('/me');
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch user info');
     }
 }
 
@@ -718,7 +766,7 @@ export async function getRegistrationAllowed(): Promise<{ allowed: boolean }> {
         const response = await authApi.get('/registration-allowed');
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'check registration status');
     }
 }
 
@@ -727,7 +775,7 @@ export async function getOIDCConfig(): Promise<any> {
         const response = await authApi.get('/oidc-config');
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch OIDC config');
     }
 }
 
@@ -736,7 +784,7 @@ export async function getUserCount(): Promise<UserCount> {
         const response = await authApi.get('/count');
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'fetch user count');
     }
 }
 
@@ -745,7 +793,7 @@ export async function initiatePasswordReset(username: string): Promise<any> {
         const response = await authApi.post('/initiate-reset', { username });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'initiate password reset');
     }
 }
 
@@ -754,7 +802,7 @@ export async function verifyPasswordResetCode(username: string, resetCode: strin
         const response = await authApi.post('/verify-reset-code', { username, resetCode });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'verify reset code');
     }
 }
 
@@ -763,7 +811,7 @@ export async function completePasswordReset(username: string, tempToken: string,
         const response = await authApi.post('/complete-reset', { username, tempToken, newPassword });
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'complete password reset');
     }
 }
 
@@ -772,8 +820,6 @@ export async function getOIDCAuthorizeUrl(): Promise<OIDCAuthorize> {
         const response = await authApi.get('/oidc/authorize');
         return response.data;
     } catch (error) {
-        throw error;
+        handleApiError(error, 'get OIDC authorize URL');
     }
 }
-
-export {sshHostApi, tunnelApi, fileManagerApi, authApi};
