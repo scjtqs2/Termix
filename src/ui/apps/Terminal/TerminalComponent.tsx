@@ -226,7 +226,9 @@ export const TerminalComponent = forwardRef<any, SSHTerminalProps>(function SSHT
 
                 const cols = terminal.cols;
                 const rows = terminal.rows;
-                const wsUrl = window.location.hostname === 'localhost' ? 'ws://localhost:8082' : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ssh/websocket/`;
+                const wsUrl = import.meta.env.DEV
+                    ? 'ws://localhost:8082'
+                    : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ssh/websocket/`;
 
                 const ws = new WebSocket(wsUrl);
                 webSocketRef.current = ws;
