@@ -23,6 +23,12 @@ If you would like, you can support the project here!\
 [![GitHub Sponsor](https://img.shields.io/badge/Sponsor-LukeGus-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sponsors/LukeGus)
 
 # Overview
+
+<p align="center">
+  <a href="https://github.com/LukeGus/Termix">
+    <img alt="Termix Banner" src=./public/icon.svg style="width: 250px; height: 250px;">  </a>
+</p>
+
 Termix is an open-source, forever-free, self-hosted all-in-one server management platform. It provides a web-based solution for managing your servers and infrastructure through a single, intuitive interface. Termix offers SSH terminal access, SSH tunneling capabilities, and remote file editing, with many more tools to come.
 
 # Features
