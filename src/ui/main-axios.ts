@@ -175,7 +175,6 @@ function createApiInstance(baseURL: string): AxiosInstance {
         timeout: 30000,
     });
 
-    // Add JWT token to all requests
     instance.interceptors.request.use((config) => {
         const token = getCookie('jwt');
         if (token) {
@@ -184,7 +183,6 @@ function createApiInstance(baseURL: string): AxiosInstance {
         return config;
     });
 
-    // Global error handling
     instance.interceptors.response.use(
         (response) => response,
         (error: AxiosError) => {
