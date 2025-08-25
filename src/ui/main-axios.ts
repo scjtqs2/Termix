@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosInstance } from 'axios';
+import axios, { AxiosError, type AxiosInstance } from 'axios';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -201,7 +201,10 @@ function createApiInstance(baseURL: string): AxiosInstance {
 // API INSTANCES
 // ============================================================================
 
-const isDev = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost';
+// Check if we're in development mode (Vite dev server) or if we're accessing via a specific port
+// that indicates we're using nginx proxy (not localhost:3000 or similar dev ports)
+const isDev = process.env.NODE_ENV === 'development' && 
+              (window.location.port === '3000' || window.location.port === '5173' || window.location.port === '');
 
 // SSH Host Management API (port 8081)
 export const sshHostApi = createApiInstance(
@@ -819,5 +822,129 @@ export async function getOIDCAuthorizeUrl(): Promise<OIDCAuthorize> {
         return response.data;
     } catch (error) {
         handleApiError(error, 'get OIDC authorize URL');
+    }
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+export async function getUserList(): Promise<{ users: UserInfo[] }> {
+    try {
+        const response = await authApi.get('/list');
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'fetch user list');
+    }
+}
+
+export async function makeUserAdmin(username: string): Promise<any> {
+    try {
+        const response = await authApi.post('/make-admin', { username });
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'make user admin');
+    }
+}
+
+export async function removeAdminStatus(username: string): Promise<any> {
+    try {
+        const response = await authApi.post('/remove-admin', { username });
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'remove admin status');
+    }
+}
+
+export async function deleteUser(username: string): Promise<any> {
+    try {
+        const response = await authApi.delete('/delete-user', { data: { username } });
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'delete user');
+    }
+}
+
+export async function deleteAccount(password: string): Promise<any> {
+    try {
+        const response = await authApi.delete('/delete-account', { data: { password } });
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'delete account');
+    }
+}
+
+export async function updateRegistrationAllowed(allowed: boolean): Promise<any> {
+    try {
+        const response = await authApi.patch('/registration-allowed', { allowed });
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'update registration allowed');
+    }
+}
+
+export async function updateOIDCConfig(config: any): Promise<any> {
+    try {
+        const response = await authApi.post('/oidc-config', config);
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'update OIDC config');
+    }
+}
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+export async function getUserAlerts(userId: string): Promise<{ alerts: any[] }> {
+    try {
+        const response = await authApi.get(`/alerts/user/${userId}`);
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'fetch user alerts');
+    }
+}
+
+export async function dismissAlert(userId: string, alertId: string): Promise<any> {
+    try {
+        const response = await authApi.post('/alerts/dismiss', { userId, alertId });
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'dismiss alert');
+    }
+}
+
+// ============================================================================
+// UPDATES & RELEASES
+// ============================================================================
+
+export async function getReleasesRSS(perPage: number = 100): Promise<any> {
+    try {
+        const response = await authApi.get(`/releases/rss?per_page=${perPage}`);
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'fetch releases RSS');
+    }
+}
+
+export async function getVersionInfo(): Promise<any> {
+    try {
+        const response = await authApi.get('/version/');
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'fetch version info');
+    }
+}
+
+// ============================================================================
+// DATABASE HEALTH
+// ============================================================================
+
+export async function getDatabaseHealth(): Promise<any> {
+    try {
+        const response = await authApi.get('/db-health');
+        return response.data;
+    } catch (error) {
+        handleApiError(error, 'check database health');
     }
 }

@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from "react";
 import {HomepageAuth} from "@/ui/Homepage/HomepageAuth.tsx";
-import axios from "axios";
 import {HomepageUpdateLog} from "@/ui/Homepage/HompageUpdateLog.tsx";
 import {HomepageAlertManager} from "@/ui/Homepage/HomepageAlertManager.tsx";
 import {Button} from "@/components/ui/button.tsx";
+import { getUserInfo, getDatabaseHealth } from "@/ui/main-axios.ts";
 
 interface HomepageProps {
     onSelectView: (view: string) => void;
@@ -24,12 +24,6 @@ function setCookie(name: string, value: string, days = 7) {
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
     document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
 }
-
-const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
-
-const API = axios.create({
-    baseURL: apiBase,
-});
 
 export function Homepage({
                              onSelectView,
@@ -53,13 +47,13 @@ export function Homepage({
             const jwt = getCookie("jwt");
             if (jwt) {
                 Promise.all([
-                    API.get("/me", {headers: {Authorization: `Bearer ${jwt}`}}),
-                    API.get("/db-health")
+                    getUserInfo(),
+                    getDatabaseHealth()
                 ])
                     .then(([meRes]) => {
-                        setIsAdmin(!!meRes.data.is_admin);
-                        setUsername(meRes.data.username || null);
-                        setUserId(meRes.data.userId || null);
+                        setIsAdmin(!!meRes.is_admin);
+                        setUsername(meRes.username || null);
+                        setUserId(meRes.userId || null);
                         setDbError(null);
                     })
                     .catch((err) => {

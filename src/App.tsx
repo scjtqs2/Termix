@@ -4,13 +4,10 @@ import {Homepage} from "@/ui/Homepage/Homepage.tsx"
 import {AppView} from "@/ui/Navigation/AppView.tsx"
 import {HostManager} from "@/ui/apps/Host Manager/HostManager.tsx"
 import {TabProvider, useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx"
-import axios from "axios"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 import { AdminSettings } from "@/ui/Admin/AdminSettings";
 import { Toaster } from "@/components/ui/sonner";
-
-const apiBase = import.meta.env.DEV ? "http://localhost:8081/users" : "/users";
-const API = axios.create({baseURL: apiBase});
+import { getUserInfo } from "@/ui/main-axios.ts";
 
 function getCookie(name: string) {
     return document.cookie.split('; ').reduce((r, v) => {
@@ -39,11 +36,11 @@ function AppContent() {
             const jwt = getCookie("jwt");
             if (jwt) {
                 setAuthLoading(true);
-                API.get("/me", {headers: {Authorization: `Bearer ${jwt}`}})
+                getUserInfo()
                     .then((meRes) => {
                         setIsAuthenticated(true);
-                        setIsAdmin(!!meRes.data.is_admin);
-                        setUsername(meRes.data.username || null);
+                        setIsAdmin(!!meRes.is_admin);
+                        setUsername(meRes.username || null);
                     })
                     .catch((err) => {
                         setIsAuthenticated(false);

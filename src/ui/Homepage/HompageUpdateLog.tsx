@@ -2,7 +2,7 @@ import React, {useEffect, useState} from "react";
 import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Separator} from "@/components/ui/separator.tsx";
-import axios from "axios";
+import { getReleasesRSS, getVersionInfo } from "@/ui/main-axios.ts";
 
 interface HomepageUpdateLogProps extends React.ComponentProps<"div"> {
     loggedIn: boolean;
@@ -50,12 +50,6 @@ interface VersionResponse {
     cache_age?: number;
 }
 
-const apiBase = import.meta.env.DEV ? "http://localhost:8081" : "";
-
-const API = axios.create({
-    baseURL: apiBase,
-});
-
 export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
     const [releases, setReleases] = useState<RSSResponse | null>(null);
     const [versionInfo, setVersionInfo] = useState<VersionResponse | null>(null);
@@ -66,12 +60,12 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
         if (loggedIn) {
             setLoading(true);
             Promise.all([
-                API.get('/releases/rss?per_page=100'),
-                API.get('/version/')
+                getReleasesRSS(100),
+                getVersionInfo()
             ])
                 .then(([releasesRes, versionRes]) => {
-                    setReleases(releasesRes.data);
-                    setVersionInfo(versionRes.data);
+                    setReleases(releasesRes);
+                    setVersionInfo(versionRes);
                     setError(null);
                 })
                 .catch(err => {
