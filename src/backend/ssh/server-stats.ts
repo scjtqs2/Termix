@@ -415,7 +415,8 @@ app.listen(PORT, async () => {
     }
 });
 
-setInterval(() => {
-    pollStatusesOnce().catch(err => logger.error('Background poll failed', err));
-}, 60_000);
+// Disable automatic background polling to prevent log flooding
+// setInterval(() => {
+//     pollStatusesOnce().catch(err => logger.error('Background poll failed', err));
+// }, 60_000);
 

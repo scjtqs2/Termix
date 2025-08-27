@@ -94,20 +94,23 @@ export function Server({
             }
         };
 
-        if (currentHostConfig?.id) {
+        if (currentHostConfig?.id && isVisible) {
             fetchStatus();
             fetchMetrics();
+            // Only poll when component is visible to reduce unnecessary connections
             intervalId = window.setInterval(() => {
-                fetchStatus();
-                fetchMetrics();
-            }, 10_000);
+                if (isVisible) {
+                    fetchStatus();
+                    fetchMetrics();
+                }
+            }, 300_000); // 5 minutes instead of 10 seconds
         }
 
         return () => {
             cancelled = true;
             if (intervalId) window.clearInterval(intervalId);
         };
-    }, [currentHostConfig?.id]);
+    }, [currentHostConfig?.id, isVisible]);
 
     const topMarginPx = isTopbarOpen ? 74 : 16;
     const leftMarginPx = sidebarState === 'collapsed' ? 16 : 8;
@@ -142,7 +145,26 @@ export function Server({
                             <StatusIndicator/>
                         </Status>
                     </div>
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={async () => {
+                                if (currentHostConfig?.id) {
+                                    try {
+                                        const res = await getServerStatusById(currentHostConfig.id);
+                                        setServerStatus(res?.status === 'online' ? 'online' : 'offline');
+                                        const data = await getServerMetricsById(currentHostConfig.id);
+                                        setMetrics(data);
+                                    } catch {
+                                        setServerStatus('offline');
+                                        setMetrics(null);
+                                    }
+                                }
+                            }}
+                            title="Refresh status and metrics"
+                        >
+                            Refresh
+                        </Button>
                         {currentHostConfig?.enableFileManager && (
                             <Button
                                 variant="outline"

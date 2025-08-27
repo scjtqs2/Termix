@@ -238,7 +238,7 @@ export function LeftSidebar({
 
     React.useEffect(() => {
         fetchHosts();
-        const interval = setInterval(fetchHosts, 10000);
+        const interval = setInterval(fetchHosts, 300000); // 5 minutes instead of 10 seconds
         return () => clearInterval(interval);
     }, [fetchHosts]);
 
