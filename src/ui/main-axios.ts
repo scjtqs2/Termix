@@ -187,7 +187,6 @@ function createApiInstance(baseURL: string): AxiosInstance {
         (response) => response,
         (error: AxiosError) => {
             if (error.response?.status === 401) {
-                // Token expired or invalid - clear cookie
                 document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
             }
             return Promise.reject(error);
@@ -201,8 +200,6 @@ function createApiInstance(baseURL: string): AxiosInstance {
 // API INSTANCES
 // ============================================================================
 
-// Check if we're in development mode (Vite dev server) or if we're accessing via a specific port
-// that indicates we're using nginx proxy (not localhost:3000 or similar dev ports)
 const isDev = process.env.NODE_ENV === 'development' && 
               (window.location.port === '3000' || window.location.port === '5173' || window.location.port === '');
 
@@ -226,9 +223,9 @@ export const statsApi = createApiInstance(
     isDev ? 'http://localhost:8085' : ''
 );
 
-// Authentication API (port 8081)
+// Authentication API (port 8081) - includes users, alerts, version, releases
 export const authApi = createApiInstance(
-    isDev ? 'http://localhost:8081/users' : '/users'
+    isDev ? 'http://localhost:8081' : ''
 );
 
 // ============================================================================
@@ -471,7 +468,6 @@ export async function getFileManagerRecent(hostId: number): Promise<FileManagerF
         const response = await sshHostApi.get(`/file_manager/recent?hostId=${hostId}`);
         return response.data || [];
     } catch (error) {
-        // Don't throw for file manager metadata - return empty array
         return [];
     }
 }
@@ -737,7 +733,7 @@ export async function getServerMetricsById(id: number): Promise<ServerMetrics> {
 
 export async function registerUser(username: string, password: string): Promise<any> {
     try {
-        const response = await authApi.post('/create', { username, password });
+        const response = await authApi.post('/users/create', { username, password });
         return response.data;
     } catch (error) {
         handleApiError(error, 'register user');
@@ -746,7 +742,7 @@ export async function registerUser(username: string, password: string): Promise<
 
 export async function loginUser(username: string, password: string): Promise<AuthResponse> {
     try {
-        const response = await authApi.post('/login', { username, password });
+        const response = await authApi.post('/users/login', { username, password });
         return response.data;
     } catch (error) {
         handleApiError(error, 'login user');
@@ -755,7 +751,7 @@ export async function loginUser(username: string, password: string): Promise<Aut
 
 export async function getUserInfo(): Promise<UserInfo> {
     try {
-        const response = await authApi.get('/me');
+        const response = await authApi.get('/users/me');
         return response.data;
     } catch (error) {
         handleApiError(error, 'fetch user info');
@@ -764,7 +760,7 @@ export async function getUserInfo(): Promise<UserInfo> {
 
 export async function getRegistrationAllowed(): Promise<{ allowed: boolean }> {
     try {
-        const response = await authApi.get('/registration-allowed');
+        const response = await authApi.get('/users/registration-allowed');
         return response.data;
     } catch (error) {
         handleApiError(error, 'check registration status');
@@ -773,7 +769,7 @@ export async function getRegistrationAllowed(): Promise<{ allowed: boolean }> {
 
 export async function getOIDCConfig(): Promise<any> {
     try {
-        const response = await authApi.get('/oidc-config');
+        const response = await authApi.get('/users/oidc-config');
         return response.data;
     } catch (error) {
         handleApiError(error, 'fetch OIDC config');
@@ -782,7 +778,7 @@ export async function getOIDCConfig(): Promise<any> {
 
 export async function getUserCount(): Promise<UserCount> {
     try {
-        const response = await authApi.get('/count');
+        const response = await authApi.get('/users/count');
         return response.data;
     } catch (error) {
         handleApiError(error, 'fetch user count');
@@ -791,7 +787,7 @@ export async function getUserCount(): Promise<UserCount> {
 
 export async function initiatePasswordReset(username: string): Promise<any> {
     try {
-        const response = await authApi.post('/initiate-reset', { username });
+        const response = await authApi.post('/users/initiate-reset', { username });
         return response.data;
     } catch (error) {
         handleApiError(error, 'initiate password reset');
@@ -800,7 +796,7 @@ export async function initiatePasswordReset(username: string): Promise<any> {
 
 export async function verifyPasswordResetCode(username: string, resetCode: string): Promise<any> {
     try {
-        const response = await authApi.post('/verify-reset-code', { username, resetCode });
+        const response = await authApi.post('/users/verify-reset-code', { username, resetCode });
         return response.data;
     } catch (error) {
         handleApiError(error, 'verify reset code');
@@ -809,7 +805,7 @@ export async function verifyPasswordResetCode(username: string, resetCode: strin
 
 export async function completePasswordReset(username: string, tempToken: string, newPassword: string): Promise<any> {
     try {
-        const response = await authApi.post('/complete-reset', { username, tempToken, newPassword });
+        const response = await authApi.post('/users/complete-reset', { username, tempToken, newPassword });
         return response.data;
     } catch (error) {
         handleApiError(error, 'complete password reset');
@@ -818,7 +814,7 @@ export async function completePasswordReset(username: string, tempToken: string,
 
 export async function getOIDCAuthorizeUrl(): Promise<OIDCAuthorize> {
     try {
-        const response = await authApi.get('/oidc/authorize');
+        const response = await authApi.get('/users/oidc/authorize');
         return response.data;
     } catch (error) {
         handleApiError(error, 'get OIDC authorize URL');
@@ -831,7 +827,7 @@ export async function getOIDCAuthorizeUrl(): Promise<OIDCAuthorize> {
 
 export async function getUserList(): Promise<{ users: UserInfo[] }> {
     try {
-        const response = await authApi.get('/list');
+        const response = await authApi.get('/users/list');
         return response.data;
     } catch (error) {
         handleApiError(error, 'fetch user list');
@@ -840,7 +836,7 @@ export async function getUserList(): Promise<{ users: UserInfo[] }> {
 
 export async function makeUserAdmin(username: string): Promise<any> {
     try {
-        const response = await authApi.post('/make-admin', { username });
+        const response = await authApi.post('/users/make-admin', { username });
         return response.data;
     } catch (error) {
         handleApiError(error, 'make user admin');
@@ -849,7 +845,7 @@ export async function makeUserAdmin(username: string): Promise<any> {
 
 export async function removeAdminStatus(username: string): Promise<any> {
     try {
-        const response = await authApi.post('/remove-admin', { username });
+        const response = await authApi.post('/users/remove-admin', { username });
         return response.data;
     } catch (error) {
         handleApiError(error, 'remove admin status');
@@ -858,7 +854,7 @@ export async function removeAdminStatus(username: string): Promise<any> {
 
 export async function deleteUser(username: string): Promise<any> {
     try {
-        const response = await authApi.delete('/delete-user', { data: { username } });
+        const response = await authApi.delete('/users/delete-user', { data: { username } });
         return response.data;
     } catch (error) {
         handleApiError(error, 'delete user');
@@ -867,7 +863,7 @@ export async function deleteUser(username: string): Promise<any> {
 
 export async function deleteAccount(password: string): Promise<any> {
     try {
-        const response = await authApi.delete('/delete-account', { data: { password } });
+        const response = await authApi.delete('/users/delete-account', { data: { password } });
         return response.data;
     } catch (error) {
         handleApiError(error, 'delete account');
@@ -876,7 +872,7 @@ export async function deleteAccount(password: string): Promise<any> {
 
 export async function updateRegistrationAllowed(allowed: boolean): Promise<any> {
     try {
-        const response = await authApi.patch('/registration-allowed', { allowed });
+        const response = await authApi.patch('/users/registration-allowed', { allowed });
         return response.data;
     } catch (error) {
         handleApiError(error, 'update registration allowed');
@@ -885,7 +881,7 @@ export async function updateRegistrationAllowed(allowed: boolean): Promise<any> 
 
 export async function updateOIDCConfig(config: any): Promise<any> {
     try {
-        const response = await authApi.post('/oidc-config', config);
+        const response = await authApi.post('/users/oidc-config', config);
         return response.data;
     } catch (error) {
         handleApiError(error, 'update OIDC config');
@@ -942,7 +938,7 @@ export async function getVersionInfo(): Promise<any> {
 
 export async function getDatabaseHealth(): Promise<any> {
     try {
-        const response = await authApi.get('/db-health');
+        const response = await authApi.get('/users/db-health');
         return response.data;
     } catch (error) {
         handleApiError(error, 'check database health');
