@@ -526,6 +526,7 @@ export function AppView({isTopbarOpen = true}: TerminalViewProps): React.ReactEl
 
     const currentTabData = tabs.find((tab: any) => tab.id === currentTab);
     const isFileManager = currentTabData?.type === 'file_manager';
+    const isSplitScreen = allSplitScreenTab.length > 0;
     
     const topMarginPx = isTopbarOpen ? 74 : 26;
     const leftMarginPx = sidebarState === 'collapsed' ? 26 : 8;
@@ -537,7 +538,7 @@ export function AppView({isTopbarOpen = true}: TerminalViewProps): React.ReactEl
             className="border-2 border-[#303032] rounded-lg overflow-hidden overflow-x-hidden"
             style={{
                 position: 'relative',
-                background: isFileManager ? '#09090b' : '#18181b',
+                background: (isFileManager && !isSplitScreen) ? '#09090b' : '#18181b',
                 marginLeft: leftMarginPx,
                 marginRight: 17,
                 marginTop: topMarginPx,
