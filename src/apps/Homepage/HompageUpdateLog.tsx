@@ -90,8 +90,7 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
         return firstLine
             .replace(/[#*`]/g, '')
             .replace(/\s+/g, ' ')
-            .trim()
-            .substring(0, 100) + (firstLine.length > 100 ? '...' : '');
+            .trim();
     };
 
     return (
