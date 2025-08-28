@@ -310,8 +310,6 @@ wss.on('connection', (ws: WebSocket) => {
                 if (keyType && keyType !== 'auto') {
                     connectConfig.privateKeyType = keyType;
                 }
-                
-                logger.info('SSH key authentication configured successfully');
             } catch (keyError) {
                 logger.error('SSH key format error: ' + keyError.message);
                 ws.send(JSON.stringify({type: 'error', message: 'SSH key format error: Invalid private key format'}));

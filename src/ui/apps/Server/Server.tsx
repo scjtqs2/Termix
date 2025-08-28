@@ -243,7 +243,7 @@ export function Server({
 
                     <Separator className="p-0.5 self-stretch" orientation="vertical"/>
 
-                    {/* HDD */}
+                    {/* Root Storage */}
                     <div className="flex-1 min-w-0 px-2 py-2">
                         <h1 className="font-bold xt-lg flex flex-row gap-2 mb-2">
                             <HardDrive/>
@@ -254,7 +254,7 @@ export function Server({
                                 const pctText = (typeof pct === 'number') ? `${pct}%` : 'N/A';
                                 const usedText = used ?? 'N/A';
                                 const totalText = total ?? 'N/A';
-                                return `HDD Space - ${pctText} (${usedText} of ${totalText})`;
+                                return `Root Storage Space - ${pctText} (${usedText} of ${totalText})`;
                             })()}
                         </h1>
 

@@ -197,7 +197,8 @@ function classifyError(errorMessage: string): ErrorType {
 
     if (message.includes("connect etimedout") ||
         message.includes("timeout") ||
-        message.includes("timed out")) {
+        message.includes("timed out") ||
+        message.includes("keepalive timeout")) {
         return ERROR_TYPES.TIMEOUT;
     }
 
@@ -267,7 +268,8 @@ function cleanupTunnelResources(tunnelName: string): void {
         tunnelName,
         `${tunnelName}_confirm`,
         `${tunnelName}_retry`,
-        `${tunnelName}_verify_retry`
+        `${tunnelName}_verify_retry`,
+        `${tunnelName}_ping`
     ];
 
     timerKeys.forEach(key => {
@@ -302,7 +304,7 @@ function resetRetryState(tunnelName: string): void {
         countdownIntervals.delete(tunnelName);
     }
 
-    ['', '_confirm', '_retry', '_verify_retry'].forEach(suffix => {
+    ['', '_confirm', '_retry', '_verify_retry', '_ping'].forEach(suffix => {
         const timerKey = `${tunnelName}${suffix}`;
         if (verificationTimers.has(timerKey)) {
             clearTimeout(verificationTimers.get(timerKey)!);
@@ -353,7 +355,8 @@ function handleDisconnect(tunnelName: string, tunnelConfig: TunnelConfig | null,
         const maxRetries = tunnelConfig.maxRetries || 3;
         const retryInterval = tunnelConfig.retryInterval || 5000;
 
-        let retryCount = (retryCounters.get(tunnelName) || 0) + 1;
+        let retryCount = retryCounters.get(tunnelName) || 0;
+        retryCount = retryCount + 1;
 
         if (retryCount > maxRetries) {
             logger.error(`All ${maxRetries} retries failed for ${tunnelName}`);
@@ -420,7 +423,6 @@ function handleDisconnect(tunnelName: string, tunnelConfig: TunnelConfig | null,
 
                 if (!manualDisconnects.has(tunnelName)) {
                     activeTunnels.delete(tunnelName);
-
                     connectSSHTunnel(tunnelConfig, retryCount);
                 }
             }, retryInterval);
@@ -438,13 +440,43 @@ function handleDisconnect(tunnelName: string, tunnelConfig: TunnelConfig | null,
 }
 
 function verifyTunnelConnection(tunnelName: string, tunnelConfig: TunnelConfig, isPeriodic = false): void {
-    broadcastTunnelStatus(tunnelName, {
-        connected: true,
-        status: CONNECTION_STATES.CONNECTED
-    });
+    if (isPeriodic) {
+        if (!activeTunnels.has(tunnelName)) {
+            broadcastTunnelStatus(tunnelName, {
+                connected: false,
+                status: CONNECTION_STATES.DISCONNECTED,
+                reason: 'Tunnel connection lost'
+            });
+        }
+    }
 }
 
 function setupPingInterval(tunnelName: string, tunnelConfig: TunnelConfig): void {
+    const pingKey = `${tunnelName}_ping`;
+    if (verificationTimers.has(pingKey)) {
+        clearInterval(verificationTimers.get(pingKey)!);
+        verificationTimers.delete(pingKey);
+    }
+    
+    const pingInterval = setInterval(() => {
+        const currentStatus = connectionStatus.get(tunnelName);
+        if (currentStatus?.status === CONNECTION_STATES.CONNECTED) {
+            if (!activeTunnels.has(tunnelName)) {
+                broadcastTunnelStatus(tunnelName, {
+                    connected: false,
+                    status: CONNECTION_STATES.DISCONNECTED,
+                    reason: 'Tunnel connection lost'
+                });
+                clearInterval(pingInterval);
+                verificationTimers.delete(pingKey);
+            }
+        } else {
+            clearInterval(pingInterval);
+            verificationTimers.delete(pingKey);
+        }
+    }, 120000);
+    
+    verificationTimers.set(pingKey, pingInterval);
 }
 
 function connectSSHTunnel(tunnelConfig: TunnelConfig, retryAttempt = 0): void {
@@ -527,6 +559,8 @@ function connectSSHTunnel(tunnelConfig: TunnelConfig, retryAttempt = 0): void {
             errorType === ERROR_TYPES.PORT ||
             errorType === ERROR_TYPES.PERMISSION ||
             manualDisconnects.has(tunnelName);
+        
+
 
         handleDisconnect(tunnelName, tunnelConfig, !shouldNotRetry);
     });
@@ -590,7 +624,11 @@ function connectSSHTunnel(tunnelConfig: TunnelConfig, retryAttempt = 0): void {
 
             setTimeout(() => {
                 if (!manualDisconnects.has(tunnelName) && activeTunnels.has(tunnelName)) {
-                    verifyTunnelConnection(tunnelName, tunnelConfig, false);
+                    broadcastTunnelStatus(tunnelName, {
+                        connected: true,
+                        status: CONNECTION_STATES.CONNECTED
+                    });
+                    setupPingInterval(tunnelName, tunnelConfig);
                 }
             }, 2000);
 
@@ -650,7 +688,6 @@ function connectSSHTunnel(tunnelConfig: TunnelConfig, retryAttempt = 0): void {
 
             stream.stderr.on("data", (data) => {
                 const errorMsg = data.toString().trim();
-                logger.debug(`Tunnel stderr for '${tunnelName}': ${errorMsg}`);
             });
         });
     });
@@ -659,11 +696,11 @@ function connectSSHTunnel(tunnelConfig: TunnelConfig, retryAttempt = 0): void {
         host: tunnelConfig.sourceIP,
         port: tunnelConfig.sourceSSHPort,
         username: tunnelConfig.sourceUsername,
-        keepaliveInterval: 60000,
-        keepaliveCountMax: 0,
+        keepaliveInterval: 30000, 
+        keepaliveCountMax: 3,
         readyTimeout: 60000,
         tcpKeepAlive: true,
-        tcpKeepAliveInitialDelay: 30000,
+        tcpKeepAliveInitialDelay: 15000,
         algorithms: {
             kex: [
                 'diffie-hellman-group14-sha256',
@@ -750,11 +787,11 @@ function killRemoteTunnelByMarker(tunnelConfig: TunnelConfig, tunnelName: string
         host: tunnelConfig.sourceIP,
         port: tunnelConfig.sourceSSHPort,
         username: tunnelConfig.sourceUsername,
-        keepaliveInterval: 60000,
-        keepaliveCountMax: 0,
+        keepaliveInterval: 30000,
+        keepaliveCountMax: 3,
         readyTimeout: 60000,
         tcpKeepAlive: true,
-        tcpKeepAliveInitialDelay: 30000,
+        tcpKeepAliveInitialDelay: 15000,
         algorithms: {
             kex: [
                 'diffie-hellman-group14-sha256',

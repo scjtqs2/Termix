@@ -127,13 +127,11 @@ function buildSshConfig(host: HostRecord): ConnectConfig {
                 if (host.keyPassword) {
                     (base as any).passphrase = host.keyPassword;
                 }
-                
-                logger.info(`SSH key authentication configured for host ${host.ip}`);
+
             } catch (keyError) {
                 logger.error(`SSH key format error for host ${host.ip}: ${keyError.message}`);
                 if (host.password) {
                     (base as any).password = host.password;
-                    logger.info(`Falling back to password authentication for host ${host.ip}`);
                 } else {
                     throw new Error(`Invalid SSH key format for host ${host.ip}`);
                 }
@@ -297,15 +295,27 @@ async function collectMetrics(host: HostRecord): Promise<{
         let usedHuman: string | null = null;
         let totalHuman: string | null = null;
         try {
-            const diskOut = await execCommand(client, 'df -h -P / | tail -n +2');
-            const line = diskOut.stdout.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
-            const parts = line.split(/\s+/);
-            if (parts.length >= 6) {
-                totalHuman = parts[1] || null;
-                usedHuman = parts[2] || null;
-                const pctStr = (parts[4] || '').replace('%', '');
-                const pctNum = Number(pctStr);
-                diskPercent = Number.isFinite(pctNum) ? pctNum : null;
+            // Get both human-readable and bytes format for accurate calculation
+            const diskOutHuman = await execCommand(client, 'df -h -P / | tail -n +2');
+            const diskOutBytes = await execCommand(client, 'df -B1 -P / | tail -n +2');
+            
+            const humanLine = diskOutHuman.stdout.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
+            const bytesLine = diskOutBytes.stdout.split('\n').map(l => l.trim()).filter(Boolean)[0] || '';
+            
+            const humanParts = humanLine.split(/\s+/);
+            const bytesParts = bytesLine.split(/\s+/);
+            
+            if (humanParts.length >= 6 && bytesParts.length >= 6) {
+                totalHuman = humanParts[1] || null;
+                usedHuman = humanParts[2] || null;
+                
+                // Calculate our own percentage using bytes for accuracy
+                const totalBytes = Number(bytesParts[1]);
+                const usedBytes = Number(bytesParts[2]);
+                
+                if (Number.isFinite(totalBytes) && Number.isFinite(usedBytes) && totalBytes > 0) {
+                    diskPercent = Math.max(0, Math.min(100, (usedBytes / totalBytes) * 100));
+                }
             }
         } catch (e) {
             diskPercent = null;
