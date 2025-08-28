@@ -26,6 +26,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
     const [visible, setVisible] = useState(false);
     const isVisibleRef = useRef<boolean>(false);
 
+
     const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
     const pendingSizeRef = useRef<{ cols: number; rows: number } | null>(null);
     const notifyTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -113,6 +114,50 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
 
     function getUseRightClickCopyPaste() {
         return getCookie("rightClickCopyPaste") === "true"
+    }
+
+
+
+    function setupWebSocketListeners(ws: WebSocket, cols: number, rows: number) {
+        ws.addEventListener('open', () => {
+            
+            ws.send(JSON.stringify({type: 'connectToHost', data: {cols, rows, hostConfig}}));
+            terminal.onData((data) => {
+                ws.send(JSON.stringify({type: 'input', data}));
+            });
+            
+            pingIntervalRef.current = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({type: 'ping'}));
+                }
+            }, 30000);
+
+
+        });
+
+        ws.addEventListener('message', (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'data') terminal.write(msg.data);
+                else if (msg.type === 'error') terminal.writeln(`\r\n[ERROR] ${msg.message}`);
+                else if (msg.type === 'connected') {
+                } else if (msg.type === 'disconnected') {
+                    wasDisconnectedBySSH.current = true;
+                    terminal.writeln(`\r\n[${msg.message || 'Disconnected'}]`);
+                }
+            } catch (error) {
+            }
+        });
+
+        ws.addEventListener('close', () => {
+            if (!wasDisconnectedBySSH.current) {
+                terminal.writeln('\r\n[Connection closed]');
+            }
+        });
+        
+        ws.addEventListener('error', () => {
+            terminal.writeln('\r\n[Connection error]');
+        });
     }
 
     async function writeTextToClipboard(text: string): Promise<void> {
@@ -222,6 +267,9 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
                     if (terminal) scheduleNotify(terminal.cols, terminal.rows);
                     hardRefresh();
                     setVisible(true);
+                    if (terminal && !splitScreen) {
+                        terminal.focus();
+                    }
                 }, 0);
 
                 const cols = terminal.cols;
@@ -234,38 +282,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
                 webSocketRef.current = ws;
                 wasDisconnectedBySSH.current = false;
 
-                ws.addEventListener('open', () => {
-                    ws.send(JSON.stringify({type: 'connectToHost', data: {cols, rows, hostConfig}}));
-                    terminal.onData((data) => {
-                        ws.send(JSON.stringify({type: 'input', data}));
-                    });
-                    pingIntervalRef.current = setInterval(() => {
-                        if (ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({type: 'ping'}));
-                        }
-                    }, 30000);
-                });
-
-                ws.addEventListener('message', (event) => {
-                    try {
-                        const msg = JSON.parse(event.data);
-                        if (msg.type === 'data') terminal.write(msg.data);
-                        else if (msg.type === 'error') terminal.writeln(`\r\n[ERROR] ${msg.message}`);
-                        else if (msg.type === 'connected') {
-                        } else if (msg.type === 'disconnected') {
-                            wasDisconnectedBySSH.current = true;
-                            terminal.writeln(`\r\n[${msg.message || 'Disconnected'}]`);
-                        }
-                    } catch (error) {
-                    }
-                });
-
-                ws.addEventListener('close', () => {
-                    if (!wasDisconnectedBySSH.current) terminal.writeln('\r\n[Connection closed]');
-                });
-                ws.addEventListener('error', () => {
-                    terminal.writeln('\r\n[Connection error]');
-                });
+                setupWebSocketListeners(ws, cols, rows);
             }, 300);
         });
 
@@ -288,9 +305,18 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
                 fitAddonRef.current?.fit();
                 if (terminal) scheduleNotify(terminal.cols, terminal.rows);
                 hardRefresh();
+                if (terminal && !splitScreen) {
+                    terminal.focus();
+                }
             }, 0);
+            
+            if (terminal && !splitScreen) {
+                setTimeout(() => {
+                    terminal.focus();
+                }, 100);
+            }
         }
-    }, [isVisible]);
+    }, [isVisible, splitScreen, terminal]);
 
     useEffect(() => {
         if (!fitAddonRef.current) return;
@@ -298,12 +324,23 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
             fitAddonRef.current?.fit();
             if (terminal) scheduleNotify(terminal.cols, terminal.rows);
             hardRefresh();
+            if (terminal && !splitScreen && isVisible) {
+                terminal.focus();
+            }
         }, 0);
-    }, [splitScreen]);
+    }, [splitScreen, isVisible, terminal]);
 
     return (
-        <div ref={xtermRef} className="h-full w-full m-1"
-             style={{opacity: visible && isVisible ? 1 : 0, overflow: 'hidden'}}/>
+        <div 
+            ref={xtermRef} 
+            className="h-full w-full m-1"
+            style={{opacity: visible && isVisible ? 1 : 0, overflow: 'hidden'}}
+            onClick={() => {
+                if (terminal && !splitScreen) {
+                    terminal.focus();
+                }
+            }}
+        />
     );
 });
 
