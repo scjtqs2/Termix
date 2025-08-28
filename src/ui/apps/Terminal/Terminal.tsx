@@ -274,7 +274,11 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
 
                 const cols = terminal.cols;
                 const rows = terminal.rows;
-                const wsUrl = import.meta.env.DEV
+
+                const isDev = process.env.NODE_ENV === 'development' &&
+                    (window.location.port === '3000' || window.location.port === '5173' || window.location.port === '');
+
+                const wsUrl = isDev
                     ? 'ws://localhost:8082'
                     : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ssh/websocket/`;
 
