@@ -731,8 +731,8 @@ function connectSSHTunnel(tunnelConfig: TunnelConfig, retryAttempt = 0): void {
         connOptions.password = tunnelConfig.sourcePassword;
     }
 
-    const currentStatus = connectionStatus.get(tunnelName);
-    if (!currentStatus || currentStatus.status !== CONNECTION_STATES.WAITING) {
+    const finalStatus = connectionStatus.get(tunnelName);
+    if (!finalStatus || finalStatus.status !== CONNECTION_STATES.WAITING) {
         broadcastTunnelStatus(tunnelName, {
             connected: false,
             status: CONNECTION_STATES.CONNECTING,
