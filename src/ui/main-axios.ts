@@ -894,7 +894,8 @@ export async function updateOIDCConfig(config: any): Promise<any> {
 
 export async function getUserAlerts(userId: string): Promise<{ alerts: any[] }> {
     try {
-        const response = await authApi.get(`/alerts/user/${userId}`);
+        const apiInstance = createApiInstance(isDev ? 'http://localhost:8081' : '');
+        const response = await apiInstance.get(`/alerts/user/${userId}`);
         return response.data;
     } catch (error) {
         handleApiError(error, 'fetch user alerts');
@@ -903,7 +904,9 @@ export async function getUserAlerts(userId: string): Promise<{ alerts: any[] }> 
 
 export async function dismissAlert(userId: string, alertId: string): Promise<any> {
     try {
-        const response = await authApi.post('/alerts/dismiss', { userId, alertId });
+        // Use the general API instance since alerts endpoint is at root level
+        const apiInstance = createApiInstance(isDev ? 'http://localhost:8081' : '');
+        const response = await apiInstance.post('/alerts/dismiss', { userId, alertId });
         return response.data;
     } catch (error) {
         handleApiError(error, 'dismiss alert');
@@ -916,7 +919,9 @@ export async function dismissAlert(userId: string, alertId: string): Promise<any
 
 export async function getReleasesRSS(perPage: number = 100): Promise<any> {
     try {
-        const response = await authApi.get(`/releases/rss?per_page=${perPage}`);
+        // Use the general API instance since releases endpoint is at root level
+        const apiInstance = createApiInstance(isDev ? 'http://localhost:8081' : '');
+        const response = await apiInstance.get(`/releases/rss?per_page=${perPage}`);
         return response.data;
     } catch (error) {
         handleApiError(error, 'fetch releases RSS');
@@ -925,7 +930,9 @@ export async function getReleasesRSS(perPage: number = 100): Promise<any> {
 
 export async function getVersionInfo(): Promise<any> {
     try {
-        const response = await authApi.get('/version/');
+        // Use the general API instance since version endpoint is at root level
+        const apiInstance = createApiInstance(isDev ? 'http://localhost:8081' : '');
+        const response = await apiInstance.get('/version/');
         return response.data;
     } catch (error) {
         handleApiError(error, 'fetch version info');

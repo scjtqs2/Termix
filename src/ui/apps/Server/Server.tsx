@@ -25,7 +25,7 @@ export function Server({
                            embedded = false
                        }: ServerProps): React.ReactElement {
     const {state: sidebarState} = useSidebar();
-    const {addTab} = useTabs() as any;
+    const {addTab, tabs} = useTabs() as any;
     const [serverStatus, setServerStatus] = React.useState<'online' | 'offline'>('offline');
     const [metrics, setMetrics] = React.useState<ServerMetrics | null>(null);
     const [currentHostConfig, setCurrentHostConfig] = React.useState(hostConfig);
@@ -116,6 +116,15 @@ export function Server({
     const leftMarginPx = sidebarState === 'collapsed' ? 16 : 8;
     const bottomMarginPx = 8;
 
+    // Check if a file manager tab for this host is already open
+    const isFileManagerAlreadyOpen = React.useMemo(() => {
+        if (!currentHostConfig) return false;
+        return tabs.some((tab: any) => 
+            tab.type === 'file_manager' && 
+            tab.hostConfig?.id === currentHostConfig.id
+        );
+    }, [tabs, currentHostConfig]);
+
     const wrapperStyle: React.CSSProperties = embedded
         ? {opacity: isVisible ? 1 : 0, height: '100%', width: '100%'}
         : {
@@ -169,8 +178,10 @@ export function Server({
                             <Button
                                 variant="outline"
                                 className="font-semibold"
+                                disabled={isFileManagerAlreadyOpen}
+                                title={isFileManagerAlreadyOpen ? "File Manager already open for this host" : "Open File Manager"}
                                 onClick={() => {
-                                    if (!currentHostConfig) return;
+                                    if (!currentHostConfig || isFileManagerAlreadyOpen) return;
                                     const titleBase = currentHostConfig?.name && currentHostConfig.name.trim() !== ''
                                         ? currentHostConfig.name.trim()
                                         : `${currentHostConfig.username}@${currentHostConfig.ip}`;

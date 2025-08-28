@@ -115,10 +115,29 @@ function buildSshConfig(host: HostRecord): ConnectConfig {
         (base as any).password = host.password || '';
     } else if (host.authType === 'key') {
         if (host.key) {
-            (base as any).privateKey = Buffer.from(host.key, 'utf8');
-        }
-        if (host.keyPassword) {
-            (base as any).passphrase = host.keyPassword;
+            try {
+                if (!host.key.includes('-----BEGIN') || !host.key.includes('-----END')) {
+                    throw new Error('Invalid private key format');
+                }
+                
+                const cleanKey = host.key.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                
+                (base as any).privateKey = Buffer.from(cleanKey, 'utf8');
+                
+                if (host.keyPassword) {
+                    (base as any).passphrase = host.keyPassword;
+                }
+                
+                logger.info(`SSH key authentication configured for host ${host.ip}`);
+            } catch (keyError) {
+                logger.error(`SSH key format error for host ${host.ip}: ${keyError.message}`);
+                if (host.password) {
+                    (base as any).password = host.password;
+                    logger.info(`Falling back to password authentication for host ${host.ip}`);
+                } else {
+                    throw new Error(`Invalid SSH key format for host ${host.ip}`);
+                }
+            }
         }
     }
     return base;
@@ -414,9 +433,3 @@ app.listen(PORT, async () => {
         logger.error('Initial poll failed', err);
     }
 });
-
-// Disable automatic background polling to prevent log flooding
-// setInterval(() => {
-//     pollStatusesOnce().catch(err => logger.error('Background poll failed', err));
-// }, 60_000);
-

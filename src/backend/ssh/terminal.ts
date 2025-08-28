@@ -294,12 +294,28 @@ wss.on('connection', (ws: WebSocket) => {
             }
         };
         if (authType === 'key' && key) {
-            connectConfig.privateKey = key;
-            if (keyPassword) {
-                connectConfig.passphrase = keyPassword;
-            }
-            if (keyType && keyType !== 'auto') {
-                connectConfig.privateKeyType = keyType;
+            try {
+                if (!key.includes('-----BEGIN') || !key.includes('-----END')) {
+                    throw new Error('Invalid private key format');
+                }
+             
+                const cleanKey = key.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                
+                connectConfig.privateKey = Buffer.from(cleanKey, 'utf8');
+                
+                if (keyPassword) {
+                    connectConfig.passphrase = keyPassword;
+                }
+                
+                if (keyType && keyType !== 'auto') {
+                    connectConfig.privateKeyType = keyType;
+                }
+                
+                logger.info('SSH key authentication configured successfully');
+            } catch (keyError) {
+                logger.error('SSH key format error: ' + keyError.message);
+                ws.send(JSON.stringify({type: 'error', message: 'SSH key format error: Invalid private key format'}));
+                return;
             }
         } else if (authType === 'key') {
             logger.error('SSH key authentication requested but no key provided');
