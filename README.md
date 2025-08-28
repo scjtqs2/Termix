@@ -13,33 +13,39 @@
 [![SQLite Badge](https://img.shields.io/badge/-SQLite-003B57?style=flat-square&labelColor=black&logo=sqlite&logoColor=003B57)](#)
 [![Radix UI Badge](https://img.shields.io/badge/-Radix%20UI-161618?style=flat-square&labelColor=black&logo=radixui&logoColor=161618)](#)
 
-
 <br />
 <p align="center">
   <a href="https://github.com/LukeGus/Termix">
-    <img alt="Termix Banner" src=./public/icon.svg style="width: 250px; height: auto;">  </a>
+    <img alt="Termix Banner" src=./repo-images/HeaderImage.png style="width: auto; height: auto;">  </a>
 </p>
 
 If you would like, you can support the project here!\
 [![GitHub Sponsor](https://img.shields.io/badge/Sponsor-LukeGus-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sponsors/LukeGus)
 
 # Overview
-Termix is an open-source, forever-free, self-hosted all-in-one server management platform. It provides a web-based solution for managing your servers and infrastructure through a single, intuitive interface. Termix offers SSH terminal access, SSH tunneling capabilities, and remote file configuration editing, with many more tools to come.
+
+<p align="center">
+  <a href="https://github.com/LukeGus/Termix">
+    <img alt="Termix Banner" src=./public/icon.svg style="width: 250px; height: 250px;">  </a>
+</p>
+
+Termix is an open-source, forever-free, self-hosted all-in-one server management platform. It provides a web-based solution for managing your servers and infrastructure through a single, intuitive interface. Termix offers SSH terminal access, SSH tunneling capabilities, and remote file editing, with many more tools to come.
 
 # Features
 - **SSH Terminal Access** - Full-featured terminal with split-screen support (up to 4 panels) and tab system
 - **SSH Tunnel Management** - Create and manage SSH tunnels with automatic reconnection and health monitoring
-- **Remote Config Editor** - Edit files directly on remote servers with syntax highlighting and file management
+- **Remote File Editor** - Edit files directly on remote servers with syntax highlighting, file management features (uploading, removing, renaming, deleting files)
 - **SSH Host Manager** - Save, organize, and manage your SSH connections with tags and folders
+- **Server Stats** - View CPU, memory, and HDD usage on any SSH server
 - **User Authentication** - Secure user management with admin controls and OIDC support with more auth types planned
-- **Modern UI** - Clean interface built with React, Tailwind CSS, and the amazing Shadcn
+- **Modern UI** - Clean interface built with React, Tailwind CSS, and Shadcn
 
 # Planned Features
-- **Improved Admin Control** - Ability to manage admins, and give more fine-grained control over their permissions, share hosts, reset passwords, delete accounts, etc
+- **Improved Admin Control** - Give more fine-grained control over user and admin permissions, share hosts, etc
 - **More auth types** - Add 2FA, TOTP, etc
 - **Theming** - Modify themeing for all tools
-- **Improved SFTP Support** - Ability to manage files easier with the config editor by uploading, creating, and removing files
 - **Improved Terminal Support** - Add more terminal protocols such as VNC and RDP (anyone who has experience in integrating RDP into a web-application similar to Apache Guacamole, please contact me by creating an issue)
+- **Mobile Support** - Support a mobile app or version of the Termix website to manage servers from your phone
 
 # Installation
 Visit the Termix [Docs](https://docs.termix.site/docs) for more information on how to install Termix. Otherwise, view a sample docker-compose file here:
@@ -78,7 +84,7 @@ If you need help with Termix, you can join the [Discord](https://discord.gg/jVQG
 </p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/0f95495d-c5db-48f5-b18b-9ab48bb10d31" width="800" controls>
+  <video src="https://github.com/user-attachments/assets/f9caa061-10dc-4173-ae7d-c6d42f05cf56" width="800" controls>
     Your browser does not support the video tag.
   </video>
 </p>

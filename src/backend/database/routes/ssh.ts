@@ -1,6 +1,6 @@
 import express from 'express';
 import {db} from '../db/index.js';
-import {sshData, configEditorRecent, configEditorPinned, configEditorShortcuts} from '../db/schema.js';
+import {sshData, fileManagerRecent, fileManagerPinned, fileManagerShortcuts} from '../db/schema.js';
 import {eq, and, desc} from 'drizzle-orm';
 import chalk from 'chalk';
 import jwt from 'jsonwebtoken';
@@ -94,7 +94,6 @@ router.get('/db/host/internal', async (req: Request, res: Response) => {
     }
     try {
         const data = await db.select().from(sshData);
-        // Convert tags to array, booleans to bool, tunnelConnections to array
         const result = data.map((row: any) => ({
             ...row,
             tags: typeof row.tags === 'string' ? (row.tags ? row.tags.split(',').filter(Boolean) : []) : [],
@@ -102,7 +101,7 @@ router.get('/db/host/internal', async (req: Request, res: Response) => {
             enableTerminal: !!row.enableTerminal,
             enableTunnel: !!row.enableTunnel,
             tunnelConnections: row.tunnelConnections ? JSON.parse(row.tunnelConnections) : [],
-            enableConfigEditor: !!row.enableConfigEditor,
+            enableFileManager: !!row.enableFileManager,
         }));
         res.json(result);
     } catch (err) {
@@ -116,9 +115,7 @@ router.get('/db/host/internal', async (req: Request, res: Response) => {
 router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Request, res: Response) => {
     let hostData: any;
 
-    // Check if this is a multipart form data request (file upload)
     if (req.headers['content-type']?.includes('multipart/form-data')) {
-        // Parse the JSON data from the 'data' field
         if (req.body.data) {
             try {
                 hostData = JSON.parse(req.body.data);
@@ -131,12 +128,10 @@ router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Reque
             return res.status(400).json({error: 'Missing data field'});
         }
 
-        // Add the file data if present
         if (req.file) {
             hostData.key = req.file.buffer.toString('utf8');
         }
     } else {
-        // Regular JSON request
         hostData = req.body;
     }
 
@@ -155,7 +150,7 @@ router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Reque
         pin,
         enableTerminal,
         enableTunnel,
-        enableConfigEditor,
+        enableFileManager,
         defaultPath,
         tunnelConnections
     } = hostData;
@@ -178,7 +173,7 @@ router.post('/db/host', authenticateJWT, upload.single('key'), async (req: Reque
         enableTerminal: !!enableTerminal ? 1 : 0,
         enableTunnel: !!enableTunnel ? 1 : 0,
         tunnelConnections: Array.isArray(tunnelConnections) ? JSON.stringify(tunnelConnections) : null,
-        enableConfigEditor: !!enableConfigEditor ? 1 : 0,
+        enableFileManager: !!enableFileManager ? 1 : 0,
         defaultPath: defaultPath || null,
     };
 
@@ -243,7 +238,7 @@ router.put('/db/host/:id', authenticateJWT, upload.single('key'), async (req: Re
         pin,
         enableTerminal,
         enableTunnel,
-        enableConfigEditor,
+        enableFileManager,
         defaultPath,
         tunnelConnections
     } = hostData;
@@ -266,7 +261,7 @@ router.put('/db/host/:id', authenticateJWT, upload.single('key'), async (req: Re
         enableTerminal: !!enableTerminal ? 1 : 0,
         enableTunnel: !!enableTunnel ? 1 : 0,
         tunnelConnections: Array.isArray(tunnelConnections) ? JSON.stringify(tunnelConnections) : null,
-        enableConfigEditor: !!enableConfigEditor ? 1 : 0,
+        enableFileManager: !!enableFileManager ? 1 : 0,
         defaultPath: defaultPath || null,
     };
 
@@ -313,7 +308,7 @@ router.get('/db/host', authenticateJWT, async (req: Request, res: Response) => {
             enableTerminal: !!row.enableTerminal,
             enableTunnel: !!row.enableTunnel,
             tunnelConnections: row.tunnelConnections ? JSON.parse(row.tunnelConnections) : [],
-            enableConfigEditor: !!row.enableConfigEditor,
+            enableFileManager: !!row.enableFileManager,
         }));
         res.json(result);
     } catch (err) {
@@ -351,7 +346,7 @@ router.get('/db/host/:id', authenticateJWT, async (req: Request, res: Response) 
             enableTerminal: !!host.enableTerminal,
             enableTunnel: !!host.enableTunnel,
             tunnelConnections: host.tunnelConnections ? JSON.parse(host.tunnelConnections) : [],
-            enableConfigEditor: !!host.enableConfigEditor,
+            enableFileManager: !!host.enableFileManager,
         };
 
         res.json(result);
@@ -411,8 +406,8 @@ router.delete('/db/host/:id', authenticateJWT, async (req: Request, res: Respons
 });
 
 // Route: Get recent files (requires JWT)
-// GET /ssh/config_editor/recent
-router.get('/config_editor/recent', authenticateJWT, async (req: Request, res: Response) => {
+// GET /ssh/file_manager/recent
+router.get('/file_manager/recent', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const hostId = req.query.hostId ? parseInt(req.query.hostId as string) : null;
 
@@ -429,12 +424,12 @@ router.get('/config_editor/recent', authenticateJWT, async (req: Request, res: R
     try {
         const recentFiles = await db
             .select()
-            .from(configEditorRecent)
+            .from(fileManagerRecent)
             .where(and(
-                eq(configEditorRecent.userId, userId),
-                eq(configEditorRecent.hostId, hostId)
+                eq(fileManagerRecent.userId, userId),
+                eq(fileManagerRecent.hostId, hostId)
             ))
-            .orderBy(desc(configEditorRecent.lastOpened));
+            .orderBy(desc(fileManagerRecent.lastOpened));
         res.json(recentFiles);
     } catch (err) {
         logger.error('Failed to fetch recent files', err);
@@ -443,8 +438,8 @@ router.get('/config_editor/recent', authenticateJWT, async (req: Request, res: R
 });
 
 // Route: Add file to recent (requires JWT)
-// POST /ssh/config_editor/recent
-router.post('/config_editor/recent', authenticateJWT, async (req: Request, res: Response) => {
+// POST /ssh/file_manager/recent
+router.post('/file_manager/recent', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -453,24 +448,23 @@ router.post('/config_editor/recent', authenticateJWT, async (req: Request, res: 
     }
     try {
         const conditions = [
-            eq(configEditorRecent.userId, userId),
-            eq(configEditorRecent.path, path),
-            eq(configEditorRecent.hostId, hostId)
+            eq(fileManagerRecent.userId, userId),
+            eq(fileManagerRecent.path, path),
+            eq(fileManagerRecent.hostId, hostId)
         ];
 
         const existing = await db
             .select()
-            .from(configEditorRecent)
+            .from(fileManagerRecent)
             .where(and(...conditions));
 
         if (existing.length > 0) {
             await db
-                .update(configEditorRecent)
+                .update(fileManagerRecent)
                 .set({lastOpened: new Date().toISOString()})
                 .where(and(...conditions));
         } else {
-            // Add new recent file
-            await db.insert(configEditorRecent).values({
+            await db.insert(fileManagerRecent).values({
                 userId,
                 hostId,
                 name,
@@ -486,8 +480,8 @@ router.post('/config_editor/recent', authenticateJWT, async (req: Request, res: 
 });
 
 // Route: Remove file from recent (requires JWT)
-// DELETE /ssh/config_editor/recent
-router.delete('/config_editor/recent', authenticateJWT, async (req: Request, res: Response) => {
+// DELETE /ssh/file_manager/recent
+router.delete('/file_manager/recent', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -496,13 +490,13 @@ router.delete('/config_editor/recent', authenticateJWT, async (req: Request, res
     }
     try {
         const conditions = [
-            eq(configEditorRecent.userId, userId),
-            eq(configEditorRecent.path, path),
-            eq(configEditorRecent.hostId, hostId)
+            eq(fileManagerRecent.userId, userId),
+            eq(fileManagerRecent.path, path),
+            eq(fileManagerRecent.hostId, hostId)
         ];
 
         const result = await db
-            .delete(configEditorRecent)
+            .delete(fileManagerRecent)
             .where(and(...conditions));
         res.json({message: 'File removed from recent'});
     } catch (err) {
@@ -512,8 +506,8 @@ router.delete('/config_editor/recent', authenticateJWT, async (req: Request, res
 });
 
 // Route: Get pinned files (requires JWT)
-// GET /ssh/config_editor/pinned
-router.get('/config_editor/pinned', authenticateJWT, async (req: Request, res: Response) => {
+// GET /ssh/file_manager/pinned
+router.get('/file_manager/pinned', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const hostId = req.query.hostId ? parseInt(req.query.hostId as string) : null;
 
@@ -530,12 +524,12 @@ router.get('/config_editor/pinned', authenticateJWT, async (req: Request, res: R
     try {
         const pinnedFiles = await db
             .select()
-            .from(configEditorPinned)
+            .from(fileManagerPinned)
             .where(and(
-                eq(configEditorPinned.userId, userId),
-                eq(configEditorPinned.hostId, hostId)
+                eq(fileManagerPinned.userId, userId),
+                eq(fileManagerPinned.hostId, hostId)
             ))
-            .orderBy(configEditorPinned.pinnedAt);
+            .orderBy(fileManagerPinned.pinnedAt);
         res.json(pinnedFiles);
     } catch (err) {
         logger.error('Failed to fetch pinned files', err);
@@ -544,8 +538,8 @@ router.get('/config_editor/pinned', authenticateJWT, async (req: Request, res: R
 });
 
 // Route: Add file to pinned (requires JWT)
-// POST /ssh/config_editor/pinned
-router.post('/config_editor/pinned', authenticateJWT, async (req: Request, res: Response) => {
+// POST /ssh/file_manager/pinned
+router.post('/file_manager/pinned', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -554,18 +548,18 @@ router.post('/config_editor/pinned', authenticateJWT, async (req: Request, res: 
     }
     try {
         const conditions = [
-            eq(configEditorPinned.userId, userId),
-            eq(configEditorPinned.path, path),
-            eq(configEditorPinned.hostId, hostId)
+            eq(fileManagerPinned.userId, userId),
+            eq(fileManagerPinned.path, path),
+            eq(fileManagerPinned.hostId, hostId)
         ];
 
         const existing = await db
             .select()
-            .from(configEditorPinned)
+            .from(fileManagerPinned)
             .where(and(...conditions));
 
         if (existing.length === 0) {
-            await db.insert(configEditorPinned).values({
+            await db.insert(fileManagerPinned).values({
                 userId,
                 hostId,
                 name,
@@ -581,8 +575,8 @@ router.post('/config_editor/pinned', authenticateJWT, async (req: Request, res: 
 });
 
 // Route: Remove file from pinned (requires JWT)
-// DELETE /ssh/config_editor/pinned
-router.delete('/config_editor/pinned', authenticateJWT, async (req: Request, res: Response) => {
+// DELETE /ssh/file_manager/pinned
+router.delete('/file_manager/pinned', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -591,13 +585,13 @@ router.delete('/config_editor/pinned', authenticateJWT, async (req: Request, res
     }
     try {
         const conditions = [
-            eq(configEditorPinned.userId, userId),
-            eq(configEditorPinned.path, path),
-            eq(configEditorPinned.hostId, hostId)
+            eq(fileManagerPinned.userId, userId),
+            eq(fileManagerPinned.path, path),
+            eq(fileManagerPinned.hostId, hostId)
         ];
 
         const result = await db
-            .delete(configEditorPinned)
+            .delete(fileManagerPinned)
             .where(and(...conditions));
         res.json({message: 'File unpinned successfully'});
     } catch (err) {
@@ -607,8 +601,8 @@ router.delete('/config_editor/pinned', authenticateJWT, async (req: Request, res
 });
 
 // Route: Get folder shortcuts (requires JWT)
-// GET /ssh/config_editor/shortcuts
-router.get('/config_editor/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
+// GET /ssh/file_manager/shortcuts
+router.get('/file_manager/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const hostId = req.query.hostId ? parseInt(req.query.hostId as string) : null;
 
@@ -623,12 +617,12 @@ router.get('/config_editor/shortcuts', authenticateJWT, async (req: Request, res
     try {
         const shortcuts = await db
             .select()
-            .from(configEditorShortcuts)
+            .from(fileManagerShortcuts)
             .where(and(
-                eq(configEditorShortcuts.userId, userId),
-                eq(configEditorShortcuts.hostId, hostId)
+                eq(fileManagerShortcuts.userId, userId),
+                eq(fileManagerShortcuts.hostId, hostId)
             ))
-            .orderBy(configEditorShortcuts.createdAt);
+            .orderBy(fileManagerShortcuts.createdAt);
         res.json(shortcuts);
     } catch (err) {
         logger.error('Failed to fetch shortcuts', err);
@@ -637,8 +631,8 @@ router.get('/config_editor/shortcuts', authenticateJWT, async (req: Request, res
 });
 
 // Route: Add folder shortcut (requires JWT)
-// POST /ssh/config_editor/shortcuts
-router.post('/config_editor/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
+// POST /ssh/file_manager/shortcuts
+router.post('/file_manager/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -646,18 +640,18 @@ router.post('/config_editor/shortcuts', authenticateJWT, async (req: Request, re
     }
     try {
         const conditions = [
-            eq(configEditorShortcuts.userId, userId),
-            eq(configEditorShortcuts.path, path),
-            eq(configEditorShortcuts.hostId, hostId)
+            eq(fileManagerShortcuts.userId, userId),
+            eq(fileManagerShortcuts.path, path),
+            eq(fileManagerShortcuts.hostId, hostId)
         ];
 
         const existing = await db
             .select()
-            .from(configEditorShortcuts)
+            .from(fileManagerShortcuts)
             .where(and(...conditions));
 
         if (existing.length === 0) {
-            await db.insert(configEditorShortcuts).values({
+            await db.insert(fileManagerShortcuts).values({
                 userId,
                 hostId,
                 name,
@@ -673,8 +667,8 @@ router.post('/config_editor/shortcuts', authenticateJWT, async (req: Request, re
 });
 
 // Route: Remove folder shortcut (requires JWT)
-// DELETE /ssh/config_editor/shortcuts
-router.delete('/config_editor/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
+// DELETE /ssh/file_manager/shortcuts
+router.delete('/file_manager/shortcuts', authenticateJWT, async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const {name, path, hostId} = req.body;
     if (!isNonEmptyString(userId) || !name || !path || !hostId) {
@@ -682,19 +676,131 @@ router.delete('/config_editor/shortcuts', authenticateJWT, async (req: Request, 
     }
     try {
         const conditions = [
-            eq(configEditorShortcuts.userId, userId),
-            eq(configEditorShortcuts.path, path),
-            eq(configEditorShortcuts.hostId, hostId)
+            eq(fileManagerShortcuts.userId, userId),
+            eq(fileManagerShortcuts.path, path),
+            eq(fileManagerShortcuts.hostId, hostId)
         ];
 
         const result = await db
-            .delete(configEditorShortcuts)
+            .delete(fileManagerShortcuts)
             .where(and(...conditions));
         res.json({message: 'Shortcut removed successfully'});
     } catch (err) {
         logger.error('Failed to remove shortcut', err);
         res.status(500).json({error: 'Failed to remove shortcut'});
     }
+});
+
+// Route: Bulk import SSH hosts from JSON (requires JWT)
+// POST /ssh/bulk-import
+router.post('/bulk-import', authenticateJWT, async (req: Request, res: Response) => {
+    const userId = (req as any).userId;
+    const {hosts} = req.body;
+
+    if (!Array.isArray(hosts) || hosts.length === 0) {
+        logger.warn('Invalid bulk import data - hosts array is required and must not be empty');
+        return res.status(400).json({error: 'Hosts array is required and must not be empty'});
+    }
+
+    if (hosts.length > 100) {
+        logger.warn(`Bulk import attempted with too many hosts: ${hosts.length}`);
+        return res.status(400).json({error: 'Maximum 100 hosts allowed per import'});
+    }
+
+    const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as string[]
+    };
+
+    for (let i = 0; i < hosts.length; i++) {
+        const hostData = hosts[i];
+
+        try {
+            if (!isNonEmptyString(hostData.ip) || !isValidPort(hostData.port) || !isNonEmptyString(hostData.username)) {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: Missing or invalid required fields (ip, port, username)`);
+                continue;
+            }
+
+            if (hostData.authType !== 'password' && hostData.authType !== 'key') {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: Invalid authType. Must be 'password' or 'key'`);
+                continue;
+            }
+
+            if (hostData.authType === 'password' && !isNonEmptyString(hostData.password)) {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: Password required for password authentication`);
+                continue;
+            }
+
+            if (hostData.authType === 'key' && !isNonEmptyString(hostData.key)) {
+                results.failed++;
+                results.errors.push(`Host ${i + 1}: SSH key required for key authentication`);
+                continue;
+            }
+
+            if (hostData.enableTunnel && Array.isArray(hostData.tunnelConnections)) {
+                for (let j = 0; j < hostData.tunnelConnections.length; j++) {
+                    const conn = hostData.tunnelConnections[j];
+                    if (!isValidPort(conn.sourcePort) || !isValidPort(conn.endpointPort) || !isNonEmptyString(conn.endpointHost)) {
+                        results.failed++;
+                        results.errors.push(`Host ${i + 1}, Tunnel ${j + 1}: Invalid tunnel connection data`);
+                        break;
+                    }
+                }
+            }
+
+            const sshDataObj: any = {
+                userId: userId,
+                name: hostData.name || '',
+                folder: hostData.folder || '',
+                tags: Array.isArray(hostData.tags) ? hostData.tags.join(',') : (hostData.tags || ''),
+                ip: hostData.ip,
+                port: hostData.port,
+                username: hostData.username,
+                authType: hostData.authType,
+                pin: !!hostData.pin ? 1 : 0,
+                enableTerminal: !!hostData.enableTerminal ? 1 : 0,
+                enableTunnel: !!hostData.enableTunnel ? 1 : 0,
+                tunnelConnections: Array.isArray(hostData.tunnelConnections) ? JSON.stringify(hostData.tunnelConnections) : null,
+                enableFileManager: !!hostData.enableFileManager ? 1 : 0,
+                defaultPath: hostData.defaultPath || null,
+            };
+
+            if (hostData.authType === 'password') {
+                sshDataObj.password = hostData.password;
+                sshDataObj.key = null;
+                sshDataObj.keyPassword = null;
+                sshDataObj.keyType = null;
+            } else if (hostData.authType === 'key') {
+                sshDataObj.key = hostData.key;
+                sshDataObj.keyPassword = hostData.keyPassword || null;
+                sshDataObj.keyType = hostData.keyType || null;
+                sshDataObj.password = null;
+            }
+
+            await db.insert(sshData).values(sshDataObj);
+            results.success++;
+
+        } catch (err) {
+            results.failed++;
+            results.errors.push(`Host ${i + 1}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            logger.error(`Failed to import host ${i + 1}:`, err);
+        }
+    }
+
+    if (results.success > 0) {
+        logger.success(`Bulk import completed: ${results.success} successful, ${results.failed} failed`);
+    } else {
+        logger.warn(`Bulk import failed: ${results.failed} failed`);
+    }
+
+    res.json({
+        message: `Import completed: ${results.success} successful, ${results.failed} failed`,
+        ...results
+    });
 });
 
 export default router; 

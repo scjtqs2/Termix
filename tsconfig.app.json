@@ -6,16 +6,12 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-
-    /* Linting - Made extremely permissive */
     "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
@@ -31,8 +27,6 @@
     "allowUnreachableCode": true,
     "noImplicitOverride": false,
     "noEmitOnError": false,
-
-    /* shadcn */
     "baseUrl": ".",
     "paths": {
       "@/*": [
