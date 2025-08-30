@@ -411,6 +411,11 @@ const migrateSchema = () => {
     addColumnIfNotExists('users', 'identifier_path', 'TEXT');
     addColumnIfNotExists('users', 'name_path', 'TEXT');
     addColumnIfNotExists('users', 'scopes', 'TEXT');
+    
+    // Add TOTP columns
+    addColumnIfNotExists('users', 'totp_secret', 'TEXT');
+    addColumnIfNotExists('users', 'totp_enabled', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfNotExists('users', 'totp_backup_codes', 'TEXT');
 
     addColumnIfNotExists('ssh_data', 'name', 'TEXT');
     addColumnIfNotExists('ssh_data', 'folder', 'TEXT');
