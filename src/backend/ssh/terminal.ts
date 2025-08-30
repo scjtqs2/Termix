@@ -137,7 +137,7 @@ wss.on('connection', (ws: WebSocket) => {
                 ws.send(JSON.stringify({type: 'error', message: 'SSH connection timeout'}));
                 cleanupSSH(connectionTimeout);
             }
-        }, 15000);
+        }, 60000);
 
         sshConn.on('ready', () => {
             clearTimeout(connectionTimeout);
@@ -217,7 +217,7 @@ wss.on('connection', (ws: WebSocket) => {
             username,
             keepaliveInterval: 30000,
             keepaliveCountMax: 3,
-            readyTimeout: 10000,
+            readyTimeout: 60000,
             tcpKeepAlive: true,
             tcpKeepAliveInitialDelay: 30000,
 

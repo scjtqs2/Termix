@@ -6,6 +6,7 @@ import {HostManager} from "@/ui/apps/Host Manager/HostManager.tsx"
 import {TabProvider, useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 import { AdminSettings } from "@/ui/Admin/AdminSettings";
+import { UserProfile } from "@/ui/UserProfile";
 import { Toaster } from "@/components/ui/sonner";
 import { getUserInfo } from "@/ui/main-axios.ts";
 
@@ -86,6 +87,7 @@ function AppContent() {
     const showHome = currentTabData?.type === 'home';
     const showSshManager = currentTabData?.type === 'ssh_manager';
     const showAdmin = currentTabData?.type === 'admin';
+    const showProfile = currentTabData?.type === 'profile';
 
     return (
         <div>
@@ -185,6 +187,20 @@ function AppContent() {
                         }}
                     >
                         <AdminSettings isTopbarOpen={isTopbarOpen} />
+                    </div>
+
+                    <div
+                        className="h-screen w-full"
+                        style={{
+                            visibility: showProfile ? "visible" : "hidden",
+                            pointerEvents: showProfile ? "auto" : "none",
+                            height: showProfile ? "100vh" : 0,
+                            width: showProfile ? "100%" : 0,
+                            position: showProfile ? "static" : "absolute",
+                            overflow: "hidden",
+                        }}
+                    >
+                        <UserProfile isTopbarOpen={isTopbarOpen} />
                     </div>
 
                     <TopNavbar isTopbarOpen={isTopbarOpen} setIsTopbarOpen={setIsTopbarOpen}/>

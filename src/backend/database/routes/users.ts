@@ -6,6 +6,8 @@ import chalk from 'chalk';
 import bcrypt from 'bcryptjs';
 import {nanoid} from 'nanoid';
 import jwt from 'jsonwebtoken';
+import speakeasy from 'speakeasy';
+import QRCode from 'qrcode';
 import type {Request, Response, NextFunction} from 'express';
 
 async function verifyOIDCToken(idToken: string, issuerUrl: string, clientId: string): Promise<any> {
@@ -206,6 +208,9 @@ router.post('/create', async (req, res) => {
             identifier_path: '',
             name_path: '',
             scopes: 'openid email profile',
+            totp_secret: null,
+            totp_enabled: false,
+            totp_backup_codes: null,
         });
 
         logger.success(`Traditional user created: ${username} (is_admin: ${isFirstUser})`);
@@ -546,6 +551,17 @@ router.post('/login', async (req, res) => {
             expiresIn: '50d',
         });
 
+        if (userRecord.totp_enabled) {
+            return res.json({
+                requires_totp: true,
+                temp_token: jwt.sign(
+                    {userId: userRecord.id, pending_totp: true},
+                    jwtSecret,
+                    {expiresIn: '10m'}
+                )
+            });
+        }
+
         return res.json({
             token,
             is_admin: !!userRecord.is_admin,
@@ -579,7 +595,8 @@ router.get('/me', authenticateJWT, async (req: Request, res: Response) => {
             userId: user[0].id,
             username: user[0].username,
             is_admin: !!user[0].is_admin,
-            is_oidc: !!user[0].is_oidc
+            is_oidc: !!user[0].is_oidc,
+            totp_enabled: !!user[0].totp_enabled
         });
     } catch (err) {
         logger.error('Failed to get username', err);
@@ -926,6 +943,285 @@ router.post('/remove-admin', authenticateJWT, async (req, res) => {
     } catch (err) {
         logger.error('Failed to remove admin status', err);
         res.status(500).json({error: 'Failed to remove admin status'});
+    }
+});
+
+// Route: Verify TOTP during login
+// POST /users/totp/verify-login
+router.post('/totp/verify-login', async (req, res) => {
+    const {temp_token, totp_code} = req.body;
+
+    if (!temp_token || !totp_code) {
+        return res.status(400).json({error: 'Token and TOTP code are required'});
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'secret';
+    
+    try {
+        const decoded = jwt.verify(temp_token, jwtSecret) as any;
+        if (!decoded.pending_totp) {
+            return res.status(401).json({error: 'Invalid temporary token'});
+        }
+
+        const user = await db.select().from(users).where(eq(users.id, decoded.userId));
+        if (!user || user.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        const userRecord = user[0];
+        
+        if (!userRecord.totp_enabled || !userRecord.totp_secret) {
+            return res.status(400).json({error: 'TOTP not enabled for this user'});
+        }
+
+        const verified = speakeasy.totp.verify({
+            secret: userRecord.totp_secret,
+            encoding: 'base32',
+            token: totp_code,
+            window: 2
+        });
+
+        if (!verified) {
+            const backupCodes = userRecord.totp_backup_codes ? JSON.parse(userRecord.totp_backup_codes) : [];
+            const backupIndex = backupCodes.indexOf(totp_code);
+            
+            if (backupIndex === -1) {
+                return res.status(401).json({error: 'Invalid TOTP code'});
+            }
+            
+            backupCodes.splice(backupIndex, 1);
+            await db.update(users)
+                .set({totp_backup_codes: JSON.stringify(backupCodes)})
+                .where(eq(users.id, userRecord.id));
+        }
+
+        const token = jwt.sign({userId: userRecord.id}, jwtSecret, {
+            expiresIn: '50d',
+        });
+
+        return res.json({
+            token,
+            is_admin: !!userRecord.is_admin,
+            username: userRecord.username
+        });
+
+    } catch (err) {
+        logger.error('TOTP verification failed', err);
+        return res.status(500).json({error: 'TOTP verification failed'});
+    }
+});
+
+// Route: Setup TOTP
+// POST /users/totp/setup
+router.post('/totp/setup', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    
+    try {
+        const user = await db.select().from(users).where(eq(users.id, userId));
+        if (!user || user.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        const userRecord = user[0];
+        
+        if (userRecord.totp_enabled) {
+            return res.status(400).json({error: 'TOTP is already enabled'});
+        }
+
+        const secret = speakeasy.generateSecret({
+            name: `Termix (${userRecord.username})`,
+            length: 32
+        });
+
+        await db.update(users)
+            .set({totp_secret: secret.base32})
+            .where(eq(users.id, userId));
+
+        const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url || '');
+
+        res.json({
+            secret: secret.base32,
+            qr_code: qrCodeUrl
+        });
+
+    } catch (err) {
+        logger.error('Failed to setup TOTP', err);
+        res.status(500).json({error: 'Failed to setup TOTP'});
+    }
+});
+
+// Route: Enable TOTP
+// POST /users/totp/enable
+router.post('/totp/enable', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    const {totp_code} = req.body;
+
+    if (!totp_code) {
+        return res.status(400).json({error: 'TOTP code is required'});
+    }
+
+    try {
+        const user = await db.select().from(users).where(eq(users.id, userId));
+        if (!user || user.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        const userRecord = user[0];
+        
+        if (userRecord.totp_enabled) {
+            return res.status(400).json({error: 'TOTP is already enabled'});
+        }
+
+        if (!userRecord.totp_secret) {
+            return res.status(400).json({error: 'TOTP setup not initiated'});
+        }
+
+        const verified = speakeasy.totp.verify({
+            secret: userRecord.totp_secret,
+            encoding: 'base32',
+            token: totp_code,
+            window: 2
+        });
+
+        if (!verified) {
+            return res.status(401).json({error: 'Invalid TOTP code'});
+        }
+
+        const backupCodes = Array.from({length: 8}, () => 
+            Math.random().toString(36).substring(2, 10).toUpperCase()
+        );
+
+        await db.update(users)
+            .set({
+                totp_enabled: true,
+                totp_backup_codes: JSON.stringify(backupCodes)
+            })
+            .where(eq(users.id, userId));
+
+        res.json({
+            message: 'TOTP enabled successfully',
+            backup_codes: backupCodes
+        });
+
+    } catch (err) {
+        logger.error('Failed to enable TOTP', err);
+        res.status(500).json({error: 'Failed to enable TOTP'});
+    }
+});
+
+// Route: Disable TOTP
+// POST /users/totp/disable
+router.post('/totp/disable', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    const {password, totp_code} = req.body;
+
+    if (!password && !totp_code) {
+        return res.status(400).json({error: 'Password or TOTP code is required'});
+    }
+
+    try {
+        const user = await db.select().from(users).where(eq(users.id, userId));
+        if (!user || user.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        const userRecord = user[0];
+        
+        if (!userRecord.totp_enabled) {
+            return res.status(400).json({error: 'TOTP is not enabled'});
+        }
+
+        if (password && !userRecord.is_oidc) {
+            const isMatch = await bcrypt.compare(password, userRecord.password_hash);
+            if (!isMatch) {
+                return res.status(401).json({error: 'Incorrect password'});
+            }
+        } else if (totp_code) {
+            const verified = speakeasy.totp.verify({
+                secret: userRecord.totp_secret!,
+                encoding: 'base32',
+                token: totp_code,
+                window: 2
+            });
+
+            if (!verified) {
+                return res.status(401).json({error: 'Invalid TOTP code'});
+            }
+        } else {
+            return res.status(400).json({error: 'Authentication required'});
+        }
+
+        await db.update(users)
+            .set({
+                totp_enabled: false,
+                totp_secret: null,
+                totp_backup_codes: null
+            })
+            .where(eq(users.id, userId));
+
+        res.json({message: 'TOTP disabled successfully'});
+
+    } catch (err) {
+        logger.error('Failed to disable TOTP', err);
+        res.status(500).json({error: 'Failed to disable TOTP'});
+    }
+});
+
+// Route: Generate new backup codes
+// POST /users/totp/backup-codes
+router.post('/totp/backup-codes', authenticateJWT, async (req, res) => {
+    const userId = (req as any).userId;
+    const {password, totp_code} = req.body;
+
+    if (!password && !totp_code) {
+        return res.status(400).json({error: 'Password or TOTP code is required'});
+    }
+
+    try {
+        const user = await db.select().from(users).where(eq(users.id, userId));
+        if (!user || user.length === 0) {
+            return res.status(404).json({error: 'User not found'});
+        }
+
+        const userRecord = user[0];
+        
+        if (!userRecord.totp_enabled) {
+            return res.status(400).json({error: 'TOTP is not enabled'});
+        }
+
+        if (password && !userRecord.is_oidc) {
+            const isMatch = await bcrypt.compare(password, userRecord.password_hash);
+            if (!isMatch) {
+                return res.status(401).json({error: 'Incorrect password'});
+            }
+        } else if (totp_code) {
+            const verified = speakeasy.totp.verify({
+                secret: userRecord.totp_secret!,
+                encoding: 'base32',
+                token: totp_code,
+                window: 2
+            });
+
+            if (!verified) {
+                return res.status(401).json({error: 'Invalid TOTP code'});
+            }
+        } else {
+            return res.status(400).json({error: 'Authentication required'});
+        }
+
+        const backupCodes = Array.from({length: 8}, () => 
+            Math.random().toString(36).substring(2, 10).toUpperCase()
+        );
+
+        await db.update(users)
+            .set({totp_backup_codes: JSON.stringify(backupCodes)})
+            .where(eq(users.id, userId));
+
+        res.json({backup_codes: backupCodes});
+
+    } catch (err) {
+        logger.error('Failed to generate backup codes', err);
+        res.status(500).json({error: 'Failed to generate backup codes'});
     }
 });
 

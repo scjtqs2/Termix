@@ -497,6 +497,20 @@ export function LeftSidebar({
                                         sideOffset={6}
                                         className="min-w-[var(--radix-popper-anchor-width)] bg-sidebar-accent text-sidebar-accent-foreground border border-border rounded-md shadow-2xl p-1"
                                     >
+                                        <DropdownMenuItem
+                                            className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none"
+                                            onClick={() => {
+                                                if (isSplitScreenActive) return;
+                                                const profileTab = tabList.find((t: any) => t.type === 'profile');
+                                                if (profileTab) {
+                                                    setCurrentTab(profileTab.id);
+                                                    return;
+                                                }
+                                                const id = addTab({type: 'profile', title: 'Profile'} as any);
+                                                setCurrentTab(id);
+                                            }}>
+                                            <span>Profile & Security</span>
+                                        </DropdownMenuItem>
                                         {isAdmin && (
                                             <DropdownMenuItem
                                                 className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none"

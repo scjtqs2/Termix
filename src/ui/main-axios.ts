@@ -892,6 +892,56 @@ export async function updateOIDCConfig(config: any): Promise<any> {
 // ALERTS
 // ============================================================================
 
+export async function setupTOTP(): Promise<{ secret: string; qr_code: string }> {
+    try {
+        const response = await authApi.post('/users/totp/setup');
+        return response.data;
+    } catch (error) {
+        handleApiError(error as AxiosError);
+        throw error;
+    }
+}
+
+export async function enableTOTP(totp_code: string): Promise<{ message: string; backup_codes: string[] }> {
+    try {
+        const response = await authApi.post('/users/totp/enable', { totp_code });
+        return response.data;
+    } catch (error) {
+        handleApiError(error as AxiosError);
+        throw error;
+    }
+}
+
+export async function disableTOTP(password?: string, totp_code?: string): Promise<{ message: string }> {
+    try {
+        const response = await authApi.post('/users/totp/disable', { password, totp_code });
+        return response.data;
+    } catch (error) {
+        handleApiError(error as AxiosError);
+        throw error;
+    }
+}
+
+export async function verifyTOTPLogin(temp_token: string, totp_code: string): Promise<AuthResponse> {
+    try {
+        const response = await authApi.post('/users/totp/verify-login', { temp_token, totp_code });
+        return response.data;
+    } catch (error) {
+        handleApiError(error as AxiosError);
+        throw error;
+    }
+}
+
+export async function generateBackupCodes(password?: string, totp_code?: string): Promise<{ backup_codes: string[] }> {
+    try {
+        const response = await authApi.post('/users/totp/backup-codes', { password, totp_code });
+        return response.data;
+    } catch (error) {
+        handleApiError(error as AxiosError);
+        throw error;
+    }
+}
+
 export async function getUserAlerts(userId: string): Promise<{ alerts: any[] }> {
     try {
         const apiInstance = createApiInstance(isDev ? 'http://localhost:8081' : '');
