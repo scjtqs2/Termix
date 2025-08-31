@@ -6,7 +6,7 @@ import {HostManager} from "@/ui/apps/Host Manager/HostManager.tsx"
 import {TabProvider, useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 import { AdminSettings } from "@/ui/Admin/AdminSettings";
-import { UserProfile } from "@/ui/UserProfile";
+import { UserProfile } from "@/ui/User/UserProfile.tsx";
 import { Toaster } from "@/components/ui/sonner";
 import { getUserInfo } from "@/ui/main-axios.ts";
 

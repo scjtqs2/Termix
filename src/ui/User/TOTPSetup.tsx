@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { Shield, Copy, Download, AlertCircle, CheckCircle2 } from "lucide-react";
-import { setupTOTP, enableTOTP, disableTOTP, generateBackupCodes } from "@/ui/main-axios";
+import { setupTOTP, enableTOTP, disableTOTP, generateBackupCodes } from "@/ui/main-axios.ts";
 import { toast } from "sonner";
 
 interface TOTPSetupProps {

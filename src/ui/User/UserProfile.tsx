@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Shield, Key, AlertCircle } from "lucide-react";
-import { TOTPSetup } from "@/ui/TOTPSetup";
-import { getUserInfo } from "@/ui/main-axios";
-import { toast } from "sonner";
+import React, {useState, useEffect} from "react";
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card.tsx";
+import {Button} from "@/components/ui/button.tsx";
+import {Input} from "@/components/ui/input.tsx";
+import {Label} from "@/components/ui/label.tsx";
+import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert.tsx";
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs.tsx";
+import {User, Shield, Key, AlertCircle} from "lucide-react";
+import {TOTPSetup} from "@/ui/User/TOTPSetup.tsx";
+import {getUserInfo} from "@/ui/main-axios.ts";
+import {toast} from "sonner";
+import {PasswordReset} from "@/ui/User/PasswordReset.tsx";
 
 interface UserProfileProps {
     isTopbarOpen?: boolean;
 }
 
-export function UserProfile({ isTopbarOpen = true }: UserProfileProps) {
+export function UserProfile({isTopbarOpen = true}: UserProfileProps) {
     const [userInfo, setUserInfo] = useState<{
         username: string;
         is_admin: boolean;
@@ -48,7 +49,7 @@ export function UserProfile({ isTopbarOpen = true }: UserProfileProps) {
 
     const handleTOTPStatusChange = (enabled: boolean) => {
         if (userInfo) {
-            setUserInfo({ ...userInfo, totp_enabled: enabled });
+            setUserInfo({...userInfo, totp_enabled: enabled});
         }
     };
 
@@ -68,7 +69,7 @@ export function UserProfile({ isTopbarOpen = true }: UserProfileProps) {
         return (
             <div className="container max-w-4xl mx-auto p-6">
                 <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="h-4 w-4"/>
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>{error || "Failed to load user profile"}</AlertDescription>
                 </Alert>
@@ -77,7 +78,7 @@ export function UserProfile({ isTopbarOpen = true }: UserProfileProps) {
     }
 
     return (
-        <div className="container max-w-4xl mx-auto p-6" style={{ 
+        <div className="container max-w-4xl mx-auto p-6" style={{
             marginTop: isTopbarOpen ? '60px' : '0',
             transition: 'margin-top 0.3s ease'
         }}>
@@ -89,13 +90,15 @@ export function UserProfile({ isTopbarOpen = true }: UserProfileProps) {
             <Tabs defaultValue="profile" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="profile" className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
+                        <User className="w-4 h-4"/>
                         Profile
                     </TabsTrigger>
-                    <TabsTrigger value="security" className="flex items-center gap-2">
-                        <Shield className="w-4 h-4" />
-                        Security
-                    </TabsTrigger>
+                    {!userInfo.is_oidc && (
+                        <TabsTrigger value="security" className="flex items-center gap-2">
+                            <Shield className="w-4 h-4"/>
+                            Security
+                        </TabsTrigger>
+                    )}
                 </TabsList>
 
                 <TabsContent value="profile" className="space-y-4">
@@ -125,13 +128,17 @@ export function UserProfile({ isTopbarOpen = true }: UserProfileProps) {
                                 <div>
                                     <Label>Two-Factor Authentication</Label>
                                     <p className="text-lg font-medium mt-1">
-                                        {userInfo.totp_enabled ? (
-                                            <span className="text-green-600 flex items-center gap-1">
-                                                <Shield className="w-4 h-4" />
-                                                Enabled
-                                            </span>
+                                        {userInfo.is_oidc ? (
+                                            <span className="text-muted-foreground">Locked (OIDC Auth)</span>
                                         ) : (
-                                            <span className="text-muted-foreground">Disabled</span>
+                                            userInfo.totp_enabled ? (
+                                                <span className="text-green-600 flex items-center gap-1">
+                                                    <Shield className="w-4 h-4"/>
+                                                    Enabled
+                                                </span>
+                                            ) : (
+                                                <span className="text-muted-foreground">Disabled</span>
+                                            )
                                         )}
                                     </p>
                                 </div>
@@ -141,28 +148,15 @@ export function UserProfile({ isTopbarOpen = true }: UserProfileProps) {
                 </TabsContent>
 
                 <TabsContent value="security" className="space-y-4">
-                    <TOTPSetup 
-                        isEnabled={userInfo.totp_enabled} 
+                    <TOTPSetup
+                        isEnabled={userInfo.totp_enabled}
                         onStatusChange={handleTOTPStatusChange}
                     />
-                    
+
                     {!userInfo.is_oidc && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Key className="w-5 h-5" />
-                                    Password
-                                </CardTitle>
-                                <CardDescription>
-                                    Change your account password
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-sm text-muted-foreground">
-                                    Password change functionality can be implemented here
-                                </p>
-                            </CardContent>
-                        </Card>
+                        <PasswordReset>
+
+                        </PasswordReset>
                     )}
                 </TabsContent>
             </Tabs>
