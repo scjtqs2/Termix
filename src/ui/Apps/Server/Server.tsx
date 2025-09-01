@@ -97,13 +97,12 @@ export function Server({
         if (currentHostConfig?.id && isVisible) {
             fetchStatus();
             fetchMetrics();
-            // Only poll when component is visible to reduce unnecessary connections
             intervalId = window.setInterval(() => {
                 if (isVisible) {
                     fetchStatus();
                     fetchMetrics();
                 }
-            }, 300_000); // 5 minutes instead of 10 seconds
+            }, 300_000);
         }
 
         return () => {
@@ -116,7 +115,6 @@ export function Server({
     const leftMarginPx = sidebarState === 'collapsed' ? 16 : 8;
     const bottomMarginPx = 8;
 
-    // Check if a file manager tab for this host is already open
     const isFileManagerAlreadyOpen = React.useMemo(() => {
         if (!currentHostConfig) return false;
         return tabs.some((tab: any) => 
@@ -172,7 +170,7 @@ export function Server({
                             }}
                             title="Refresh status and metrics"
                         >
-                            Refresh
+                            Refresh Status
                         </Button>
                         {currentHostConfig?.enableFileManager && (
                             <Button

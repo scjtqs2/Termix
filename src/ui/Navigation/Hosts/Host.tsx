@@ -35,15 +35,15 @@ interface HostProps {
 
 export function Host({host}: HostProps): React.ReactElement {
     const {addTab} = useTabs();
-    const [serverStatus, setServerStatus] = useState<'online' | 'offline'>('offline');
+    const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'degraded'>('degraded');
     const tags = Array.isArray(host.tags) ? host.tags : [];
     const hasTags = tags.length > 0;
 
     const title = host.name?.trim() ? host.name : `${host.username}@${host.ip}:${host.port}`;
 
     useEffect(() => {
-        let cancelled = false;
         let intervalId: number | undefined;
+        let cancelled = false;
 
         const fetchStatus = async () => {
             try {
@@ -57,7 +57,8 @@ export function Host({host}: HostProps): React.ReactElement {
         };
 
         fetchStatus();
-        intervalId = window.setInterval(fetchStatus, 60_000);
+
+        intervalId = window.setInterval(fetchStatus, 30000);
 
         return () => {
             cancelled = true;
