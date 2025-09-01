@@ -370,7 +370,9 @@ async function pollStatusesOnce(): Promise<void> {
 
     const checks = hosts.map(async (h) => {
         const isOnline = await tcpPing(h.ip, h.port, 5000);
-        hostStatuses.set(h.id, {status: isOnline ? 'online' : 'offline', lastChecked: now});
+        const now = new Date().toISOString();
+        const statusEntry: StatusEntry = {status: isOnline ? 'online' : 'offline', lastChecked: now};
+        hostStatuses.set(h.id, statusEntry);
         return isOnline;
     });
 
@@ -396,15 +398,22 @@ app.get('/status/:id', async (req, res) => {
         return res.status(400).json({error: 'Invalid id'});
     }
 
-    if (!hostStatuses.has(id)) {
-        await pollStatusesOnce();
+    try {
+        const host = await fetchHostById(id);
+        if (!host) {
+            return res.status(404).json({error: 'Host not found'});
+        }
+        
+        const isOnline = await tcpPing(host.ip, host.port, 5000);
+        const now = new Date().toISOString();
+        const statusEntry: StatusEntry = {status: isOnline ? 'online' : 'offline', lastChecked: now};
+        
+        hostStatuses.set(id, statusEntry);
+        res.json(statusEntry);
+    } catch (err) {
+        logger.error('Failed to check host status', err);
+        res.status(500).json({error: 'Failed to check host status'});
     }
-
-    const entry = hostStatuses.get(id);
-    if (!entry) {
-        return res.status(404).json({error: 'Host not found'});
-    }
-    res.json(entry);
 });
 
 app.post('/refresh', async (req, res) => {

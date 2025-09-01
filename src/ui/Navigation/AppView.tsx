@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
-import {Terminal} from "@/ui/apps/Terminal/Terminal.tsx";
-import {Server as ServerView} from "@/ui/apps/Server/Server.tsx";
-import {FileManager} from "@/ui/apps/File Manager/FileManager.tsx";
+import {Terminal} from "@/ui/Apps/Terminal/Terminal.tsx";
+import {Server as ServerView} from "@/ui/Apps/Server/Server.tsx";
+import {FileManager} from "@/ui/Apps/File Manager/FileManager.tsx";
 import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
 import {ResizablePanelGroup, ResizablePanel, ResizableHandle} from '@/components/ui/resizable.tsx';
 import * as ResizablePrimitive from "react-resizable-panels";

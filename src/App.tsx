@@ -2,10 +2,11 @@ import React, {useState, useEffect} from "react"
 import {LeftSidebar} from "@/ui/Navigation/LeftSidebar.tsx"
 import {Homepage} from "@/ui/Homepage/Homepage.tsx"
 import {AppView} from "@/ui/Navigation/AppView.tsx"
-import {HostManager} from "@/ui/apps/Host Manager/HostManager.tsx"
+import {HostManager} from "@/ui/Apps/Host Manager/HostManager.tsx"
 import {TabProvider, useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx"
 import {TopNavbar} from "@/ui/Navigation/TopNavbar.tsx";
 import { AdminSettings } from "@/ui/Admin/AdminSettings";
+import { UserProfile } from "@/ui/User/UserProfile.tsx";
 import { Toaster } from "@/components/ui/sonner";
 import { getUserInfo } from "@/ui/main-axios.ts";
 
@@ -86,6 +87,7 @@ function AppContent() {
     const showHome = currentTabData?.type === 'home';
     const showSshManager = currentTabData?.type === 'ssh_manager';
     const showAdmin = currentTabData?.type === 'admin';
+    const showProfile = currentTabData?.type === 'profile';
 
     return (
         <div>
@@ -185,6 +187,20 @@ function AppContent() {
                         }}
                     >
                         <AdminSettings isTopbarOpen={isTopbarOpen} />
+                    </div>
+
+                    <div
+                        className="h-screen w-full"
+                        style={{
+                            visibility: showProfile ? "visible" : "hidden",
+                            pointerEvents: showProfile ? "auto" : "none",
+                            height: showProfile ? "100vh" : 0,
+                            width: showProfile ? "100%" : 0,
+                            position: showProfile ? "static" : "absolute",
+                            overflow: "auto",
+                        }}
+                    >
+                        <UserProfile isTopbarOpen={isTopbarOpen} />
                     </div>
 
                     <TopNavbar isTopbarOpen={isTopbarOpen} setIsTopbarOpen={setIsTopbarOpen}/>

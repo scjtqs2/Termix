@@ -14,7 +14,8 @@ import {
     initiatePasswordReset,
     verifyPasswordResetCode,
     completePasswordReset,
-    getOIDCAuthorizeUrl
+    getOIDCAuthorizeUrl,
+    verifyTOTPLogin
 } from "../main-axios.ts";
 
 function setCookie(name: string, value: string, days = 7) {
@@ -28,8 +29,6 @@ function getCookie(name: string) {
         return parts[0] === name ? decodeURIComponent(parts[1]) : r;
     }, "");
 }
-
-
 
 interface HomepageAuthProps extends React.ComponentProps<"div"> {
     setLoggedIn: (loggedIn: boolean) => void;
@@ -75,6 +74,11 @@ export function HomepageAuth({
     const [tempToken, setTempToken] = useState("");
     const [resetLoading, setResetLoading] = useState(false);
     const [resetSuccess, setResetSuccess] = useState(false);
+    
+    const [totpRequired, setTotpRequired] = useState(false);
+    const [totpCode, setTotpCode] = useState("");
+    const [totpTempToken, setTotpTempToken] = useState("");
+    const [totpLoading, setTotpLoading] = useState(false);
 
     useEffect(() => {
         setInternalLoggedIn(loggedIn);
@@ -147,6 +151,13 @@ export function HomepageAuth({
                 res = await loginUser(localUsername, password);
             }
             
+            if (res.requires_totp) {
+                setTotpRequired(true);
+                setTotpTempToken(res.temp_token);
+                setLoading(false);
+                return;
+            }
+            
             if (!res || !res.token) {
                 throw new Error('No token received from login');
             }
@@ -171,6 +182,9 @@ export function HomepageAuth({
             if (tab === "signup") {
                 setSignupConfirmPassword("");
             }
+            setTotpRequired(false);
+            setTotpCode("");
+            setTotpTempToken("");
         } catch (err: any) {
             setError(err?.response?.data?.error || err?.message || "Unknown error");
             setInternalLoggedIn(false);
@@ -267,6 +281,47 @@ export function HomepageAuth({
         setPassword("");
         setSignupConfirmPassword("");
         setError(null);
+    }
+
+    async function handleTOTPVerification() {
+        if (totpCode.length !== 6) {
+            setError("Please enter a 6-digit code");
+            return;
+        }
+
+        setError(null);
+        setTotpLoading(true);
+        
+        try {
+            const res = await verifyTOTPLogin(totpTempToken, totpCode);
+            
+            if (!res || !res.token) {
+                throw new Error('No token received from TOTP verification');
+            }
+            
+            setCookie("jwt", res.token);
+            const meRes = await getUserInfo();
+            
+            setInternalLoggedIn(true);
+            setLoggedIn(true);
+            setIsAdmin(!!meRes.is_admin);
+            setUsername(meRes.username || null);
+            setUserId(meRes.userId || null);
+            setDbError(null);
+            onAuthSuccess({
+                isAdmin: !!meRes.is_admin,
+                username: meRes.username || null,
+                userId: meRes.userId || null
+            });
+            setInternalLoggedIn(true);
+            setTotpRequired(false);
+            setTotpCode("");
+            setTotpTempToken("");
+        } catch (err: any) {
+            setError(err?.response?.data?.error || err?.message || "Invalid TOTP code");
+        } finally {
+            setTotpLoading(false);
+        }
     }
 
     async function handleOIDCLogin() {
@@ -381,7 +436,58 @@ export function HomepageAuth({
                     </AlertDescription>
                 </Alert>
             )}
-            {(!internalLoggedIn && (!authLoading || !getCookie("jwt"))) && (
+            {totpRequired && (
+                <div className="flex flex-col gap-5">
+                    <div className="mb-6 text-center">
+                        <h2 className="text-xl font-bold mb-1">Two-Factor Authentication</h2>
+                        <p className="text-muted-foreground">Enter the 6-digit code from your authenticator app</p>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="totp-code">Authentication Code</Label>
+                        <Input
+                            id="totp-code"
+                            type="text"
+                            placeholder="000000"
+                            maxLength={6}
+                            value={totpCode}
+                            onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                            disabled={totpLoading}
+                            className="text-center text-2xl tracking-widest font-mono"
+                            autoComplete="one-time-code"
+                        />
+                        <p className="text-xs text-muted-foreground text-center">
+                            Or enter a backup code if you don't have access to your authenticator
+                        </p>
+                    </div>
+                    
+                    <Button
+                        type="button"
+                        className="w-full h-11 text-base font-semibold"
+                        disabled={totpLoading || totpCode.length < 6}
+                        onClick={handleTOTPVerification}
+                    >
+                        {totpLoading ? Spinner : "Verify"}
+                    </Button>
+                    
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full h-11 text-base font-semibold"
+                        disabled={totpLoading}
+                        onClick={() => {
+                            setTotpRequired(false);
+                            setTotpCode("");
+                            setTotpTempToken("");
+                            setError(null);
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                </div>
+            )}
+            
+            {(!internalLoggedIn && (!authLoading || !getCookie("jwt")) && !totpRequired) && (
                 <>
                     <div className="flex gap-2 mb-6">
                         <button
@@ -501,7 +607,7 @@ export function HomepageAuth({
                                     )}
 
                                     {resetStep === "verify" && (
-                                        <>
+                                        <>o
                                             <div className="text-center text-muted-foreground mb-4">
                                                 <p>Enter the 6-digit code from the docker container logs for
                                                     user: <strong>{localUsername}</strong></p>

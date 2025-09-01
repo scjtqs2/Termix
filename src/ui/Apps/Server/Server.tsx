@@ -5,8 +5,8 @@ import {Separator} from "@/components/ui/separator.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Progress} from "@/components/ui/progress"
 import {Cpu, HardDrive, MemoryStick} from "lucide-react";
-import {Tunnel} from "@/ui/apps/Tunnel/Tunnel.tsx";
-import {getServerStatusById, getServerMetricsById, ServerMetrics} from "@/ui/main-axios.ts";
+import {Tunnel} from "@/ui/Apps/Tunnel/Tunnel.tsx";
+import {getServerStatusById, getServerMetricsById, type ServerMetrics} from "@/ui/main-axios.ts";
 import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
 
 interface ServerProps {
@@ -97,13 +97,12 @@ export function Server({
         if (currentHostConfig?.id && isVisible) {
             fetchStatus();
             fetchMetrics();
-            // Only poll when component is visible to reduce unnecessary connections
             intervalId = window.setInterval(() => {
                 if (isVisible) {
                     fetchStatus();
                     fetchMetrics();
                 }
-            }, 300_000); // 5 minutes instead of 10 seconds
+            }, 30000);
         }
 
         return () => {
@@ -116,7 +115,6 @@ export function Server({
     const leftMarginPx = sidebarState === 'collapsed' ? 16 : 8;
     const bottomMarginPx = 8;
 
-    // Check if a file manager tab for this host is already open
     const isFileManagerAlreadyOpen = React.useMemo(() => {
         if (!currentHostConfig) return false;
         return tabs.some((tab: any) => 
@@ -172,7 +170,7 @@ export function Server({
                             }}
                             title="Refresh status and metrics"
                         >
-                            Refresh
+                            Refresh Status
                         </Button>
                         {currentHostConfig?.enableFileManager && (
                             <Button
