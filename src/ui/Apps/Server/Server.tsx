@@ -5,7 +5,7 @@ import {Separator} from "@/components/ui/separator.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Progress} from "@/components/ui/progress"
 import {Cpu, HardDrive, MemoryStick} from "lucide-react";
-import {Tunnel} from "@/ui/apps/Tunnel/Tunnel.tsx";
+import {Tunnel} from "@/ui/Apps/Tunnel/Tunnel.tsx";
 import {getServerStatusById, getServerMetricsById, ServerMetrics} from "@/ui/main-axios.ts";
 import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
 
