@@ -58,7 +58,7 @@ export function Host({host}: HostProps): React.ReactElement {
 
         fetchStatus();
 
-        intervalId = window.setInterval(fetchStatus, 30000);
+        intervalId = window.setInterval(fetchStatus, 10000);
 
         return () => {
             cancelled = true;

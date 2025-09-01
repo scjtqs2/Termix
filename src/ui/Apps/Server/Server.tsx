@@ -6,7 +6,7 @@ import {Button} from "@/components/ui/button.tsx";
 import {Progress} from "@/components/ui/progress"
 import {Cpu, HardDrive, MemoryStick} from "lucide-react";
 import {Tunnel} from "@/ui/Apps/Tunnel/Tunnel.tsx";
-import {getServerStatusById, getServerMetricsById, ServerMetrics} from "@/ui/main-axios.ts";
+import {getServerStatusById, getServerMetricsById, type ServerMetrics} from "@/ui/main-axios.ts";
 import {useTabs} from "@/ui/Navigation/Tabs/TabContext.tsx";
 
 interface ServerProps {
@@ -102,7 +102,7 @@ export function Server({
                     fetchStatus();
                     fetchMetrics();
                 }
-            }, 300_000);
+            }, 30000);
         }
 
         return () => {
