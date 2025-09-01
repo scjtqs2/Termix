@@ -78,9 +78,10 @@ export function UserProfile({isTopbarOpen = true}: UserProfileProps) {
     }
 
     return (
-        <div className="container max-w-4xl mx-auto p-6" style={{
+        <div className="container max-w-4xl mx-auto p-6 overflow-y-auto" style={{
             marginTop: isTopbarOpen ? '60px' : '0',
-            transition: 'margin-top 0.3s ease'
+            transition: 'margin-top 0.3s ease',
+            maxHeight: 'calc(100vh - 60px)'
         }}>
             <div className="mb-6">
                 <h1 className="text-3xl font-bold">User Profile</h1>
@@ -154,9 +155,9 @@ export function UserProfile({isTopbarOpen = true}: UserProfileProps) {
                     />
 
                     {!userInfo.is_oidc && (
-                        <PasswordReset>
-
-                        </PasswordReset>
+                        <PasswordReset
+                            userInfo={userInfo}
+                        />
                     )}
                 </TabsContent>
             </Tabs>

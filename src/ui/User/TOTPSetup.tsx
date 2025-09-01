@@ -280,7 +280,7 @@ export function TOTPSetup({ isEnabled: initialEnabled, onStatusChange }: TOTPSet
                                 className="font-mono text-sm"
                             />
                             <Button
-                                size="sm"
+                                size="default"
                                 variant="outline"
                                 onClick={() => copyToClipboard(secret, "Secret key")}
                             >

@@ -197,7 +197,7 @@ function AppContent() {
                             height: showProfile ? "100vh" : 0,
                             width: showProfile ? "100%" : 0,
                             position: showProfile ? "static" : "absolute",
-                            overflow: "hidden",
+                            overflow: "auto",
                         }}
                     >
                         <UserProfile isTopbarOpen={isTopbarOpen} />

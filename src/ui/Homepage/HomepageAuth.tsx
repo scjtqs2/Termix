@@ -30,8 +30,6 @@ function getCookie(name: string) {
     }, "");
 }
 
-
-
 interface HomepageAuthProps extends React.ComponentProps<"div"> {
     setLoggedIn: (loggedIn: boolean) => void;
     setIsAdmin: (isAdmin: boolean) => void;
@@ -486,13 +484,6 @@ export function HomepageAuth({
                     >
                         Cancel
                     </Button>
-                    
-                    {error && (
-                        <Alert variant="destructive">
-                            <AlertTitle>Error</AlertTitle>
-                            <AlertDescription>{error}</AlertDescription>
-                        </Alert>
-                    )}
                 </div>
             )}
             
@@ -616,7 +607,7 @@ export function HomepageAuth({
                                     )}
 
                                     {resetStep === "verify" && (
-                                        <>
+                                        <>o
                                             <div className="text-center text-muted-foreground mb-4">
                                                 <p>Enter the 6-digit code from the docker container logs for
                                                     user: <strong>{localUsername}</strong></p>
