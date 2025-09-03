@@ -4,6 +4,7 @@ import {HomepageUpdateLog} from "@/ui/Homepage/HompageUpdateLog.tsx";
 import {HomepageAlertManager} from "@/ui/Homepage/HomepageAlertManager.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import { getUserInfo, getDatabaseHealth } from "@/ui/main-axios.ts";
+import {useTranslation} from "react-i18next";
 
 interface HomepageProps {
     onSelectView: (view: string) => void;
@@ -32,6 +33,7 @@ export function Homepage({
                              onAuthSuccess,
                              isTopbarOpen = true
                          }: HomepageProps): React.ReactElement {
+    const {t} = useTranslation();
     const [loggedIn, setLoggedIn] = useState(isAuthenticated);
     const [isAdmin, setIsAdmin] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
@@ -70,13 +72,20 @@ export function Homepage({
         }
     }, [isAuthenticated]);
 
+    const topOffset = isTopbarOpen ? 66 : 0;
+    const topPadding = isTopbarOpen ? 66 : 0;
+
     return (
         <div
-            className={`w-full min-h-svh relative transition-[padding-top] duration-200 ease-linear ${
-                isTopbarOpen ? 'pt-[66px]' : 'pt-2'
-            }`}>
+            className="w-full min-h-svh relative transition-[padding-top] duration-300 ease-in-out"
+            style={{ paddingTop: `${topPadding}px` }}>
             {!loggedIn ? (
-                <div className="absolute top-[66px] left-0 w-full h-[calc(100%-66px)] flex items-center justify-center">
+                <div 
+                    className="absolute left-0 w-full flex items-center justify-center transition-all duration-300 ease-in-out"
+                    style={{ 
+                        top: `${topOffset}px`, 
+                        height: `calc(100% - ${topOffset}px)` 
+                    }}>
                     <HomepageAuth
                         setLoggedIn={setLoggedIn}
                         setIsAdmin={setIsAdmin}
@@ -90,16 +99,19 @@ export function Homepage({
                     />
                 </div>
             ) : (
-                <div className="absolute top-[66px] left-0 w-full h-[calc(100%-66px)] flex items-center justify-center">
-                    <div className="flex flex-row items-center justify-center gap-8 relative z-[10000]">
+                <div 
+                    className="absolute left-0 w-full flex items-center justify-center transition-all duration-300 ease-in-out"
+                    style={{ 
+                        top: `${topOffset}px`, 
+                        height: `calc(100% - ${topOffset}px)` 
+                    }}>
+                    <div className="flex flex-row items-center justify-center gap-8 relative z-10">
                         <div className="flex flex-col items-center gap-6 w-[400px]">
                             <div
                                 className="text-center bg-[#18181b] border-2 border-[#303032] rounded-lg p-6 w-full shadow-lg">
-                                <h3 className="text-xl font-bold mb-3 text-white">Logged in!</h3>
+                                <h3 className="text-xl font-bold mb-3 text-white">{t('homepage.loggedInTitle')}</h3>
                                 <p className="text-gray-300 leading-relaxed">
-                                    You are logged in! Use the sidebar to access all available tools. To get started,
-                                    create an SSH Host in the SSH Manager tab. Once created, you can connect to that
-                                    host using the other apps in the sidebar.
+                                    {t('homepage.loggedInMessage')}
                                 </p>
                             </div>
 

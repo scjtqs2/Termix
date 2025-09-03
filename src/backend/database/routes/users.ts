@@ -1,6 +1,6 @@
 import express from 'express';
 import {db} from '../db/index.js';
-import {users, settings} from '../db/schema.js';
+import {users, settings, sshData, fileManagerRecent, fileManagerPinned, fileManagerShortcuts, dismissedAlerts} from '../db/schema.js';
 import {eq, and} from 'drizzle-orm';
 import chalk from 'chalk';
 import bcrypt from 'bcryptjs';
@@ -12,9 +12,19 @@ import type {Request, Response, NextFunction} from 'express';
 
 async function verifyOIDCToken(idToken: string, issuerUrl: string, clientId: string): Promise<any> {
     try {
-        let jwksUrl: string | null = null;
-
         const normalizedIssuerUrl = issuerUrl.endsWith('/') ? issuerUrl.slice(0, -1) : issuerUrl;
+        const possibleIssuers = [
+            issuerUrl,
+            normalizedIssuerUrl,
+            issuerUrl.replace(/\/application\/o\/[^\/]+$/, ''),
+            normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '')
+        ];
+
+        const jwksUrls = [
+            `${normalizedIssuerUrl}/.well-known/jwks.json`,
+            `${normalizedIssuerUrl}/jwks/`,
+            `${normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '')}/.well-known/jwks.json`
+        ];
 
         try {
             const discoveryUrl = `${normalizedIssuerUrl}/.well-known/openid-configuration`;
@@ -22,71 +32,58 @@ async function verifyOIDCToken(idToken: string, issuerUrl: string, clientId: str
             if (discoveryResponse.ok) {
                 const discovery = await discoveryResponse.json() as any;
                 if (discovery.jwks_uri) {
-                    jwksUrl = discovery.jwks_uri;
-                } else {
-                    logger.warn('OIDC discovery document does not contain jwks_uri');
+                    jwksUrls.unshift(discovery.jwks_uri);
                 }
-            } else {
-                logger.warn(`OIDC discovery failed with status: ${discoveryResponse.status}`);
             }
         } catch (discoveryError) {
-            logger.warn(`OIDC discovery failed: ${discoveryError}`);
+            logger.error(`OIDC discovery failed: ${discoveryError}`);
         }
 
-        if (!jwksUrl) {
-            jwksUrl = `${normalizedIssuerUrl}/.well-known/jwks.json`;
-        }
+        let jwks: any = null;
+        let jwksUrl: string | null = null;
 
-        if (!jwksUrl) {
-            const authentikJwksUrl = `${normalizedIssuerUrl}/jwks/`;
+        for (const url of jwksUrls) {
             try {
-                const jwksTestResponse = await fetch(authentikJwksUrl);
-                if (jwksTestResponse.ok) {
-                    jwksUrl = authentikJwksUrl;
+                const response = await fetch(url);
+                if (response.ok) {
+                    const jwksData = await response.json() as any;
+                    if (jwksData && jwksData.keys && Array.isArray(jwksData.keys)) {
+                        jwks = jwksData;
+                        jwksUrl = url;
+                        break;
+                    } else {
+                        logger.error(`Invalid JWKS structure from ${url}: ${JSON.stringify(jwksData)}`);
+                    }
+                } else {
+                    logger.error(`JWKS fetch failed from ${url}: ${response.status} ${response.statusText}`);
                 }
             } catch (error) {
-                logger.warn(`Authentik JWKS URL also failed: ${error}`);
+                logger.error(`JWKS fetch error from ${url}:`, error);
+                continue;
             }
         }
 
-        if (!jwksUrl) {
-            const baseUrl = normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '');
-            const rootJwksUrl = `${baseUrl}/.well-known/jwks.json`;
-            try {
-                const jwksTestResponse = await fetch(rootJwksUrl);
-                if (jwksTestResponse.ok) {
-                    jwksUrl = rootJwksUrl;
-                }
-            } catch (error) {
-                logger.warn(`Authentik root JWKS URL also failed: ${error}`);
-            }
+        if (!jwks) {
+            throw new Error('Failed to fetch JWKS from any URL');
         }
 
-        const jwksResponse = await fetch(jwksUrl);
-        if (!jwksResponse.ok) {
-            throw new Error(`Failed to fetch JWKS from ${jwksUrl}: ${jwksResponse.status}`);
+        if (!jwks.keys || !Array.isArray(jwks.keys)) {
+            throw new Error(`Invalid JWKS response structure. Expected 'keys' array, got: ${JSON.stringify(jwks)}`);
         }
-
-        const jwks = await jwksResponse.json() as any;
 
         const header = JSON.parse(Buffer.from(idToken.split('.')[0], 'base64').toString());
         const keyId = header.kid;
 
         const publicKey = jwks.keys.find((key: any) => key.kid === keyId);
         if (!publicKey) {
-            throw new Error(`No matching public key found for key ID: ${keyId}`);
+            throw new Error(`No matching public key found for key ID: ${keyId}. Available keys: ${jwks.keys.map((k: any) => k.kid).join(', ')}`);
         }
 
         const {importJWK, jwtVerify} = await import('jose');
         const key = await importJWK(publicKey);
 
         const {payload} = await jwtVerify(idToken, key, {
-            issuer: [
-                issuerUrl, 
-                normalizedIssuerUrl, 
-                issuerUrl.replace(/\/application\/o\/[^\/]+$/, ''),
-                normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '')
-            ],
+            issuer: possibleIssuers,
             audience: clientId,
         });
 
@@ -237,6 +234,7 @@ router.post('/oidc-config', authenticateJWT, async (req, res) => {
             issuer_url,
             authorization_url,
             token_url,
+            userinfo_url,
             identifier_path,
             name_path,
             scopes
@@ -255,6 +253,7 @@ router.post('/oidc-config', authenticateJWT, async (req, res) => {
             issuer_url,
             authorization_url,
             token_url,
+            userinfo_url: userinfo_url || '',
             identifier_path,
             name_path,
             scopes: scopes || 'openid email profile'
@@ -376,54 +375,106 @@ router.get('/oidc/callback', async (req, res) => {
 
         const tokenData = await tokenResponse.json() as any;
 
-        let userInfo;
+        let userInfo: any = null;
+        let userInfoUrls: string[] = [];
+
+        const normalizedIssuerUrl = config.issuer_url.endsWith('/') ? config.issuer_url.slice(0, -1) : config.issuer_url;
+        const baseUrl = normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '');
+
+        try {
+            const discoveryUrl = `${normalizedIssuerUrl}/.well-known/openid-configuration`;
+            const discoveryResponse = await fetch(discoveryUrl);
+            if (discoveryResponse.ok) {
+                const discovery = await discoveryResponse.json() as any;
+                if (discovery.userinfo_endpoint) {
+                    userInfoUrls.push(discovery.userinfo_endpoint);
+                }
+            }
+        } catch (discoveryError) {
+            logger.error(`OIDC discovery failed: ${discoveryError}`);
+        }
+
+        if (config.userinfo_url) {
+            userInfoUrls.unshift(config.userinfo_url);
+        }
+
+        userInfoUrls.push(
+            `${baseUrl}/userinfo/`,
+            `${baseUrl}/userinfo`,
+            `${normalizedIssuerUrl}/userinfo/`,
+            `${normalizedIssuerUrl}/userinfo`,
+            `${baseUrl}/oauth2/userinfo/`,
+            `${baseUrl}/oauth2/userinfo`,
+            `${normalizedIssuerUrl}/oauth2/userinfo/`,
+            `${normalizedIssuerUrl}/oauth2/userinfo`
+        );
+
         if (tokenData.id_token) {
             try {
                 userInfo = await verifyOIDCToken(tokenData.id_token, config.issuer_url, config.client_id);
+                logger.info('Successfully verified ID token and extracted user info');
             } catch (error) {
-                logger.error('OIDC token verification failed, falling back to userinfo endpoint', error);
-                if (tokenData.access_token) {
-                    const normalizedIssuerUrl = config.issuer_url.endsWith('/') ? config.issuer_url.slice(0, -1) : config.issuer_url;
-                    const baseUrl = normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '');
-                    const userInfoUrl = `${baseUrl}/userinfo/`;
+                logger.error('OIDC token verification failed, trying userinfo endpoints', error);
+                try {
+                    const parts = tokenData.id_token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                        userInfo = payload;
+                        logger.info('Successfully decoded ID token payload without verification');
+                    }
+                } catch (decodeError) {
+                    logger.error('Failed to decode ID token payload:', decodeError);
+                }
+            }
+        }
 
+        if (!userInfo && tokenData.access_token) {
+            for (const userInfoUrl of userInfoUrls) {
+                try {
                     const userInfoResponse = await fetch(userInfoUrl, {
                         headers: {
                             'Authorization': `Bearer ${tokenData.access_token}`,
-                        },
+                        }
                     });
 
                     if (userInfoResponse.ok) {
                         userInfo = await userInfoResponse.json();
+                        break;
                     } else {
-                        logger.error(`Userinfo endpoint failed with status: ${userInfoResponse.status}`);
+                        logger.error(`Userinfo endpoint ${userInfoUrl} failed with status: ${userInfoResponse.status}`);
                     }
+                } catch (error) {
+                    logger.error(`Userinfo endpoint ${userInfoUrl} failed:`, error);
+                    continue;
                 }
-            }
-        } else if (tokenData.access_token) {
-            const normalizedIssuerUrl = config.issuer_url.endsWith('/') ? config.issuer_url.slice(0, -1) : config.issuer_url;
-            const baseUrl = normalizedIssuerUrl.replace(/\/application\/o\/[^\/]+$/, '');
-            const userInfoUrl = `${baseUrl}/userinfo/`;
-
-            const userInfoResponse = await fetch(userInfoUrl, {
-                headers: {
-                    'Authorization': `Bearer ${tokenData.access_token}`,
-                },
-            });
-
-            if (userInfoResponse.ok) {
-                userInfo = await userInfoResponse.json();
-            } else {
-                logger.error(`Userinfo endpoint failed with status: ${userInfoResponse.status}`);
             }
         }
 
         if (!userInfo) {
+            logger.error('Failed to get user information from all sources');
+            logger.error(`Tried userinfo URLs: ${userInfoUrls.join(', ')}`);
+            logger.error(`Token data keys: ${Object.keys(tokenData).join(', ')}`);
+            logger.error(`Has id_token: ${!!tokenData.id_token}`);
+            logger.error(`Has access_token: ${!!tokenData.access_token}`);
             return res.status(400).json({error: 'Failed to get user information'});
         }
 
-        const identifier = userInfo[config.identifier_path];
-        const name = userInfo[config.name_path] || identifier;
+        const getNestedValue = (obj: any, path: string): any => {
+            if (!path || !obj) return null;
+            return path.split('.').reduce((current, key) => current?.[key], obj);
+        };
+
+        const identifier = getNestedValue(userInfo, config.identifier_path) ||
+            userInfo[config.identifier_path] ||
+            userInfo.sub ||
+            userInfo.email ||
+            userInfo.preferred_username;
+
+        const name = getNestedValue(userInfo, config.name_path) ||
+            userInfo[config.name_path] ||
+            userInfo.name ||
+            userInfo.given_name ||
+            identifier;
 
         if (!identifier) {
             logger.error(`Identifier not found at path: ${config.identifier_path}`);
@@ -956,7 +1007,7 @@ router.post('/totp/verify-login', async (req, res) => {
     }
 
     const jwtSecret = process.env.JWT_SECRET || 'secret';
-    
+
     try {
         const decoded = jwt.verify(temp_token, jwtSecret) as any;
         if (!decoded.pending_totp) {
@@ -969,7 +1020,7 @@ router.post('/totp/verify-login', async (req, res) => {
         }
 
         const userRecord = user[0];
-        
+
         if (!userRecord.totp_enabled || !userRecord.totp_secret) {
             return res.status(400).json({error: 'TOTP not enabled for this user'});
         }
@@ -984,11 +1035,11 @@ router.post('/totp/verify-login', async (req, res) => {
         if (!verified) {
             const backupCodes = userRecord.totp_backup_codes ? JSON.parse(userRecord.totp_backup_codes) : [];
             const backupIndex = backupCodes.indexOf(totp_code);
-            
+
             if (backupIndex === -1) {
                 return res.status(401).json({error: 'Invalid TOTP code'});
             }
-            
+
             backupCodes.splice(backupIndex, 1);
             await db.update(users)
                 .set({totp_backup_codes: JSON.stringify(backupCodes)})
@@ -1015,7 +1066,7 @@ router.post('/totp/verify-login', async (req, res) => {
 // POST /users/totp/setup
 router.post('/totp/setup', authenticateJWT, async (req, res) => {
     const userId = (req as any).userId;
-    
+
     try {
         const user = await db.select().from(users).where(eq(users.id, userId));
         if (!user || user.length === 0) {
@@ -1023,7 +1074,7 @@ router.post('/totp/setup', authenticateJWT, async (req, res) => {
         }
 
         const userRecord = user[0];
-        
+
         if (userRecord.totp_enabled) {
             return res.status(400).json({error: 'TOTP is already enabled'});
         }
@@ -1067,7 +1118,7 @@ router.post('/totp/enable', authenticateJWT, async (req, res) => {
         }
 
         const userRecord = user[0];
-        
+
         if (userRecord.totp_enabled) {
             return res.status(400).json({error: 'TOTP is already enabled'});
         }
@@ -1087,7 +1138,7 @@ router.post('/totp/enable', authenticateJWT, async (req, res) => {
             return res.status(401).json({error: 'Invalid TOTP code'});
         }
 
-        const backupCodes = Array.from({length: 8}, () => 
+        const backupCodes = Array.from({length: 8}, () =>
             Math.random().toString(36).substring(2, 10).toUpperCase()
         );
 
@@ -1126,7 +1177,7 @@ router.post('/totp/disable', authenticateJWT, async (req, res) => {
         }
 
         const userRecord = user[0];
-        
+
         if (!userRecord.totp_enabled) {
             return res.status(400).json({error: 'TOTP is not enabled'});
         }
@@ -1184,7 +1235,7 @@ router.post('/totp/backup-codes', authenticateJWT, async (req, res) => {
         }
 
         const userRecord = user[0];
-        
+
         if (!userRecord.totp_enabled) {
             return res.status(400).json({error: 'TOTP is not enabled'});
         }
@@ -1209,7 +1260,7 @@ router.post('/totp/backup-codes', authenticateJWT, async (req, res) => {
             return res.status(400).json({error: 'Authentication required'});
         }
 
-        const backupCodes = Array.from({length: 8}, () => 
+        const backupCodes = Array.from({length: 8}, () =>
             Math.random().toString(36).substring(2, 10).toUpperCase()
         );
 
@@ -1260,12 +1311,19 @@ router.delete('/delete-user', authenticateJWT, async (req, res) => {
         const targetUserId = targetUser[0].id;
 
         try {
-            db.$client.prepare('DELETE FROM file_manager_recent WHERE user_id = ?').run(targetUserId);
-            db.$client.prepare('DELETE FROM file_manager_pinned WHERE user_id = ?').run(targetUserId);
-            db.$client.prepare('DELETE FROM file_manager_shortcuts WHERE user_id = ?').run(targetUserId);
-            db.$client.prepare('DELETE FROM ssh_data WHERE user_id = ?').run(targetUserId);
+            await db.delete(fileManagerRecent).where(eq(fileManagerRecent.userId, targetUserId));
+            await db.delete(fileManagerPinned).where(eq(fileManagerPinned.userId, targetUserId));
+            await db.delete(fileManagerShortcuts).where(eq(fileManagerShortcuts.userId, targetUserId));
+            
+            await db.delete(dismissedAlerts).where(eq(dismissedAlerts.userId, targetUserId));
+            
+            await db.delete(sshData).where(eq(sshData.userId, targetUserId));
+            
+            // Note: All user-related data has been deleted above
+            // The tables config_editor_* and shared_hosts don't exist in the current schema
         } catch (cleanupError) {
             logger.error(`Cleanup failed for user ${username}:`, cleanupError);
+            throw cleanupError;
         }
 
         await db.delete(users).where(eq(users.id, targetUserId));

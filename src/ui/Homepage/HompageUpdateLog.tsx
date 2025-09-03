@@ -3,6 +3,7 @@ import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Separator} from "@/components/ui/separator.tsx";
 import { getReleasesRSS, getVersionInfo } from "@/ui/main-axios.ts";
+import {useTranslation} from "react-i18next";
 
 interface HomepageUpdateLogProps extends React.ComponentProps<"div"> {
     loggedIn: boolean;
@@ -51,6 +52,7 @@ interface VersionResponse {
 }
 
 export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
+    const {t} = useTranslation();
     const [releases, setReleases] = useState<RSSResponse | null>(null);
     const [versionInfo, setVersionInfo] = useState<VersionResponse | null>(null);
     const [loading, setLoading] = useState(false);
@@ -69,7 +71,7 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
                     setError(null);
                 })
                 .catch(err => {
-                    setError('Failed to fetch update information');
+                    setError(t('common.failedToFetchUpdateInfo'));
                 })
                 .finally(() => setLoading(false));
         }
@@ -90,15 +92,15 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
     return (
         <div className="w-[400px] h-[600px] flex flex-col border-2 border-[#303032] rounded-lg bg-[#18181b] p-4 shadow-lg">
             <div>
-                <h3 className="text-lg font-bold mb-3 text-white">Updates & Releases</h3>
+                <h3 className="text-lg font-bold mb-3 text-white">{t('common.updatesAndReleases')}</h3>
 
                 <Separator className="p-0.25 mt-3 mb-3 bg-[#303032]"/>
 
                 {versionInfo && versionInfo.status === 'requires_update' && (
                     <Alert className="bg-[#0e0e10] border-[#303032] text-white">
-                        <AlertTitle className="text-white">Update Available</AlertTitle>
+                        <AlertTitle className="text-white">{t('common.updateAvailable')}</AlertTitle>
                         <AlertDescription className="text-gray-300">
-                            A new version ({versionInfo.version}) is available.
+                            {t('common.newVersionAvailable', { version: versionInfo.version })}
                         </AlertDescription>
                     </Alert>
                 )}
@@ -117,7 +119,7 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
 
                 {error && (
                     <Alert variant="destructive" className="bg-red-900/20 border-red-500 text-red-300">
-                        <AlertTitle className="text-red-300">Error</AlertTitle>
+                        <AlertTitle className="text-red-300">{t('common.error')}</AlertTitle>
                         <AlertDescription className="text-red-300">{error}</AlertDescription>
                     </Alert>
                 )}
@@ -135,7 +137,7 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
                             {release.isPrerelease && (
                                 <span
                                     className="text-xs bg-yellow-600 text-yellow-100 px-2 py-1 rounded ml-2 flex-shrink-0 font-medium">
-                                    Pre-release
+                                    {t('common.preRelease')}
                                 </span>
                             )}
                         </div>
@@ -158,9 +160,9 @@ export function HomepageUpdateLog({loggedIn}: HomepageUpdateLogProps) {
 
                 {releases && releases.items.length === 0 && !loading && (
                     <Alert className="bg-[#0e0e10] border-[#303032] text-gray-300">
-                        <AlertTitle className="text-gray-300">No Releases</AlertTitle>
+                        <AlertTitle className="text-gray-300">{t('common.noReleases')}</AlertTitle>
                         <AlertDescription className="text-gray-400">
-                            No releases found.
+                            {t('common.noReleasesFound')}
                         </AlertDescription>
                     </Alert>
                 )}
