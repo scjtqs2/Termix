@@ -1,39 +1,41 @@
-// i18n configuration for multi-language support
-import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
-import LanguageDetector from 'i18next-browser-languagedetector';
-import HttpApi from 'i18next-http-backend';
+import i18n from "i18next";
+import { initReactI18next } from "react-i18next";
+import LanguageDetector from "i18next-browser-languagedetector";
 
-// Initialize i18n
+import enTranslation from "../locales/en/translation.json";
+import zhTranslation from "../locales/zh/translation.json";
+
 i18n
-  .use(HttpApi) // Load translations using http
-  .use(LanguageDetector) // Detect user language
-  .use(initReactI18next) // Pass i18n instance to react-i18next
+  .use(LanguageDetector)
+  .use(initReactI18next)
   .init({
-    supportedLngs: ['en', 'zh'], // Supported languages
-    fallbackLng: 'en', // Fallback language
+    supportedLngs: ["en", "zh"],
+    fallbackLng: "en",
     debug: false,
-    
-    // Detection options - disabled to always use English by default
+
     detection: {
-      order: ['localStorage', 'cookie'], // Only check user's saved preference
-      caches: ['localStorage', 'cookie'],
-      lookupLocalStorage: 'i18nextLng',
-      lookupCookie: 'i18nextLng',
+      order: ["localStorage", "cookie"],
+      caches: ["localStorage", "cookie"],
+      lookupLocalStorage: "i18nextLng",
+      lookupCookie: "i18nextLng",
       checkWhitelist: true,
     },
-    
-    // Backend options
-    backend: {
-      loadPath: '/locales/{{lng}}/translation.json',
+
+    resources: {
+      en: {
+        translation: enTranslation,
+      },
+      zh: {
+        translation: zhTranslation,
+      },
     },
-    
+
     interpolation: {
-      escapeValue: false, // React already escapes values
+      escapeValue: false,
     },
-    
+
     react: {
-      useSuspense: false, // Disable suspense for SSR compatibility
+      useSuspense: false,
     },
   });
 

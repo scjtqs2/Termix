@@ -88,11 +88,13 @@ jobs:
 
       - name: Create Linux Portable zip
         run: |
-          zip -r Termix-Linux-Portable.zip release/linux-unpacked/*
+          cd release/linux-unpacked
+          zip -r ../../Termix-Linux-Portable.zip *
+          cd ../..
 
       - name: Upload Linux Portable Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Termix-Linux-Portable
           path: Termix-Linux-Portable.zip
-          retention-days: 3
+          retention-days: 30

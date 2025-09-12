@@ -1,0 +1,44 @@
+{
+  "appId": "com.termix.app",
+  "productName": "Termix",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "public/**/*",
+    "!**/node_modules/**/*",
+    "!src/**/*",
+    "!*.md",
+    "!tsconfig*.json",
+    "!vite.config.ts",
+    "!eslint.config.js"
+  ],
+  "asarUnpack": ["node_modules/node-fetch/**/*"],
+  "extraMetadata": {
+    "main": "electron/main.cjs"
+  },
+  "buildDependenciesFromSource": false,
+  "nodeGypRebuild": false,
+  "npmRebuild": false,
+  "win": {
+    "target": "nsis",
+    "icon": "public/icon.ico",
+    "executableName": "Termix"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Termix",
+    "uninstallDisplayName": "Termix"
+  },
+  "linux": {
+    "target": "AppImage",
+    "icon": "public/icon.png",
+    "category": "Development"
+  }
+}

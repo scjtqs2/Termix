@@ -6,7 +6,11 @@ RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 
-RUN npm ci --force && \
+ENV npm_config_target_platform=linux
+ENV npm_config_target_arch=x64
+ENV npm_config_target_libc=glibc
+
+RUN npm ci --force --ignore-scripts && \
     npm cache clean --force
 
 # Stage 2: Build frontend
@@ -23,6 +27,12 @@ WORKDIR /app
 
 COPY . .
 
+ENV npm_config_target_platform=linux
+ENV npm_config_target_arch=x64
+ENV npm_config_target_libc=glibc
+
+RUN npm rebuild better-sqlite3 --force
+
 RUN npm run build:backend
 
 # Stage 4: Production dependencies
@@ -30,6 +40,10 @@ FROM node:24-alpine AS production-deps
 WORKDIR /app
 
 COPY package*.json ./
+
+ENV npm_config_target_platform=linux
+ENV npm_config_target_arch=x64
+ENV npm_config_target_libc=glibc
 
 RUN npm ci --only=production --ignore-scripts --force && \
     npm cache clean --force
@@ -42,7 +56,13 @@ RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 
-RUN npm ci --only=production bcryptjs better-sqlite3 --force && \
+ENV npm_config_target_platform=linux
+ENV npm_config_target_arch=x64
+ENV npm_config_target_libc=glibc
+
+# Install native modules and compile them properly
+RUN npm ci --only=production --force && \
+    npm rebuild better-sqlite3 bcryptjs --force && \
     npm cache clean --force
 
 # Stage 6: Final image
@@ -57,14 +77,12 @@ RUN apk add --no-cache nginx gettext su-exec && \
 
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
-COPY --from=frontend-builder /app/public/locales /usr/share/nginx/html/locales
+COPY --from=frontend-builder /app/src/locales /usr/share/nginx/html/locales
 RUN chown -R nginx:nginx /usr/share/nginx/html
 
 WORKDIR /app
 
-COPY --from=production-deps /app/node_modules /app/node_modules
-COPY --from=native-builder /app/node_modules/bcryptjs /app/node_modules/bcryptjs
-COPY --from=native-builder /app/node_modules/better-sqlite3 /app/node_modules/better-sqlite3
+COPY --from=native-builder /app/node_modules /app/node_modules
 COPY --from=backend-builder /app/dist/backend ./dist/backend
 
 COPY package.json ./
