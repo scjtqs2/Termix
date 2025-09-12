@@ -1,5 +1,3 @@
-\_# Contributing
-
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/en/download/) (built with v24)
