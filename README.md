@@ -11,7 +11,7 @@
 <a href="https://discord.gg/jVQGdvHDrf"><img alt="Discord" src="https://img.shields.io/discord/1347374268253470720"></a>
 
 <p align="center">
-  <img src="./repo-images/RepoOfTheDay.png" alt="Repo of the Day Achievement" style="width: auto; height: auto;">
+  <img src="./repo-images/RepoOfTheDay.png" alt="Repo of the Day Achievement" style="width: 300px; height: auto;">
   <br>
   <small style="color: #666;">Achieved on September 1st, 2025</small>
 </p>
