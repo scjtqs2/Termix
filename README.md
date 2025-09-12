@@ -10,6 +10,12 @@
 ![GitHub Release](https://img.shields.io/github/v/release/LukeGus/Termix?style=flat&label=Release)
 <a href="https://discord.gg/jVQGdvHDrf"><img alt="Discord" src="https://img.shields.io/discord/1347374268253470720"></a>
 
+<p align="center">
+  <img src="./repo-images/RepoOfTheDay.png" alt="Repo of the Day Achievement" style="width: auto; height: auto;">
+  <br>
+  <small style="color: #666;">Achieved on September 1st, 2025</small>
+</p>
+
 #### Top Technologies
 
 [![React Badge](https://img.shields.io/badge/-React-61DBFB?style=flat-square&labelColor=black&logo=react&logoColor=61DBFB)](#)
