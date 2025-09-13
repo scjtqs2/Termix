@@ -90,7 +90,7 @@ volumes:
 ```
 
 Pre-built binaries are now available for download, including a Windows installer/portable app and a Linux portable app (
-built with Electron). See [Docs](http://localhost:5174/install#pre-built-binaries) for details. A native iOS/Android app
+built with Electron). See [Docs](https://docs.termix.site/install#pre-built-binaries) for details. A native iOS/Android app
 is planned.
 
 # Support
