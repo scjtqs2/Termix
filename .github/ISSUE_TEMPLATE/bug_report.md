@@ -4,29 +4,71 @@ about: Create a report to help Termix improve
 title: "[BUG]"
 labels: bug
 assignees: ""
----
-
-**Describe the bug**
-A clear and concise description of what the bug is.
-
-**To Reproduce**
-Steps to reproduce the behavior:
-
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
-
-**Expected behavior**
-A clear and concise description of what you expected to happen.
-
-**Screenshots/Logs**
-If applicable, add screenshots or console/Docker logs to help explain your problem.
-
-**Environment (please complete the following information):**
-
-- Browser [e.g. chrome, safari]
-- Version [e.g. 1.6.0]
-
-**Additional context**
-Add any other context about the problem here.
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Title
+      description: Brief, descriptive title for the bug
+      placeholder: "Brief description of the bug"
+    validations:
+      required: true
+  - type: dropdown
+    id: installation-method
+    attributes:
+      label: Installation Method / Platform
+      description: How are you running Termix?
+      options:
+        - Firefox
+        - Safari
+        - Chrome
+        - Other Browser
+        - Windows
+        - Linux
+        - iOS
+        - Android
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Find your version in the User Profile tab
+      placeholder: "e.g., 1.6.0"
+    validations:
+      required: true
+  - type: checkboxes
+    id: troubleshooting
+    attributes:
+      label: Troubleshooting
+      description: Please check all that apply
+      options:
+        - label: I have examined logs and tried to find the issue
+        - label: I have reviewed opened and closed issues
+        - label: I have tried restarting the application
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: The Problem
+      description: Describe the bug in detail. Include as much information as possible with screenshots if applicable.
+      placeholder: "Describe what went wrong..."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: How to Reproduce
+      description: Use as few steps as possible to reproduce the issue
+      placeholder: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: "Add any other context about the problem here..."
