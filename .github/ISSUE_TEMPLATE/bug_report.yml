@@ -1,9 +1,8 @@
----
 name: Bug report
-about: Create a report to help Termix improve
+description: Create a report to help Termix improve
 title: "[BUG]"
-labels: bug
-assignees: ""
+labels: [bug]
+assignees: []
 body:
   - type: input
     id: title

@@ -1,9 +1,8 @@
----
 name: Feature request
-about: Suggest an idea for Termix
+description: Suggest an idea for Termix
 title: "[FEATURE]"
-labels: enhancement
-assignees: ""
+labels: [enhancement]
+assignees: []
 body:
   - type: input
     id: title
