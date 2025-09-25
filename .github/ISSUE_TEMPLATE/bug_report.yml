@@ -37,6 +37,8 @@ body:
       options:
         - Docker
         - Manual Build
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
