@@ -13,10 +13,10 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: installation-method
+    id: platform
     attributes:
-      label: Installation Method / Platform
-      description: How are you running Termix?
+      label: Platform
+      description: How are you using Termix?
       options:
         - Firefox
         - Safari
@@ -29,6 +29,14 @@ body:
         - Other
     validations:
       required: true
+  - type: dropdown
+    id: server-installation-method
+    attributes:
+      label: Serer Installation Method
+      description: How is the Termix server installed?
+      options:
+        - Docker
+        - Manual Build
   - type: input
     id: version
     attributes:
