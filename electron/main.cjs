@@ -1,6 +1,12 @@
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
+
+app.commandLine.appendSwitch("--ignore-certificate-errors");
+app.commandLine.appendSwitch("--ignore-ssl-errors");
+app.commandLine.appendSwitch("--ignore-certificate-errors-spki-list");
+app.commandLine.appendSwitch("--enable-features=NetworkService");
 
 let mainWindow = null;
 
@@ -13,7 +19,6 @@ if (!gotTheLock) {
   process.exit(0);
 } else {
   app.on("second-instance", (event, commandLine, workingDirectory) => {
-    console.log("Second instance detected, focusing existing window...");
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -35,7 +40,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: !isDev,
+      webSecurity: true,
       preload: path.join(__dirname, "preload.js"),
     },
     show: false,
@@ -50,12 +55,10 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     const indexPath = path.join(__dirname, "..", "dist", "index.html");
-    console.log("Loading frontend from:", indexPath);
     mainWindow.loadFile(indexPath);
   }
 
   mainWindow.once("ready-to-show", () => {
-    console.log("Window ready to show");
     mainWindow.show();
   });
 
@@ -94,6 +97,163 @@ function createWindow() {
 
 ipcMain.handle("get-app-version", () => {
   return app.getVersion();
+});
+
+const GITHUB_API_BASE = "https://api.github.com";
+const REPO_OWNER = "LukeGus";
+const REPO_NAME = "Termix";
+
+const githubCache = new Map();
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+async function fetchGitHubAPI(endpoint, cacheKey) {
+  const cached = githubCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return {
+      data: cached.data,
+      cached: true,
+      cache_age: Date.now() - cached.timestamp,
+    };
+  }
+
+  try {
+    let fetch;
+    try {
+      fetch = globalThis.fetch || require("node-fetch");
+    } catch (e) {
+      const https = require("https");
+      const http = require("http");
+      const { URL } = require("url");
+
+      fetch = (url, options = {}) => {
+        return new Promise((resolve, reject) => {
+          const urlObj = new URL(url);
+          const isHttps = urlObj.protocol === "https:";
+          const client = isHttps ? https : http;
+
+          const requestOptions = {
+            method: options.method || "GET",
+            headers: options.headers || {},
+            timeout: options.timeout || 10000,
+          };
+
+          if (isHttps) {
+            requestOptions.rejectUnauthorized = false;
+            requestOptions.agent = new https.Agent({
+              rejectUnauthorized: false,
+              secureProtocol: "TLSv1_2_method",
+              checkServerIdentity: () => undefined,
+              ciphers: "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH",
+              honorCipherOrder: true,
+            });
+          }
+
+          const req = client.request(url, requestOptions, (res) => {
+            let data = "";
+            res.on("data", (chunk) => (data += chunk));
+            res.on("end", () => {
+              resolve({
+                ok: res.statusCode >= 200 && res.statusCode < 300,
+                status: res.statusCode,
+                text: () => Promise.resolve(data),
+                json: () => Promise.resolve(JSON.parse(data)),
+              });
+            });
+          });
+
+          req.on("error", reject);
+          req.on("timeout", () => {
+            req.destroy();
+            reject(new Error("Request timeout"));
+          });
+
+          if (options.body) {
+            req.write(options.body);
+          }
+          req.end();
+        });
+      };
+    }
+
+    const response = await fetch(`${GITHUB_API_BASE}${endpoint}`, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "TermixElectronUpdateChecker/1.0",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `GitHub API error: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const data = await response.json();
+
+    githubCache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    });
+
+    return {
+      data: data,
+      cached: false,
+    };
+  } catch (error) {
+    console.error("Failed to fetch from GitHub API:", error);
+    throw error;
+  }
+}
+
+ipcMain.handle("check-electron-update", async () => {
+  try {
+    const localVersion = app.getVersion();
+
+    const releaseData = await fetchGitHubAPI(
+      `/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`,
+      "latest_release_electron",
+    );
+
+    const rawTag = releaseData.data.tag_name || releaseData.data.name || "";
+    const remoteVersionMatch = rawTag.match(/(\d+\.\d+(\.\d+)?)/);
+    const remoteVersion = remoteVersionMatch ? remoteVersionMatch[1] : null;
+
+    if (!remoteVersion) {
+      return {
+        success: false,
+        error: "Remote version not found",
+        localVersion,
+      };
+    }
+
+    const isUpToDate = localVersion === remoteVersion;
+
+    const result = {
+      success: true,
+      status: isUpToDate ? "up_to_date" : "requires_update",
+      localVersion: localVersion,
+      remoteVersion: remoteVersion,
+      latest_release: {
+        tag_name: releaseData.data.tag_name,
+        name: releaseData.data.name,
+        published_at: releaseData.data.published_at,
+        html_url: releaseData.data.html_url,
+        body: releaseData.data.body,
+      },
+      cached: releaseData.cached,
+      cache_age: releaseData.cache_age,
+    };
+
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      localVersion: app.getVersion(),
+    };
+  }
 });
 
 ipcMain.handle("get-platform", () => {
@@ -135,54 +295,58 @@ ipcMain.handle("save-server-config", (event, config) => {
 
 ipcMain.handle("test-server-connection", async (event, serverUrl) => {
   try {
-    let fetch;
-    try {
-      fetch = globalThis.fetch || require("node:fetch");
-    } catch (e) {
-      const https = require("https");
-      const http = require("http");
-      const { URL } = require("url");
+    const https = require("https");
+    const http = require("http");
+    const { URL } = require("url");
 
-      fetch = (url, options = {}) => {
-        return new Promise((resolve, reject) => {
-          const urlObj = new URL(url);
-          const isHttps = urlObj.protocol === "https:";
-          const client = isHttps ? https : http;
+    const fetch = (url, options = {}) => {
+      return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const isHttps = urlObj.protocol === "https:";
+        const client = isHttps ? https : http;
 
-          const req = client.request(
-            url,
-            {
-              method: options.method || "GET",
-              headers: options.headers || {},
-              timeout: options.timeout || 5000,
-            },
-            (res) => {
-              let data = "";
-              res.on("data", (chunk) => (data += chunk));
-              res.on("end", () => {
-                resolve({
-                  ok: res.statusCode >= 200 && res.statusCode < 300,
-                  status: res.statusCode,
-                  text: () => Promise.resolve(data),
-                  json: () => Promise.resolve(JSON.parse(data)),
-                });
-              });
-            },
-          );
+        const requestOptions = {
+          method: options.method || "GET",
+          headers: options.headers || {},
+          timeout: options.timeout || 10000,
+        };
 
-          req.on("error", reject);
-          req.on("timeout", () => {
-            req.destroy();
-            reject(new Error("Request timeout"));
+        if (isHttps) {
+          requestOptions.rejectUnauthorized = false;
+          requestOptions.agent = new https.Agent({
+            rejectUnauthorized: false,
+            secureProtocol: "TLSv1_2_method",
+            checkServerIdentity: () => undefined,
+            ciphers: "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH",
+            honorCipherOrder: true,
           });
+        }
 
-          if (options.body) {
-            req.write(options.body);
-          }
-          req.end();
+        const req = client.request(url, requestOptions, (res) => {
+          let data = "";
+          res.on("data", (chunk) => (data += chunk));
+          res.on("end", () => {
+            resolve({
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              text: () => Promise.resolve(data),
+              json: () => Promise.resolve(JSON.parse(data)),
+            });
+          });
         });
-      };
-    }
+
+        req.on("error", reject);
+        req.on("timeout", () => {
+          req.destroy();
+          reject(new Error("Request timeout"));
+        });
+
+        if (options.body) {
+          req.write(options.body);
+        }
+        req.end();
+      });
+    };
 
     const normalizedServerUrl = serverUrl.replace(/\/$/, "");
 
@@ -191,7 +355,7 @@ ipcMain.handle("test-server-connection", async (event, serverUrl) => {
     try {
       const response = await fetch(healthUrl, {
         method: "GET",
-        timeout: 5000,
+        timeout: 10000,
       });
 
       if (response.ok) {
@@ -203,9 +367,6 @@ ipcMain.handle("test-server-connection", async (event, serverUrl) => {
           data.includes("<head>") ||
           data.includes("<body>")
         ) {
-          console.log(
-            "Health endpoint returned HTML instead of JSON - not a Termix server",
-          );
           return {
             success: false,
             error:
@@ -240,7 +401,7 @@ ipcMain.handle("test-server-connection", async (event, serverUrl) => {
       const versionUrl = `${normalizedServerUrl}/version`;
       const response = await fetch(versionUrl, {
         method: "GET",
-        timeout: 5000,
+        timeout: 10000,
       });
 
       if (response.ok) {
@@ -252,9 +413,6 @@ ipcMain.handle("test-server-connection", async (event, serverUrl) => {
           data.includes("<head>") ||
           data.includes("<body>")
         ) {
-          console.log(
-            "Version endpoint returned HTML instead of JSON - not a Termix server",
-          );
           return {
             success: false,
             error:
@@ -300,7 +458,6 @@ ipcMain.handle("test-server-connection", async (event, serverUrl) => {
 
 app.whenReady().then(() => {
   createWindow();
-  console.log("Termix started successfully");
 });
 
 app.on("window-all-closed", () => {
@@ -315,10 +472,6 @@ app.on("activate", () => {
   } else if (mainWindow) {
     mainWindow.show();
   }
-});
-
-app.on("before-quit", () => {
-  console.log("App is quitting...");
 });
 
 app.on("will-quit", () => {

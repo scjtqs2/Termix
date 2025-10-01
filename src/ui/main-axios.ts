@@ -62,14 +62,22 @@ export type ServerMetrics = {
 
 interface AuthResponse {
   token: string;
+  success?: boolean;
+  is_admin?: boolean;
+  username?: string;
+  userId?: string;
+  is_oidc?: boolean;
+  totp_enabled?: boolean;
+  data_unlocked?: boolean;
 }
 
 interface UserInfo {
   totp_enabled: boolean;
-  id: string;
+  userId: string;
   username: string;
   is_admin: boolean;
   is_oidc: boolean;
+  data_unlocked: boolean;
 }
 
 interface UserCount {
@@ -123,8 +131,9 @@ export function getCookie(name: string): string | undefined {
   } else {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
-    const token =
+    const encodedToken =
       parts.length === 2 ? parts.pop()?.split(";").shift() : undefined;
+    const token = encodedToken ? decodeURIComponent(encodedToken) : undefined;
     return token;
   }
 }
@@ -137,6 +146,7 @@ function createApiInstance(
     baseURL,
     headers: { "Content-Type": "application/json" },
     timeout: 30000,
+    withCredentials: true,
   });
 
   instance.interceptors.request.use((config) => {
@@ -146,7 +156,6 @@ function createApiInstance(
     (config as any).startTime = startTime;
     (config as any).requestId = requestId;
 
-    const token = getCookie("jwt");
     const method = config.method?.toUpperCase() || "UNKNOWN";
     const url = config.url || "UNKNOWN";
     const fullUrl = `${config.baseURL}${url}`;
@@ -164,18 +173,13 @@ function createApiInstance(
       logger.requestStart(method, fullUrl, context);
     }
 
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    } else if (process.env.NODE_ENV === "development") {
-      authLogger.warn(
-        "No JWT token found, request will be unauthenticated",
-        context,
-      );
-    }
-
     if (isElectron()) {
       config.headers["X-Electron-App"] = "true";
-      config.headers["User-Agent"] = "Termix-Electron/1.6.0";
+
+      const token = localStorage.getItem("jwt");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      }
     }
 
     return config;
@@ -269,12 +273,23 @@ function createApiInstance(
       }
 
       if (status === 401) {
+        const errorCode = (error.response?.data as any)?.code;
+        const isSessionExpired = errorCode === "SESSION_EXPIRED";
+
         if (isElectron()) {
           localStorage.removeItem("jwt");
         } else {
-          document.cookie =
-            "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
           localStorage.removeItem("jwt");
+        }
+
+        if (isSessionExpired && typeof window !== "undefined") {
+          console.warn("Session expired - please log in again");
+
+          import("sonner").then(({ toast }) => {
+            toast.warning("Session expired - please log in again");
+          });
+
+          setTimeout(() => window.location.reload(), 100);
         }
       }
 
@@ -290,6 +305,10 @@ function createApiInstance(
 // ============================================================================
 
 function isDev(): boolean {
+  if (isElectron()) {
+    return false;
+  }
+
   return (
     process.env.NODE_ENV === "development" &&
     (window.location.port === "3000" ||
@@ -301,11 +320,11 @@ function isDev(): boolean {
 }
 
 let apiHost = import.meta.env.VITE_API_HOST || "localhost";
-let apiPort = 8081;
+let apiPort = 30001;
 let configuredServerUrl: string | null = null;
 
 if (isElectron()) {
-  apiPort = 8081;
+  apiPort = 30001;
 }
 
 export interface ServerConfig {
@@ -337,6 +356,7 @@ export async function saveServerConfig(config: ServerConfig): Promise<boolean> {
     );
     if (result?.success) {
       configuredServerUrl = config.serverUrl;
+      (window as any).configuredServerUrl = configuredServerUrl;
       updateApiInstances();
       return true;
     }
@@ -365,18 +385,41 @@ export async function testServerConnection(
   }
 }
 
-if (isElectron()) {
-  getServerConfig().then((config) => {
-    if (config?.serverUrl) {
-      configuredServerUrl = config.serverUrl;
-      updateApiInstances();
-    }
-  });
+export async function checkElectronUpdate(): Promise<{
+  success: boolean;
+  status?: "up_to_date" | "requires_update";
+  localVersion?: string;
+  remoteVersion?: string;
+  latest_release?: {
+    tag_name: string;
+    name: string;
+    published_at: string;
+    html_url: string;
+    body: string;
+  };
+  cached?: boolean;
+  cache_age?: number;
+  error?: string;
+}> {
+  if (!isElectron())
+    return { success: false, error: "Not in Electron environment" };
+
+  try {
+    const result = await (window as any).electronAPI?.invoke(
+      "check-electron-update",
+    );
+    return result;
+  } catch (error) {
+    console.error("Failed to check Electron update:", error);
+    return { success: false, error: "Update check failed" };
+  }
 }
 
 function getApiUrl(path: string, defaultPort: number): string {
   if (isDev()) {
-    return `http://${apiHost}:${defaultPort}${path}`;
+    const protocol = window.location.protocol === "https:" ? "https" : "http";
+    const sslPort = protocol === "https" ? 8443 : defaultPort;
+    return `${protocol}://${apiHost}:${sslPort}${path}`;
   } else if (isElectron()) {
     if (configuredServerUrl) {
       const baseUrl = configuredServerUrl.replace(/\/$/, "");
@@ -388,44 +431,60 @@ function getApiUrl(path: string, defaultPort: number): string {
   }
 }
 
-// Initialize API instances
 function initializeApiInstances() {
-  // SSH Host Management API (port 8081)
-  sshHostApi = createApiInstance(getApiUrl("/ssh", 8081), "SSH_HOST");
+  // SSH Host Management API (port 30001)
+  sshHostApi = createApiInstance(getApiUrl("/ssh", 30001), "SSH_HOST");
 
-  // Tunnel Management API (port 8083)
-  tunnelApi = createApiInstance(getApiUrl("/ssh", 8083), "TUNNEL");
+  // Tunnel Management API (port 30003)
+  tunnelApi = createApiInstance(getApiUrl("/ssh", 30003), "TUNNEL");
 
-  // File Manager Operations API (port 8084)
+  // File Manager Operations API (port 30004)
   fileManagerApi = createApiInstance(
-    getApiUrl("/ssh/file_manager", 8084),
+    getApiUrl("/ssh/file_manager", 30004),
     "FILE_MANAGER",
   );
 
-  // Server Statistics API (port 8085)
-  statsApi = createApiInstance(getApiUrl("", 8085), "STATS");
+  // Server Statistics API (port 30005)
+  statsApi = createApiInstance(getApiUrl("", 30005), "STATS");
 
-  // Authentication API (port 8081)
-  authApi = createApiInstance(getApiUrl("", 8081), "AUTH");
+  // Authentication API (port 30001)
+  authApi = createApiInstance(getApiUrl("", 30001), "AUTH");
 }
 
-// SSH Host Management API (port 8081)
+// SSH Host Management API (port 30001)
 export let sshHostApi: AxiosInstance;
 
-// Tunnel Management API (port 8083)
+// Tunnel Management API (port 30003)
 export let tunnelApi: AxiosInstance;
 
-// File Manager Operations API (port 8084)
+// File Manager Operations API (port 30004)
 export let fileManagerApi: AxiosInstance;
 
-// Server Statistics API (port 8085)
+// Server Statistics API (port 30005)
 export let statsApi: AxiosInstance;
 
-// Authentication API (port 8081)
+// Authentication API (port 30001)
 export let authApi: AxiosInstance;
 
-// Initialize API instances immediately
-initializeApiInstances();
+if (isElectron()) {
+  getServerConfig()
+    .then((config) => {
+      if (config?.serverUrl) {
+        configuredServerUrl = config.serverUrl;
+        (window as any).configuredServerUrl = configuredServerUrl;
+      }
+      initializeApiInstances();
+    })
+    .catch((error) => {
+      console.error(
+        "Failed to load server config, initializing with default:",
+        error,
+      );
+      initializeApiInstances();
+    });
+} else {
+  initializeApiInstances();
+}
 
 function updateApiInstances() {
   systemLogger.info("Updating API instances with new server configuration", {
@@ -435,7 +494,6 @@ function updateApiInstances() {
 
   initializeApiInstances();
 
-  // Make configuredServerUrl available globally for components that need it
   (window as any).configuredServerUrl = configuredServerUrl;
 
   systemLogger.success("All API instances updated successfully", {
@@ -486,11 +544,13 @@ function handleApiError(error: unknown, operation: string): never {
         `Auth failed: ${method} ${url} - ${message}`,
         errorContext,
       );
-      throw new ApiError(
-        "Authentication required. Please log in again.",
-        401,
-        "AUTH_REQUIRED",
-      );
+
+      const isLoginEndpoint = url?.includes("/users/login");
+      const errorMessage = isLoginEndpoint
+        ? message
+        : "Authentication required. Please log in again.";
+
+      throw new ApiError(errorMessage, 401, "AUTH_REQUIRED");
     } else if (status === 403) {
       authLogger.warn(`Access denied: ${method} ${url}`, errorContext);
       throw new ApiError(
@@ -534,7 +594,6 @@ function handleApiError(error: unknown, operation: string): never {
         "SERVER_ERROR",
       );
     } else if (status === 0) {
-      // Check if this is a "no server configured" error
       if (url.includes("no-server-configured")) {
         apiLogger.error(
           `No server configured: ${method} ${url}`,
@@ -734,6 +793,50 @@ export async function getSSHHostById(hostId: number): Promise<SSHHost> {
     return response.data;
   } catch (error) {
     handleApiError(error, "fetch SSH host");
+  }
+}
+
+// ============================================================================
+// SSH AUTOSTART MANAGEMENT
+// ============================================================================
+
+export async function enableAutoStart(sshConfigId: number): Promise<any> {
+  try {
+    const response = await sshHostApi.post("/autostart/enable", {
+      sshConfigId,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "enable autostart");
+  }
+}
+
+export async function disableAutoStart(sshConfigId: number): Promise<any> {
+  try {
+    const response = await sshHostApi.delete("/autostart/disable", {
+      data: { sshConfigId },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "disable autostart");
+  }
+}
+
+export async function getAutoStartStatus(): Promise<{
+  autostart_configs: Array<{
+    sshConfigId: number;
+    host: string;
+    port: number;
+    username: string;
+    authType: string;
+  }>;
+  total_count: number;
+}> {
+  try {
+    const response = await sshHostApi.get("/autostart/status");
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "fetch autostart status");
   }
 }
 
@@ -955,17 +1058,43 @@ export async function getSSHStatus(
   }
 }
 
+export async function keepSSHAlive(sessionId: string): Promise<any> {
+  try {
+    const response = await fileManagerApi.post("/ssh/keepalive", {
+      sessionId,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "SSH keepalive");
+  }
+}
+
 export async function listSSHFiles(
   sessionId: string,
   path: string,
-): Promise<any[]> {
+): Promise<{ files: any[]; path: string }> {
   try {
     const response = await fileManagerApi.get("/ssh/listFiles", {
       params: { sessionId, path },
     });
-    return response.data || [];
+    return response.data || { files: [], path };
   } catch (error) {
     handleApiError(error, "list SSH files");
+    return { files: [], path };
+  }
+}
+
+export async function identifySSHSymlink(
+  sessionId: string,
+  path: string,
+): Promise<{ path: string; target: string; type: "directory" | "file" }> {
+  try {
+    const response = await fileManagerApi.get("/ssh/identifySymlink", {
+      params: { sessionId, path },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "identify SSH symlink");
   }
 }
 
@@ -978,7 +1107,14 @@ export async function readSSHFile(
       params: { sessionId, path },
     });
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
+    if (error.response?.status === 404) {
+      const customError = new Error("File not found");
+      (customError as any).response = error.response;
+      (customError as any).isFileNotFound =
+        error.response.data?.fileNotFound || true;
+      throw customError;
+    }
     handleApiError(error, "read SSH file");
   }
 }
@@ -1033,6 +1169,25 @@ export async function uploadSSHFile(
     return response.data;
   } catch (error) {
     handleApiError(error, "upload SSH file");
+  }
+}
+
+export async function downloadSSHFile(
+  sessionId: string,
+  filePath: string,
+  hostId?: number,
+  userId?: string,
+): Promise<any> {
+  try {
+    const response = await fileManagerApi.post("/ssh/downloadFile", {
+      sessionId,
+      path: filePath,
+      hostId,
+      userId,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "download SSH file");
   }
 }
 
@@ -1103,6 +1258,34 @@ export async function deleteSSHItem(
   }
 }
 
+export async function copySSHItem(
+  sessionId: string,
+  sourcePath: string,
+  targetDir: string,
+  hostId?: number,
+  userId?: string,
+): Promise<any> {
+  try {
+    const response = await fileManagerApi.post(
+      "/ssh/copyItem",
+      {
+        sessionId,
+        sourcePath,
+        targetDir,
+        hostId,
+        userId,
+      },
+      {
+        timeout: 60000,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "copy SSH item");
+    throw error;
+  }
+}
+
 export async function renameSSHItem(
   sessionId: string,
   oldPath: string,
@@ -1121,6 +1304,175 @@ export async function renameSSHItem(
     return response.data;
   } catch (error) {
     handleApiError(error, "rename SSH item");
+    throw error;
+  }
+}
+
+export async function moveSSHItem(
+  sessionId: string,
+  oldPath: string,
+  newPath: string,
+  hostId?: number,
+  userId?: string,
+): Promise<any> {
+  try {
+    const response = await fileManagerApi.put(
+      "/ssh/moveItem",
+      {
+        sessionId,
+        oldPath,
+        newPath,
+        hostId,
+        userId,
+      },
+      {
+        timeout: 60000,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "move SSH item");
+    throw error;
+  }
+}
+
+// ============================================================================
+// FILE MANAGER DATA
+// ============================================================================
+
+// Recent Files
+export async function getRecentFiles(hostId: number): Promise<any> {
+  try {
+    const response = await authApi.get("/ssh/file_manager/recent", {
+      params: { hostId },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "get recent files");
+    throw error;
+  }
+}
+
+export async function addRecentFile(
+  hostId: number,
+  path: string,
+  name?: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/ssh/file_manager/recent", {
+      hostId,
+      path,
+      name,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "add recent file");
+    throw error;
+  }
+}
+
+export async function removeRecentFile(
+  hostId: number,
+  path: string,
+): Promise<any> {
+  try {
+    const response = await authApi.delete("/ssh/file_manager/recent", {
+      data: { hostId, path },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "remove recent file");
+    throw error;
+  }
+}
+
+export async function getPinnedFiles(hostId: number): Promise<any> {
+  try {
+    const response = await authApi.get("/ssh/file_manager/pinned", {
+      params: { hostId },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "get pinned files");
+    throw error;
+  }
+}
+
+export async function addPinnedFile(
+  hostId: number,
+  path: string,
+  name?: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/ssh/file_manager/pinned", {
+      hostId,
+      path,
+      name,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "add pinned file");
+    throw error;
+  }
+}
+
+export async function removePinnedFile(
+  hostId: number,
+  path: string,
+): Promise<any> {
+  try {
+    const response = await authApi.delete("/ssh/file_manager/pinned", {
+      data: { hostId, path },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "remove pinned file");
+    throw error;
+  }
+}
+
+export async function getFolderShortcuts(hostId: number): Promise<any> {
+  try {
+    const response = await authApi.get("/ssh/file_manager/shortcuts", {
+      params: { hostId },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "get folder shortcuts");
+    throw error;
+  }
+}
+
+export async function addFolderShortcut(
+  hostId: number,
+  path: string,
+  name?: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/ssh/file_manager/shortcuts", {
+      hostId,
+      path,
+      name,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "add folder shortcut");
+    throw error;
+  }
+}
+
+export async function removeFolderShortcut(
+  hostId: number,
+  path: string,
+): Promise<any> {
+  try {
+    const response = await authApi.delete("/ssh/file_manager/shortcuts", {
+      data: { hostId, path },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "remove folder shortcut");
+    throw error;
   }
 }
 
@@ -1182,9 +1534,33 @@ export async function loginUser(
 ): Promise<AuthResponse> {
   try {
     const response = await authApi.post("/users/login", { username, password });
-    return response.data;
+
+    if (isElectron() && response.data.token) {
+      localStorage.setItem("jwt", response.data.token);
+    }
+
+    return {
+      token: response.data.token || "cookie-based",
+      success: response.data.success,
+      is_admin: response.data.is_admin,
+      username: response.data.username,
+      requires_totp: response.data.requires_totp,
+      temp_token: response.data.temp_token,
+    };
   } catch (error) {
     handleApiError(error, "login user");
+  }
+}
+
+export async function logoutUser(): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  try {
+    const response = await authApi.post("/users/logout");
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "logout user");
   }
 }
 
@@ -1194,6 +1570,17 @@ export async function getUserInfo(): Promise<UserInfo> {
     return response.data;
   } catch (error) {
     handleApiError(error, "fetch user info");
+  }
+}
+
+export async function unlockUserData(
+  password: string,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await authApi.post("/users/unlock-data", { password });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "unlock user data");
   }
 }
 
@@ -1216,6 +1603,15 @@ export async function getOIDCConfig(): Promise<any> {
       error.response?.data?.error || error.message,
     );
     return null;
+  }
+}
+
+export async function getSetupRequired(): Promise<{ setup_required: boolean }> {
+  try {
+    const response = await authApi.get("/users/setup-required");
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "check setup status");
   }
 }
 
@@ -1439,23 +1835,18 @@ export async function generateBackupCodes(
   }
 }
 
-export async function getUserAlerts(
-  userId: string,
-): Promise<{ alerts: any[] }> {
+export async function getUserAlerts(): Promise<{ alerts: any[] }> {
   try {
-    const response = await authApi.get(`/alerts/user/${userId}`);
+    const response = await authApi.get(`/alerts`);
     return response.data;
   } catch (error) {
     handleApiError(error, "fetch user alerts");
   }
 }
 
-export async function dismissAlert(
-  userId: string,
-  alertId: string,
-): Promise<any> {
+export async function dismissAlert(alertId: string): Promise<any> {
   try {
-    const response = await authApi.post("/alerts/dismiss", { userId, alertId });
+    const response = await authApi.post("/alerts/dismiss", { alertId });
     return response.data;
   } catch (error) {
     handleApiError(error, "dismiss alert");
@@ -1506,7 +1897,7 @@ export async function getCredentials(): Promise<any> {
     const response = await authApi.get("/credentials");
     return response.data;
   } catch (error) {
-    handleApiError(error, "fetch credentials");
+    throw handleApiError(error, "fetch credentials");
   }
 }
 
@@ -1515,7 +1906,7 @@ export async function getCredentialDetails(credentialId: number): Promise<any> {
     const response = await authApi.get(`/credentials/${credentialId}`);
     return response.data;
   } catch (error) {
-    handleApiError(error, "fetch credential details");
+    throw handleApiError(error, "fetch credential details");
   }
 }
 
@@ -1524,7 +1915,7 @@ export async function createCredential(credentialData: any): Promise<any> {
     const response = await authApi.post("/credentials", credentialData);
     return response.data;
   } catch (error) {
-    handleApiError(error, "create credential");
+    throw handleApiError(error, "create credential");
   }
 }
 
@@ -1539,7 +1930,7 @@ export async function updateCredential(
     );
     return response.data;
   } catch (error) {
-    handleApiError(error, "update credential");
+    throw handleApiError(error, "update credential");
   }
 }
 
@@ -1548,7 +1939,7 @@ export async function deleteCredential(credentialId: number): Promise<any> {
     const response = await authApi.delete(`/credentials/${credentialId}`);
     return response.data;
   } catch (error) {
-    handleApiError(error, "delete credential");
+    throw handleApiError(error, "delete credential");
   }
 }
 
@@ -1570,7 +1961,6 @@ export async function getCredentialFolders(): Promise<any> {
   }
 }
 
-// Get SSH host with resolved credentials
 export async function getSSHHostWithCredentials(hostId: number): Promise<any> {
   try {
     const response = await sshHostApi.get(
@@ -1582,7 +1972,6 @@ export async function getSSHHostWithCredentials(hostId: number): Promise<any> {
   }
 }
 
-// Apply credential to SSH host
 export async function applyCredentialToHost(
   hostId: number,
   credentialId: number,
@@ -1594,21 +1983,19 @@ export async function applyCredentialToHost(
     );
     return response.data;
   } catch (error) {
-    handleApiError(error, "apply credential to host");
+    throw handleApiError(error, "apply credential to host");
   }
 }
 
-// Remove credential from SSH host
 export async function removeCredentialFromHost(hostId: number): Promise<any> {
   try {
     const response = await sshHostApi.delete(`/db/host/${hostId}/credential`);
     return response.data;
   } catch (error) {
-    handleApiError(error, "remove credential from host");
+    throw handleApiError(error, "remove credential from host");
   }
 }
 
-// Migrate host to managed credential
 export async function migrateHostToCredential(
   hostId: number,
   credentialName: string,
@@ -1620,7 +2007,7 @@ export async function migrateHostToCredential(
     );
     return response.data;
   } catch (error) {
-    handleApiError(error, "migrate host to credential");
+    throw handleApiError(error, "migrate host to credential");
   }
 }
 
@@ -1663,6 +2050,96 @@ export async function renameCredentialFolder(
     });
     return response.data;
   } catch (error) {
-    handleApiError(error, "rename credential folder");
+    throw handleApiError(error, "rename credential folder");
+  }
+}
+
+export async function detectKeyType(
+  privateKey: string,
+  keyPassword?: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/credentials/detect-key-type", {
+      privateKey,
+      keyPassword,
+    });
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error, "detect key type");
+  }
+}
+
+export async function detectPublicKeyType(publicKey: string): Promise<any> {
+  try {
+    const response = await authApi.post("/credentials/detect-public-key-type", {
+      publicKey,
+    });
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error, "detect public key type");
+  }
+}
+
+export async function validateKeyPair(
+  privateKey: string,
+  publicKey: string,
+  keyPassword?: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/credentials/validate-key-pair", {
+      privateKey,
+      publicKey,
+      keyPassword,
+    });
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error, "validate key pair");
+  }
+}
+
+export async function generatePublicKeyFromPrivate(
+  privateKey: string,
+  keyPassword?: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/credentials/generate-public-key", {
+      privateKey,
+      keyPassword,
+    });
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error, "generate public key from private key");
+  }
+}
+
+export async function generateKeyPair(
+  keyType: "ssh-ed25519" | "ssh-rsa" | "ecdsa-sha2-nistp256",
+  keySize?: number,
+  passphrase?: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/credentials/generate-key-pair", {
+      keyType,
+      keySize,
+      passphrase,
+    });
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error, "generate SSH key pair");
+  }
+}
+
+export async function deployCredentialToHost(
+  credentialId: number,
+  targetHostId: number,
+): Promise<any> {
+  try {
+    const response = await authApi.post(
+      `/credentials/${credentialId}/deploy-to-host`,
+      { targetHostId },
+    );
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error, "deploy credential to host");
   }
 }

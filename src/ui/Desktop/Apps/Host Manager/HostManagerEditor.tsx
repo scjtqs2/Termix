@@ -30,9 +30,14 @@ import {
   getCredentials,
   getSSHHosts,
   updateSSHHost,
+  enableAutoStart,
+  disableAutoStart,
 } from "@/ui/main-axios.ts";
 import { useTranslation } from "react-i18next";
 import { CredentialSelector } from "@/ui/Desktop/Apps/Credentials/CredentialSelector.tsx";
+import CodeMirror from "@uiw/react-codemirror";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { EditorView } from "@codemirror/view";
 
 interface SSHHost {
   id: number;
@@ -205,15 +210,7 @@ export function HostManagerEditor({
       defaultPath: z.string().optional(),
     })
     .superRefine((data, ctx) => {
-      if (data.authType === "password") {
-        if (!data.password || data.password.trim() === "") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: t("hosts.passwordRequired"),
-            path: ["password"],
-          });
-        }
-      } else if (data.authType === "key") {
+      if (data.authType === "key") {
         if (
           !data.key ||
           (typeof data.key === "string" && data.key.trim() === "")
@@ -343,7 +340,7 @@ export function HostManagerEditor({
       if (defaultAuthType === "password") {
         formData.password = cleanedHost.password || "";
       } else if (defaultAuthType === "key") {
-        formData.key = "existing_key";
+        formData.key = editingHost.id ? "existing_key" : editingHost.key;
         formData.keyPassword = cleanedHost.keyPassword || "";
         formData.keyType = (cleanedHost.keyType as any) || "auto";
       } else if (defaultAuthType === "credential") {
@@ -420,7 +417,11 @@ export function HostManagerEditor({
       submitData.keyType = null;
 
       if (data.authType === "credential") {
-        if (data.credentialId === "existing_credential") {
+        if (
+          data.credentialId === "existing_credential" &&
+          editingHost &&
+          editingHost.id
+        ) {
           delete submitData.credentialId;
         } else {
           submitData.credentialId = data.credentialId;
@@ -440,20 +441,46 @@ export function HostManagerEditor({
         submitData.keyType = data.keyType;
       }
 
-      if (editingHost) {
-        const updatedHost = await updateSSHHost(editingHost.id, submitData);
+      let savedHost;
+      if (editingHost && editingHost.id) {
+        savedHost = await updateSSHHost(editingHost.id, submitData);
         toast.success(t("hosts.hostUpdatedSuccessfully", { name: data.name }));
-
-        if (onFormSubmit) {
-          onFormSubmit(updatedHost);
-        }
       } else {
-        const newHost = await createSSHHost(submitData);
+        savedHost = await createSSHHost(submitData);
         toast.success(t("hosts.hostAddedSuccessfully", { name: data.name }));
+      }
 
-        if (onFormSubmit) {
-          onFormSubmit(newHost);
+      if (savedHost && savedHost.id && data.tunnelConnections) {
+        const hasAutoStartTunnels = data.tunnelConnections.some(
+          (tunnel) => tunnel.autoStart,
+        );
+
+        if (hasAutoStartTunnels) {
+          try {
+            await enableAutoStart(savedHost.id);
+          } catch (error) {
+            console.warn(
+              `Failed to enable AutoStart plaintext cache for SSH host ${savedHost.id}:`,
+              error,
+            );
+            toast.warning(
+              t("hosts.autoStartEnableFailed", { name: data.name }),
+            );
+          }
+        } else {
+          try {
+            await disableAutoStart(savedHost.id);
+          } catch (error) {
+            console.warn(
+              `Failed to disable AutoStart plaintext cache for SSH host ${savedHost.id}:`,
+              error,
+            );
+          }
         }
+      }
+
+      if (onFormSubmit) {
+        onFormSubmit(savedHost);
       }
 
       window.dispatchEvent(new CustomEvent("ssh-hosts:changed"));
@@ -957,19 +984,35 @@ export function HostManagerEditor({
                             <FormItem className="mb-4">
                               <FormLabel>{t("hosts.sshPrivateKey")}</FormLabel>
                               <FormControl>
-                                <textarea
-                                  placeholder={t(
-                                    "placeholders.pastePrivateKey",
-                                  )}
-                                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                <CodeMirror
                                   value={
                                     typeof field.value === "string"
                                       ? field.value
                                       : ""
                                   }
-                                  onChange={(e) =>
-                                    field.onChange(e.target.value)
-                                  }
+                                  onChange={(value) => field.onChange(value)}
+                                  placeholder={t(
+                                    "placeholders.pastePrivateKey",
+                                  )}
+                                  theme={oneDark}
+                                  className="border border-input rounded-md"
+                                  minHeight="120px"
+                                  basicSetup={{
+                                    lineNumbers: true,
+                                    foldGutter: false,
+                                    dropCursor: false,
+                                    allowMultipleSelections: false,
+                                    highlightSelectionMatches: false,
+                                    searchKeymap: false,
+                                    scrollPastEnd: false,
+                                  }}
+                                  extensions={[
+                                    EditorView.theme({
+                                      ".cm-scroller": {
+                                        overflow: "auto",
+                                      },
+                                    }),
+                                  ]}
                                 />
                               </FormControl>
                             </FormItem>
@@ -1118,7 +1161,7 @@ export function HostManagerEditor({
                           <code className="bg-muted px-1 rounded inline">
                             sudo apt install sshpass
                           </code>{" "}
-                          (Debian/Ubuntu) or the equivalent for your OS.
+                          {t("hosts.debianUbuntuEquivalent")}
                         </div>
                         <div className="mt-2">
                           <strong>{t("hosts.otherInstallMethods")}</strong>
@@ -1127,7 +1170,7 @@ export function HostManagerEditor({
                             <code className="bg-muted px-1 rounded inline">
                               sudo yum install sshpass
                             </code>{" "}
-                            or{" "}
+                            {t("hosts.or")}{" "}
                             <code className="bg-muted px-1 rounded inline">
                               sudo dnf install sshpass
                             </code>
@@ -1497,7 +1540,11 @@ export function HostManagerEditor({
           <footer className="shrink-0 w-full pb-0">
             <Separator className="p-0.25" />
             <Button className="translate-y-2" type="submit" variant="outline">
-              {editingHost ? t("hosts.updateHost") : t("hosts.addHost")}
+              {editingHost
+                ? editingHost.id
+                  ? t("hosts.updateHost")
+                  : t("hosts.cloneHost")
+                : t("hosts.addHost")}
             </Button>
           </footer>
         </form>

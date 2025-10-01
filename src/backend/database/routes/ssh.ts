@@ -8,19 +8,20 @@ import {
   fileManagerPinned,
   fileManagerShortcuts,
 } from "../db/schema.js";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNotNull, or } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import { sshLogger } from "../../utils/logger.js";
+import { SimpleDBOps } from "../../utils/simple-db-ops.js";
+import { AuthManager } from "../../utils/auth-manager.js";
+import { DataCrypto } from "../../utils/data-crypto.js";
+import { SystemCrypto } from "../../utils/system-crypto.js";
+import { DatabaseSaveTrigger } from "../db/index.js";
 
 const router = express.Router();
 
 const upload = multer({ storage: multer.memoryStorage() });
-
-interface JWTPayload {
-  userId: string;
-}
 
 function isNonEmptyString(value: any): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -30,61 +31,148 @@ function isValidPort(port: any): port is number {
   return typeof port === "number" && port > 0 && port <= 65535;
 }
 
-function authenticateJWT(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    sshLogger.warn("Missing or invalid Authorization header");
-    return res
-      .status(401)
-      .json({ error: "Missing or invalid Authorization header" });
-  }
-  const token = authHeader.split(" ")[1];
-  const jwtSecret = process.env.JWT_SECRET || "secret";
-  try {
-    const payload = jwt.verify(token, jwtSecret) as JWTPayload;
-    (req as any).userId = payload.userId;
-    next();
-  } catch (err) {
-    sshLogger.warn("Invalid or expired token");
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
-}
+const authManager = AuthManager.getInstance();
+const authenticateJWT = authManager.createAuthMiddleware();
+const requireDataAccess = authManager.createDataAccessMiddleware();
 
-function isLocalhost(req: Request) {
-  const ip = req.ip || req.connection?.remoteAddress;
-  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
-}
-
-// Internal-only endpoint for autostart (no JWT)
 router.get("/db/host/internal", async (req: Request, res: Response) => {
-  if (!isLocalhost(req) && req.headers["x-internal-request"] !== "1") {
-    sshLogger.warn("Unauthorized attempt to access internal SSH host endpoint");
-    return res.status(403).json({ error: "Forbidden" });
-  }
   try {
-    const data = await db.select().from(sshData);
-    const result = data.map((row: any) => {
-      return {
-        ...row,
-        tags:
-          typeof row.tags === "string"
-            ? row.tags
-              ? row.tags.split(",").filter(Boolean)
-              : []
-            : [],
-        pin: !!row.pin,
-        enableTerminal: !!row.enableTerminal,
-        enableTunnel: !!row.enableTunnel,
-        tunnelConnections: row.tunnelConnections
-          ? JSON.parse(row.tunnelConnections)
-          : [],
-        enableFileManager: !!row.enableFileManager,
-      };
-    });
+    const internalToken = req.headers["x-internal-auth-token"];
+    const systemCrypto = SystemCrypto.getInstance();
+    const expectedToken = await systemCrypto.getInternalAuthToken();
+
+    if (internalToken !== expectedToken) {
+      sshLogger.warn(
+        "Unauthorized attempt to access internal SSH host endpoint",
+        {
+          source: req.ip,
+          userAgent: req.headers["user-agent"],
+          providedToken: internalToken ? "present" : "missing",
+        },
+      );
+      return res.status(403).json({ error: "Forbidden" });
+    }
+  } catch (error) {
+    sshLogger.error("Failed to validate internal auth token", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+
+  try {
+    const autostartHosts = await db
+      .select()
+      .from(sshData)
+      .where(
+        and(
+          eq(sshData.enableTunnel, true),
+          isNotNull(sshData.tunnelConnections),
+        ),
+      );
+
+    const result = autostartHosts
+      .map((host) => {
+        const tunnelConnections = host.tunnelConnections
+          ? JSON.parse(host.tunnelConnections)
+          : [];
+
+        const hasAutoStartTunnels = tunnelConnections.some(
+          (tunnel: any) => tunnel.autoStart,
+        );
+
+        if (!hasAutoStartTunnels) {
+          return null;
+        }
+
+        return {
+          id: host.id,
+          userId: host.userId,
+          name: host.name || `autostart-${host.id}`,
+          ip: host.ip,
+          port: host.port,
+          username: host.username,
+          password: host.autostartPassword,
+          key: host.autostartKey,
+          keyPassword: host.autostartKeyPassword,
+          autostartPassword: host.autostartPassword,
+          autostartKey: host.autostartKey,
+          autostartKeyPassword: host.autostartKeyPassword,
+          authType: host.authType,
+          keyType: host.keyType,
+          credentialId: host.credentialId,
+          enableTunnel: true,
+          tunnelConnections: tunnelConnections.filter(
+            (tunnel: any) => tunnel.autoStart,
+          ),
+          pin: !!host.pin,
+          enableTerminal: !!host.enableTerminal,
+          enableFileManager: !!host.enableFileManager,
+          tags: ["autostart"],
+        };
+      })
+      .filter(Boolean);
+
     res.json(result);
   } catch (err) {
-    sshLogger.error("Failed to fetch SSH data (internal)", err);
-    res.status(500).json({ error: "Failed to fetch SSH data" });
+    sshLogger.error("Failed to fetch autostart SSH data", err);
+    res.status(500).json({ error: "Failed to fetch autostart SSH data" });
+  }
+});
+
+router.get("/db/host/internal/all", async (req: Request, res: Response) => {
+  try {
+    const internalToken = req.headers["x-internal-auth-token"];
+    if (!internalToken) {
+      return res
+        .status(401)
+        .json({ error: "Internal authentication token required" });
+    }
+
+    const systemCrypto = SystemCrypto.getInstance();
+    const expectedToken = await systemCrypto.getInternalAuthToken();
+
+    if (internalToken !== expectedToken) {
+      return res
+        .status(401)
+        .json({ error: "Invalid internal authentication token" });
+    }
+
+    const allHosts = await db.select().from(sshData);
+
+    const result = allHosts.map((host) => {
+      const tunnelConnections = host.tunnelConnections
+        ? JSON.parse(host.tunnelConnections)
+        : [];
+
+      return {
+        id: host.id,
+        userId: host.userId,
+        name: host.name || `${host.username}@${host.ip}`,
+        ip: host.ip,
+        port: host.port,
+        username: host.username,
+        password: host.autostartPassword || host.password,
+        key: host.autostartKey || host.key,
+        keyPassword: host.autostartKeyPassword || host.keyPassword,
+        autostartPassword: host.autostartPassword,
+        autostartKey: host.autostartKey,
+        autostartKeyPassword: host.autostartKeyPassword,
+        authType: host.authType,
+        keyType: host.keyType,
+        credentialId: host.credentialId,
+        enableTunnel: !!host.enableTunnel,
+        tunnelConnections: tunnelConnections,
+        pin: !!host.pin,
+        enableTerminal: !!host.enableTerminal,
+        enableFileManager: !!host.enableFileManager,
+        defaultPath: host.defaultPath,
+        createdAt: host.createdAt,
+        updatedAt: host.updatedAt,
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    sshLogger.error("Failed to fetch all hosts for internal use", err);
+    res.status(500).json({ error: "Failed to fetch all hosts" });
   }
 });
 
@@ -93,6 +181,7 @@ router.get("/db/host/internal", async (req: Request, res: Response) => {
 router.post(
   "/db/host",
   authenticateJWT,
+  requireDataAccess,
   upload.single("key"),
   async (req: Request, res: Response) => {
     const userId = (req as any).userId;
@@ -192,12 +281,22 @@ router.post(
       sshDataObj.keyPassword = keyPassword || null;
       sshDataObj.keyType = keyType;
       sshDataObj.password = null;
+    } else {
+      sshDataObj.password = null;
+      sshDataObj.key = null;
+      sshDataObj.keyPassword = null;
+      sshDataObj.keyType = null;
     }
 
     try {
-      const result = await db.insert(sshData).values(sshDataObj).returning();
+      const result = await SimpleDBOps.insert(
+        sshData,
+        "ssh_data",
+        sshDataObj,
+        userId,
+      );
 
-      if (result.length === 0) {
+      if (!result) {
         sshLogger.warn("No host returned after creation", {
           operation: "host_create",
           userId,
@@ -208,7 +307,7 @@ router.post(
         return res.status(500).json({ error: "Failed to create host" });
       }
 
-      const createdHost = result[0];
+      const createdHost = result;
       const baseHost = {
         ...createdHost,
         tags:
@@ -372,18 +471,33 @@ router.put(
         sshDataObj.keyType = keyType;
       }
       sshDataObj.password = null;
+    } else {
+      // For credential auth
+      sshDataObj.password = null;
+      sshDataObj.key = null;
+      sshDataObj.keyPassword = null;
+      sshDataObj.keyType = null;
     }
 
     try {
-      await db
-        .update(sshData)
-        .set(sshDataObj)
-        .where(and(eq(sshData.id, Number(hostId)), eq(sshData.userId, userId)));
+      await SimpleDBOps.update(
+        sshData,
+        "ssh_data",
+        and(eq(sshData.id, Number(hostId)), eq(sshData.userId, userId)),
+        sshDataObj,
+        userId,
+      );
 
-      const updatedHosts = await db
-        .select()
-        .from(sshData)
-        .where(and(eq(sshData.id, Number(hostId)), eq(sshData.userId, userId)));
+      const updatedHosts = await SimpleDBOps.select(
+        db
+          .select()
+          .from(sshData)
+          .where(
+            and(eq(sshData.id, Number(hostId)), eq(sshData.userId, userId)),
+          ),
+        "ssh_data",
+        userId,
+      );
 
       if (updatedHosts.length === 0) {
         sshLogger.warn("Updated host not found after update", {
@@ -455,10 +569,11 @@ router.get("/db/host", authenticateJWT, async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid userId" });
   }
   try {
-    const data = await db
-      .select()
-      .from(sshData)
-      .where(eq(sshData.userId, userId));
+    const data = await SimpleDBOps.select(
+      db.select().from(sshData).where(eq(sshData.userId, userId)),
+      "ssh_data",
+      userId,
+    );
 
     const result = await Promise.all(
       data.map(async (row: any) => {
@@ -1074,14 +1189,16 @@ router.put(
     }
 
     try {
-      const updatedHosts = await db
-        .update(sshData)
-        .set({
+      const updatedHosts = await SimpleDBOps.update(
+        sshData,
+        "ssh_data",
+        and(eq(sshData.userId, userId), eq(sshData.folder, oldName)),
+        {
           folder: newName,
           updatedAt: new Date().toISOString(),
-        })
-        .where(and(eq(sshData.userId, userId), eq(sshData.folder, oldName)))
-        .returning();
+        },
+        userId,
+      );
 
       const updatedCredentials = await db
         .update(sshCredentials)
@@ -1096,6 +1213,9 @@ router.put(
           ),
         )
         .returning();
+
+      // Trigger database save after folder rename
+      DatabaseSaveTrigger.triggerSave("folder_rename");
 
       res.json({
         message: "Folder renamed successfully",
@@ -1221,7 +1341,7 @@ router.post(
           updatedAt: new Date().toISOString(),
         };
 
-        await db.insert(sshData).values(sshDataObj);
+        await SimpleDBOps.insert(sshData, "ssh_data", sshDataObj, userId);
         results.success++;
       } catch (error) {
         results.failed++;
@@ -1237,6 +1357,250 @@ router.post(
       failed: results.failed,
       errors: results.errors,
     });
+  },
+);
+
+// Route: Enable autostart for SSH configuration (requires JWT)
+// POST /ssh/autostart/enable
+router.post(
+  "/autostart/enable",
+  authenticateJWT,
+  requireDataAccess,
+  async (req: Request, res: Response) => {
+    const userId = (req as any).userId;
+    const { sshConfigId } = req.body;
+
+    if (!sshConfigId || typeof sshConfigId !== "number") {
+      sshLogger.warn(
+        "Missing or invalid sshConfigId in autostart enable request",
+        {
+          operation: "autostart_enable",
+          userId,
+          sshConfigId,
+        },
+      );
+      return res.status(400).json({ error: "Valid sshConfigId is required" });
+    }
+
+    try {
+      const userDataKey = DataCrypto.getUserDataKey(userId);
+      if (!userDataKey) {
+        sshLogger.warn(
+          "User attempted to enable autostart without unlocked data",
+          {
+            operation: "autostart_enable_failed",
+            userId,
+            sshConfigId,
+            reason: "data_locked",
+          },
+        );
+        return res.status(400).json({
+          error: "Failed to enable autostart. Ensure user data is unlocked.",
+        });
+      }
+
+      const sshConfig = await db
+        .select()
+        .from(sshData)
+        .where(and(eq(sshData.id, sshConfigId), eq(sshData.userId, userId)));
+
+      if (sshConfig.length === 0) {
+        sshLogger.warn("SSH config not found for autostart enable", {
+          operation: "autostart_enable_failed",
+          userId,
+          sshConfigId,
+          reason: "config_not_found",
+        });
+        return res.status(404).json({
+          error: "SSH configuration not found",
+        });
+      }
+
+      const config = sshConfig[0];
+
+      const decryptedConfig = DataCrypto.decryptRecord(
+        "ssh_data",
+        config,
+        userId,
+        userDataKey,
+      );
+
+      let updatedTunnelConnections = config.tunnelConnections;
+      if (config.tunnelConnections) {
+        try {
+          const tunnelConnections = JSON.parse(config.tunnelConnections);
+
+          const resolvedConnections = await Promise.all(
+            tunnelConnections.map(async (tunnel: any) => {
+              if (
+                tunnel.autoStart &&
+                tunnel.endpointHost &&
+                !tunnel.endpointPassword &&
+                !tunnel.endpointKey
+              ) {
+                const endpointHosts = await db
+                  .select()
+                  .from(sshData)
+                  .where(eq(sshData.userId, userId));
+
+                const endpointHost = endpointHosts.find(
+                  (h) =>
+                    h.name === tunnel.endpointHost ||
+                    `${h.username}@${h.ip}` === tunnel.endpointHost,
+                );
+
+                if (endpointHost) {
+                  const decryptedEndpoint = DataCrypto.decryptRecord(
+                    "ssh_data",
+                    endpointHost,
+                    userId,
+                    userDataKey,
+                  );
+
+                  return {
+                    ...tunnel,
+                    endpointPassword: decryptedEndpoint.password || null,
+                    endpointKey: decryptedEndpoint.key || null,
+                    endpointKeyPassword: decryptedEndpoint.keyPassword || null,
+                    endpointAuthType: endpointHost.authType,
+                  };
+                }
+              }
+              return tunnel;
+            }),
+          );
+
+          updatedTunnelConnections = JSON.stringify(resolvedConnections);
+        } catch (error) {
+          sshLogger.warn("Failed to update tunnel connections", {
+            operation: "tunnel_connections_update_failed",
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      }
+
+      const updateResult = await db
+        .update(sshData)
+        .set({
+          autostartPassword: decryptedConfig.password || null,
+          autostartKey: decryptedConfig.key || null,
+          autostartKeyPassword: decryptedConfig.keyPassword || null,
+          tunnelConnections: updatedTunnelConnections,
+        })
+        .where(eq(sshData.id, sshConfigId));
+
+      try {
+        await DatabaseSaveTrigger.triggerSave();
+      } catch (saveError) {
+        sshLogger.warn("Database save failed after autostart", {
+          operation: "autostart_db_save_failed",
+          error:
+            saveError instanceof Error ? saveError.message : "Unknown error",
+        });
+      }
+
+      res.json({
+        message: "AutoStart enabled successfully",
+        sshConfigId,
+      });
+    } catch (error) {
+      sshLogger.error("Error enabling autostart", error, {
+        operation: "autostart_enable_error",
+        userId,
+        sshConfigId,
+      });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Route: Disable autostart for SSH configuration (requires JWT)
+// DELETE /ssh/autostart/disable
+router.delete(
+  "/autostart/disable",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    const userId = (req as any).userId;
+    const { sshConfigId } = req.body;
+
+    if (!sshConfigId || typeof sshConfigId !== "number") {
+      sshLogger.warn(
+        "Missing or invalid sshConfigId in autostart disable request",
+        {
+          operation: "autostart_disable",
+          userId,
+          sshConfigId,
+        },
+      );
+      return res.status(400).json({ error: "Valid sshConfigId is required" });
+    }
+
+    try {
+      const result = await db
+        .update(sshData)
+        .set({
+          autostartPassword: null,
+          autostartKey: null,
+          autostartKeyPassword: null,
+        })
+        .where(and(eq(sshData.id, sshConfigId), eq(sshData.userId, userId)));
+
+      res.json({
+        message: "AutoStart disabled successfully",
+        sshConfigId,
+      });
+    } catch (error) {
+      sshLogger.error("Error disabling autostart", error, {
+        operation: "autostart_disable_error",
+        userId,
+        sshConfigId,
+      });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Route: Get autostart status for user's SSH configurations (requires JWT)
+// GET /ssh/autostart/status
+router.get(
+  "/autostart/status",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    const userId = (req as any).userId;
+
+    try {
+      const autostartConfigs = await db
+        .select()
+        .from(sshData)
+        .where(
+          and(
+            eq(sshData.userId, userId),
+            or(
+              isNotNull(sshData.autostartPassword),
+              isNotNull(sshData.autostartKey),
+            ),
+          ),
+        );
+
+      const statusList = autostartConfigs.map((config) => ({
+        sshConfigId: config.id,
+        host: config.ip,
+        port: config.port,
+        username: config.username,
+        authType: config.authType,
+      }));
+
+      res.json({
+        autostart_configs: statusList,
+        total_count: statusList.length,
+      });
+    } catch (error) {
+      sshLogger.error("Error getting autostart status", error, {
+        operation: "autostart_status_error",
+        userId,
+      });
+      res.status(500).json({ error: "Internal server error" });
+    }
   },
 );
 

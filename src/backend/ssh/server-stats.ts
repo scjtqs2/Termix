@@ -1,11 +1,14 @@
 import express from "express";
 import net from "net";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { Client, type ConnectConfig } from "ssh2";
-import { db } from "../database/db/index.js";
+import { getDb } from "../database/db/index.js";
 import { sshData, sshCredentials } from "../database/db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { statsLogger } from "../utils/logger.js";
+import { SimpleDBOps } from "../utils/simple-db-ops.js";
+import { AuthManager } from "../utils/auth-manager.js";
 
 interface PooledConnection {
   client: Client;
@@ -227,6 +230,7 @@ class MetricsCache {
 const connectionPool = new SSHConnectionPool();
 const requestQueue = new RequestQueue();
 const metricsCache = new MetricsCache();
+const authManager = AuthManager.getInstance();
 
 type HostStatus = "online" | "offline";
 
@@ -275,7 +279,37 @@ function validateHostId(
 const app = express();
 app.use(
   cors({
-    origin: "*",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      // Allow localhost and 127.0.0.1 for development
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+      ];
+
+      // Allow any HTTPS origin (production deployments)
+      if (origin.startsWith("https://")) {
+        return callback(null, true);
+      }
+
+      // Allow any HTTP origin for self-hosted scenarios
+      if (origin.startsWith("http://")) {
+        return callback(null, true);
+      }
+
+      // Check against allowed development origins
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Reject other origins
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
@@ -285,33 +319,28 @@ app.use(
     ],
   }),
 );
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, User-Agent, X-Electron-App",
-  );
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-  next();
-});
+app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
+
+// Add authentication middleware - Linus principle: eliminate special cases
+app.use(authManager.createAuthMiddleware());
 
 const hostStatuses: Map<number, StatusEntry> = new Map();
 
-async function fetchAllHosts(): Promise<SSHHostWithCredentials[]> {
+async function fetchAllHosts(
+  userId: string,
+): Promise<SSHHostWithCredentials[]> {
   try {
-    const hosts = await db.select().from(sshData);
+    const hosts = await SimpleDBOps.select(
+      getDb().select().from(sshData).where(eq(sshData.userId, userId)),
+      "ssh_data",
+      userId,
+    );
 
     const hostsWithCredentials: SSHHostWithCredentials[] = [];
     for (const host of hosts) {
       try {
-        const hostWithCreds = await resolveHostCredentials(host);
+        const hostWithCreds = await resolveHostCredentials(host, userId);
         if (hostWithCreds) {
           hostsWithCredentials.push(hostWithCreds);
         }
@@ -331,16 +360,34 @@ async function fetchAllHosts(): Promise<SSHHostWithCredentials[]> {
 
 async function fetchHostById(
   id: number,
+  userId: string,
 ): Promise<SSHHostWithCredentials | undefined> {
   try {
-    const hosts = await db.select().from(sshData).where(eq(sshData.id, id));
+    // Check if user data is unlocked before attempting to fetch
+    if (!SimpleDBOps.isUserDataUnlocked(userId)) {
+      statsLogger.debug("User data locked - cannot fetch host", {
+        operation: "fetchHostById_data_locked",
+        userId,
+        hostId: id,
+      });
+      return undefined;
+    }
+
+    const hosts = await SimpleDBOps.select(
+      getDb()
+        .select()
+        .from(sshData)
+        .where(and(eq(sshData.id, id), eq(sshData.userId, userId))),
+      "ssh_data",
+      userId,
+    );
 
     if (hosts.length === 0) {
       return undefined;
     }
 
     const host = hosts[0];
-    return await resolveHostCredentials(host);
+    return await resolveHostCredentials(host, userId);
   } catch (err) {
     statsLogger.error(`Failed to fetch host ${id}`, err);
     return undefined;
@@ -349,6 +396,7 @@ async function fetchHostById(
 
 async function resolveHostCredentials(
   host: any,
+  userId: string,
 ): Promise<SSHHostWithCredentials | undefined> {
   try {
     const baseHost: any = {
@@ -380,15 +428,19 @@ async function resolveHostCredentials(
 
     if (host.credentialId) {
       try {
-        const credentials = await db
-          .select()
-          .from(sshCredentials)
-          .where(
-            and(
-              eq(sshCredentials.id, host.credentialId),
-              eq(sshCredentials.userId, host.userId),
+        const credentials = await SimpleDBOps.select(
+          getDb()
+            .select()
+            .from(sshCredentials)
+            .where(
+              and(
+                eq(sshCredentials.id, host.credentialId),
+                eq(sshCredentials.userId, userId),
+              ),
             ),
-          );
+          "ssh_credentials",
+          userId,
+        );
 
         if (credentials.length > 0) {
           const credential = credentials[0];
@@ -409,9 +461,6 @@ async function resolveHostCredentials(
             baseHost.keyType = credential.keyType;
           }
         } else {
-          statsLogger.warn(
-            `Credential ${host.credentialId} not found for host ${host.id}, using legacy data`,
-          );
           addLegacyCredentials(baseHost, host);
         }
       } catch (error) {
@@ -446,7 +495,38 @@ function buildSshConfig(host: SSHHostWithCredentials): ConnectConfig {
     port: host.port || 22,
     username: host.username || "root",
     readyTimeout: 10_000,
-    algorithms: {},
+    algorithms: {
+      kex: [
+        "diffie-hellman-group14-sha256",
+        "diffie-hellman-group14-sha1",
+        "diffie-hellman-group1-sha1",
+        "diffie-hellman-group-exchange-sha256",
+        "diffie-hellman-group-exchange-sha1",
+        "ecdh-sha2-nistp256",
+        "ecdh-sha2-nistp384",
+        "ecdh-sha2-nistp521",
+      ],
+      cipher: [
+        "aes128-ctr",
+        "aes192-ctr",
+        "aes256-ctr",
+        "aes128-gcm@openssh.com",
+        "aes256-gcm@openssh.com",
+        "aes128-cbc",
+        "aes192-cbc",
+        "aes256-cbc",
+        "3des-cbc",
+      ],
+      hmac: [
+        "hmac-sha2-256-etm@openssh.com",
+        "hmac-sha2-512-etm@openssh.com",
+        "hmac-sha2-256",
+        "hmac-sha2-512",
+        "hmac-sha1",
+        "hmac-md5",
+      ],
+      compress: ["none", "zlib@openssh.com", "zlib"],
+    },
   } as ConnectConfig;
 
   if (host.authType === "password") {
@@ -761,11 +841,19 @@ function tcpPing(
   });
 }
 
-async function pollStatusesOnce(): Promise<void> {
-  const hosts = await fetchAllHosts();
+async function pollStatusesOnce(userId?: string): Promise<void> {
+  if (!userId) {
+    statsLogger.warn("Skipping status poll - no authenticated user", {
+      operation: "status_poll",
+    });
+    return;
+  }
+
+  const hosts = await fetchAllHosts(userId);
   if (hosts.length === 0) {
     statsLogger.warn("No hosts retrieved for status polling", {
       operation: "status_poll",
+      userId,
     });
     return;
   }
@@ -797,8 +885,18 @@ async function pollStatusesOnce(): Promise<void> {
 }
 
 app.get("/status", async (req, res) => {
+  const userId = (req as any).userId;
+
+  // Check if user data is unlocked
+  if (!SimpleDBOps.isUserDataUnlocked(userId)) {
+    return res.status(401).json({
+      error: "Session expired - please log in again",
+      code: "SESSION_EXPIRED",
+    });
+  }
+
   if (hostStatuses.size === 0) {
-    await pollStatusesOnce();
+    await pollStatusesOnce(userId);
   }
   const result: Record<number, StatusEntry> = {};
   for (const [id, entry] of hostStatuses.entries()) {
@@ -809,9 +907,18 @@ app.get("/status", async (req, res) => {
 
 app.get("/status/:id", validateHostId, async (req, res) => {
   const id = Number(req.params.id);
+  const userId = (req as any).userId;
+
+  // Check if user data is unlocked
+  if (!SimpleDBOps.isUserDataUnlocked(userId)) {
+    return res.status(401).json({
+      error: "Session expired - please log in again",
+      code: "SESSION_EXPIRED",
+    });
+  }
 
   try {
-    const host = await fetchHostById(id);
+    const host = await fetchHostById(id, userId);
     if (!host) {
       return res.status(404).json({ error: "Host not found" });
     }
@@ -832,15 +939,34 @@ app.get("/status/:id", validateHostId, async (req, res) => {
 });
 
 app.post("/refresh", async (req, res) => {
-  await pollStatusesOnce();
+  const userId = (req as any).userId;
+
+  // Check if user data is unlocked
+  if (!SimpleDBOps.isUserDataUnlocked(userId)) {
+    return res.status(401).json({
+      error: "Session expired - please log in again",
+      code: "SESSION_EXPIRED",
+    });
+  }
+
+  await pollStatusesOnce(userId);
   res.json({ message: "Refreshed" });
 });
 
 app.get("/metrics/:id", validateHostId, async (req, res) => {
   const id = Number(req.params.id);
+  const userId = (req as any).userId;
+
+  // Check if user data is unlocked
+  if (!SimpleDBOps.isUserDataUnlocked(userId)) {
+    return res.status(401).json({
+      error: "Session expired - please log in again",
+      code: "SESSION_EXPIRED",
+    });
+  }
 
   try {
-    const host = await fetchHostById(id);
+    const host = await fetchHostById(id, userId);
     if (!host) {
       return res.status(404).json({ error: "Host not found" });
     }
@@ -882,28 +1008,22 @@ app.get("/metrics/:id", validateHostId, async (req, res) => {
 });
 
 process.on("SIGINT", () => {
-  statsLogger.info("Received SIGINT, shutting down gracefully");
   connectionPool.destroy();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
-  statsLogger.info("Received SIGTERM, shutting down gracefully");
   connectionPool.destroy();
   process.exit(0);
 });
 
-const PORT = 8085;
+const PORT = 30005;
 app.listen(PORT, async () => {
-  statsLogger.success("Server Stats API server started", {
-    operation: "server_start",
-    port: PORT,
-  });
   try {
-    await pollStatusesOnce();
+    await authManager.initialize();
   } catch (err) {
-    statsLogger.error("Initial poll failed", err, {
-      operation: "initial_poll",
+    statsLogger.error("Failed to initialize AuthManager", err, {
+      operation: "auth_init_error",
     });
   }
 });

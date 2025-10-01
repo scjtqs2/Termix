@@ -49,6 +49,10 @@ export const sshData = sqliteTable("ssh_data", {
   keyPassword: text("key_password"),
   keyType: text("key_type"),
 
+  autostartPassword: text("autostart_password"),
+  autostartKey: text("autostart_key", { length: 8192 }),
+  autostartKeyPassword: text("autostart_key_password"),
+
   credentialId: integer("credential_id").references(() => sshCredentials.id),
   enableTerminal: integer("enable_terminal", { mode: "boolean" })
     .notNull()
@@ -138,8 +142,11 @@ export const sshCredentials = sqliteTable("ssh_credentials", {
   username: text("username").notNull(),
   password: text("password"),
   key: text("key", { length: 16384 }),
+  privateKey: text("private_key", { length: 16384 }),
+  publicKey: text("public_key", { length: 4096 }),
   keyPassword: text("key_password"),
   keyType: text("key_type"),
+  detectedKeyType: text("detected_key_type"),
   usageCount: integer("usage_count").notNull().default(0),
   lastUsed: text("last_used"),
   createdAt: text("created_at")

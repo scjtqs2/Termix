@@ -2,7 +2,6 @@
 // CENTRAL TYPE DEFINITIONS
 // ============================================================================
 // This file contains all shared interfaces and types used across the application
-// to avoid duplication and ensure consistency.
 
 import type { Client } from "ssh2";
 
@@ -24,6 +23,11 @@ export interface SSHHost {
   key?: string;
   keyPassword?: string;
   keyType?: string;
+
+  autostartPassword?: string;
+  autostartKey?: string;
+  autostartKeyPassword?: string;
+
   credentialId?: number;
   userId?: string;
   enableTerminal: boolean;
@@ -70,6 +74,7 @@ export interface Credential {
   username: string;
   password?: string;
   key?: string;
+  publicKey?: string;
   keyPassword?: string;
   keyType?: string;
   usageCount: number;
@@ -87,6 +92,7 @@ export interface CredentialData {
   username: string;
   password?: string;
   key?: string;
+  publicKey?: string;
   keyPassword?: string;
   keyType?: string;
 }
@@ -99,6 +105,14 @@ export interface TunnelConnection {
   sourcePort: number;
   endpointPort: number;
   endpointHost: string;
+
+  // Endpoint host credentials for tunnel authentication
+  endpointPassword?: string;
+  endpointKey?: string;
+  endpointKeyPassword?: string;
+  endpointAuthType?: string;
+  endpointKeyType?: string;
+
   maxRetries: number;
   retryInterval: number;
   autoStart: boolean;
@@ -180,8 +194,15 @@ export interface FileItem {
   name: string;
   path: string;
   isPinned?: boolean;
-  type: "file" | "directory";
+  type: "file" | "directory" | "link";
   sshSessionId?: string;
+  size?: number;
+  modified?: string;
+  permissions?: string;
+  owner?: string;
+  group?: string;
+  linkTarget?: string;
+  executable?: boolean;
 }
 
 export interface ShortcutItem {
@@ -358,26 +379,6 @@ export interface FileManagerProps {
   onSelectView?: (view: string) => void;
   embedded?: boolean;
   initialHost?: SSHHost | null;
-}
-
-export interface FileManagerLeftSidebarProps {
-  onSelectView?: (view: string) => void;
-  onOpenFile: (file: any) => void;
-  tabs: Tab[];
-  host: SSHHost;
-  onOperationComplete?: () => void;
-  onError?: (error: string) => void;
-  onSuccess?: (message: string) => void;
-  onPathChange?: (path: string) => void;
-  onDeleteItem?: (item: any) => void;
-}
-
-export interface FileManagerOperationsProps {
-  currentPath: string;
-  sshSessionId: string | null;
-  onOperationComplete?: () => void;
-  onError?: (error: string) => void;
-  onSuccess?: (message: string) => void;
 }
 
 export interface AlertCardProps {

@@ -27,14 +27,11 @@ export function HomepageAlertManager({
   }, [loggedIn, userId]);
 
   const fetchUserAlerts = async () => {
-    if (!userId) return;
-
     setLoading(true);
     setError(null);
 
     try {
-      const response = await getUserAlerts(userId);
-
+      const response = await getUserAlerts();
       const userAlerts = response.alerts || [];
 
       const sortedAlerts = userAlerts.sort((a: TermixAlert, b: TermixAlert) => {
@@ -65,10 +62,8 @@ export function HomepageAlertManager({
   };
 
   const handleDismissAlert = async (alertId: string) => {
-    if (!userId) return;
-
     try {
-      await dismissAlert(userId, alertId);
+      await dismissAlert(alertId);
 
       setAlerts((prev) => {
         const newAlerts = prev.filter((alert) => alert.id !== alertId);

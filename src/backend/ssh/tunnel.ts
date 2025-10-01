@@ -1,9 +1,10 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { Client } from "ssh2";
 import { ChildProcess } from "child_process";
 import axios from "axios";
-import { db } from "../database/db/index.js";
+import { getDb } from "../database/db/index.js";
 import { sshCredentials } from "../database/db/schema.js";
 import { eq, and } from "drizzle-orm";
 import type {
@@ -15,11 +16,38 @@ import type {
 } from "../../types/index.js";
 import { CONNECTION_STATES } from "../../types/index.js";
 import { tunnelLogger } from "../utils/logger.js";
+import { SystemCrypto } from "../utils/system-crypto.js";
+import { SimpleDBOps } from "../utils/simple-db-ops.js";
+import { DataCrypto } from "../utils/data-crypto.js";
 
 const app = express();
 app.use(
   cors({
-    origin: "*",
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+      ];
+
+      if (origin.startsWith("https://")) {
+        return callback(null, true);
+      }
+
+      if (origin.startsWith("http://")) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Origin",
@@ -32,6 +60,7 @@ app.use(
     ],
   }),
 );
+app.use(cookieParser());
 app.use(express.json());
 
 const activeTunnels = new Map<string, Client>();
@@ -43,6 +72,8 @@ const verificationTimers = new Map<string, NodeJS.Timeout>();
 const activeRetryTimers = new Map<string, NodeJS.Timeout>();
 const countdownIntervals = new Map<string, NodeJS.Timeout>();
 const retryExhaustedTunnels = new Set<string>();
+const cleanupInProgress = new Set<string>();
+const tunnelConnecting = new Set<string>();
 
 const tunnelConfigs = new Map<string, TunnelConfig>();
 const activeTunnelProcesses = new Map<string, ChildProcess>();
@@ -123,16 +154,32 @@ function getTunnelMarker(tunnelName: string) {
   return `TUNNEL_MARKER_${tunnelName.replace(/[^a-zA-Z0-9]/g, "_")}`;
 }
 
-function cleanupTunnelResources(tunnelName: string): void {
+function cleanupTunnelResources(
+  tunnelName: string,
+  forceCleanup = false,
+): void {
+  if (cleanupInProgress.has(tunnelName)) {
+    return;
+  }
+
+  if (!forceCleanup && tunnelConnecting.has(tunnelName)) {
+    return;
+  }
+
+  cleanupInProgress.add(tunnelName);
+
   const tunnelConfig = tunnelConfigs.get(tunnelName);
   if (tunnelConfig) {
     killRemoteTunnelByMarker(tunnelConfig, tunnelName, (err) => {
+      cleanupInProgress.delete(tunnelName);
       if (err) {
         tunnelLogger.error(
           `Failed to kill remote tunnel for '${tunnelName}': ${err.message}`,
         );
       }
     });
+  } else {
+    cleanupInProgress.delete(tunnelName);
   }
 
   if (activeTunnelProcesses.has(tunnelName)) {
@@ -203,6 +250,8 @@ function cleanupTunnelResources(tunnelName: string): void {
 function resetRetryState(tunnelName: string): void {
   retryCounters.delete(tunnelName);
   retryExhaustedTunnels.delete(tunnelName);
+  cleanupInProgress.delete(tunnelName);
+  tunnelConnecting.delete(tunnelName);
 
   if (activeRetryTimers.has(tunnelName)) {
     clearTimeout(activeRetryTimers.get(tunnelName)!);
@@ -394,7 +443,9 @@ async function connectSSHTunnel(
     return;
   }
 
-  cleanupTunnelResources(tunnelName);
+  tunnelConnecting.add(tunnelName);
+
+  cleanupTunnelResources(tunnelName, true);
 
   if (retryAttempt === 0) {
     retryExhaustedTunnels.delete(tunnelName);
@@ -441,31 +492,34 @@ async function connectSSHTunnel(
 
   if (tunnelConfig.sourceCredentialId && tunnelConfig.sourceUserId) {
     try {
-      const credentials = await db
-        .select()
-        .from(sshCredentials)
-        .where(
-          and(
-            eq(sshCredentials.id, tunnelConfig.sourceCredentialId),
-            eq(sshCredentials.userId, tunnelConfig.sourceUserId),
-          ),
+      const userDataKey = DataCrypto.getUserDataKey(tunnelConfig.sourceUserId);
+      if (userDataKey) {
+        const credentials = await SimpleDBOps.select(
+          getDb()
+            .select()
+            .from(sshCredentials)
+            .where(
+              and(
+                eq(sshCredentials.id, tunnelConfig.sourceCredentialId),
+                eq(sshCredentials.userId, tunnelConfig.sourceUserId),
+              ),
+            ),
+          "ssh_credentials",
+          tunnelConfig.sourceUserId,
         );
 
-      if (credentials.length > 0) {
-        const credential = credentials[0];
-        resolvedSourceCredentials = {
-          password: credential.password,
-          sshKey: credential.key,
-          keyPassword: credential.keyPassword,
-          keyType: credential.keyType,
-          authMethod: credential.authType,
-        };
+        if (credentials.length > 0) {
+          const credential = credentials[0];
+          resolvedSourceCredentials = {
+            password: credential.password,
+            sshKey: credential.privateKey || credential.key,
+            keyPassword: credential.keyPassword,
+            keyType: credential.keyType,
+            authMethod: credential.authType,
+          };
+        } else {
+        }
       } else {
-        tunnelLogger.warn("No source credentials found in database", {
-          operation: "tunnel_connect",
-          tunnelName,
-          credentialId: tunnelConfig.sourceCredentialId,
-        });
       }
     } catch (error) {
       tunnelLogger.warn("Failed to resolve source credentials from database", {
@@ -485,33 +539,71 @@ async function connectSSHTunnel(
     authMethod: tunnelConfig.endpointAuthMethod,
   };
 
+  if (
+    resolvedEndpointCredentials.authMethod === "password" &&
+    !resolvedEndpointCredentials.password
+  ) {
+    const errorMessage = `Cannot connect tunnel '${tunnelName}': endpoint host requires password authentication but no plaintext password available. Enable autostart for endpoint host or configure credentials in tunnel connection.`;
+    tunnelLogger.error(errorMessage);
+    broadcastTunnelStatus(tunnelName, {
+      connected: false,
+      status: CONNECTION_STATES.FAILED,
+      reason: errorMessage,
+    });
+    return;
+  }
+
+  if (
+    resolvedEndpointCredentials.authMethod === "key" &&
+    !resolvedEndpointCredentials.sshKey
+  ) {
+    const errorMessage = `Cannot connect tunnel '${tunnelName}': endpoint host requires key authentication but no plaintext key available. Enable autostart for endpoint host or configure credentials in tunnel connection.`;
+    tunnelLogger.error(errorMessage);
+    broadcastTunnelStatus(tunnelName, {
+      connected: false,
+      status: CONNECTION_STATES.FAILED,
+      reason: errorMessage,
+    });
+    return;
+  }
+
   if (tunnelConfig.endpointCredentialId && tunnelConfig.endpointUserId) {
     try {
-      const credentials = await db
-        .select()
-        .from(sshCredentials)
-        .where(
-          and(
-            eq(sshCredentials.id, tunnelConfig.endpointCredentialId),
-            eq(sshCredentials.userId, tunnelConfig.endpointUserId),
-          ),
+      const userDataKey = DataCrypto.getUserDataKey(
+        tunnelConfig.endpointUserId,
+      );
+      if (userDataKey) {
+        const credentials = await SimpleDBOps.select(
+          getDb()
+            .select()
+            .from(sshCredentials)
+            .where(
+              and(
+                eq(sshCredentials.id, tunnelConfig.endpointCredentialId),
+                eq(sshCredentials.userId, tunnelConfig.endpointUserId),
+              ),
+            ),
+          "ssh_credentials",
+          tunnelConfig.endpointUserId,
         );
 
-      if (credentials.length > 0) {
-        const credential = credentials[0];
-        resolvedEndpointCredentials = {
-          password: credential.password,
-          sshKey: credential.key,
-          keyPassword: credential.keyPassword,
-          keyType: credential.keyType,
-          authMethod: credential.authType,
-        };
+        if (credentials.length > 0) {
+          const credential = credentials[0];
+          resolvedEndpointCredentials = {
+            password: credential.password,
+            sshKey: credential.privateKey || credential.key,
+            keyPassword: credential.keyPassword,
+            keyType: credential.keyType,
+            authMethod: credential.authType,
+          };
+        } else {
+          tunnelLogger.warn("No endpoint credentials found in database", {
+            operation: "tunnel_connect",
+            tunnelName,
+            credentialId: tunnelConfig.endpointCredentialId,
+          });
+        }
       } else {
-        tunnelLogger.warn("No endpoint credentials found in database", {
-          operation: "tunnel_connect",
-          tunnelName,
-          credentialId: tunnelConfig.endpointCredentialId,
-        });
       }
     } catch (error) {
       tunnelLogger.warn(
@@ -555,6 +647,8 @@ async function connectSSHTunnel(
     clearTimeout(connectionTimeout);
     tunnelLogger.error(`SSH error for '${tunnelName}': ${err.message}`);
 
+    tunnelConnecting.delete(tunnelName);
+
     if (activeRetryTimers.has(tunnelName)) {
       return;
     }
@@ -582,6 +676,8 @@ async function connectSSHTunnel(
 
   conn.on("close", () => {
     clearTimeout(connectionTimeout);
+
+    tunnelConnecting.delete(tunnelName);
 
     if (activeRetryTimers.has(tunnelName)) {
       return;
@@ -620,9 +716,9 @@ async function connectSSHTunnel(
       resolvedEndpointCredentials.sshKey
     ) {
       const keyFilePath = `/tmp/tunnel_key_${tunnelName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-      tunnelCmd = `echo '${resolvedEndpointCredentials.sshKey}' > ${keyFilePath} && chmod 600 ${keyFilePath} && ssh -i ${keyFilePath} -N -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R ${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort} ${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP} ${tunnelMarker} && rm -f ${keyFilePath}`;
+      tunnelCmd = `echo '${resolvedEndpointCredentials.sshKey}' > ${keyFilePath} && chmod 600 ${keyFilePath} && exec -a "${tunnelMarker}" ssh -i ${keyFilePath} -N -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o GatewayPorts=yes -R ${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort} ${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP} && rm -f ${keyFilePath}`;
     } else {
-      tunnelCmd = `sshpass -p '${resolvedEndpointCredentials.password || ""}' ssh -N -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R ${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort} ${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP} ${tunnelMarker}`;
+      tunnelCmd = `exec -a "${tunnelMarker}" sshpass -p '${resolvedEndpointCredentials.password || ""}' ssh -N -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o GatewayPorts=yes -R ${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort} ${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP}`;
     }
 
     conn.exec(tunnelCmd, (err, stream) => {
@@ -651,6 +747,8 @@ async function connectSSHTunnel(
           !manualDisconnects.has(tunnelName) &&
           activeTunnels.has(tunnelName)
         ) {
+          tunnelConnecting.delete(tunnelName);
+
           broadcastTunnelStatus(tunnelName, {
             connected: true,
             status: CONNECTION_STATES.CONNECTED,
@@ -722,12 +820,68 @@ async function connectSSHTunnel(
         }
       });
 
-      stream.stdout?.on("data", (data: Buffer) => {});
+      stream.stdout?.on("data", (data: Buffer) => {
+        const output = data.toString().trim();
+        if (output) {
+        }
+      });
 
       stream.on("error", (err: Error) => {});
 
       stream.stderr.on("data", (data) => {
         const errorMsg = data.toString().trim();
+        if (errorMsg) {
+          const isDebugMessage =
+            errorMsg.startsWith("debug1:") ||
+            errorMsg.startsWith("debug2:") ||
+            errorMsg.startsWith("debug3:") ||
+            errorMsg.includes("Reading configuration data") ||
+            errorMsg.includes("include /etc/ssh/ssh_config.d") ||
+            errorMsg.includes("matched no files") ||
+            errorMsg.includes("Applying options for");
+
+          if (!isDebugMessage) {
+            tunnelLogger.error(`SSH stderr for '${tunnelName}': ${errorMsg}`);
+          }
+
+          if (
+            errorMsg.includes("sshpass: command not found") ||
+            errorMsg.includes("sshpass not found")
+          ) {
+            broadcastTunnelStatus(tunnelName, {
+              connected: false,
+              status: CONNECTION_STATES.FAILED,
+              reason:
+                "sshpass tool not found on source host. Please install sshpass or use SSH key authentication.",
+            });
+          }
+
+          if (
+            errorMsg.includes("remote port forwarding failed") ||
+            errorMsg.includes("Error: remote port forwarding failed")
+          ) {
+            const portMatch = errorMsg.match(/listen port (\d+)/);
+            const port = portMatch ? portMatch[1] : tunnelConfig.endpointPort;
+
+            tunnelLogger.error(
+              `Port forwarding failed for tunnel '${tunnelName}' on port ${port}. This prevents tunnel establishment.`,
+            );
+
+            if (activeTunnels.has(tunnelName)) {
+              const conn = activeTunnels.get(tunnelName);
+              if (conn) {
+                conn.end();
+              }
+              activeTunnels.delete(tunnelName);
+            }
+
+            broadcastTunnelStatus(tunnelName, {
+              connected: false,
+              status: CONNECTION_STATES.FAILED,
+              reason: `Remote port forwarding failed for port ${port}. Port may be in use, requires root privileges, or SSH server doesn't allow port forwarding. Try a different port.`,
+            });
+          }
+        }
       });
     });
   });
@@ -763,7 +917,14 @@ async function connectSSHTunnel(
         "aes256-cbc",
         "3des-cbc",
       ],
-      hmac: ["hmac-sha2-256", "hmac-sha2-512", "hmac-sha1", "hmac-md5"],
+      hmac: [
+        "hmac-sha2-256-etm@openssh.com",
+        "hmac-sha2-512-etm@openssh.com",
+        "hmac-sha2-256",
+        "hmac-sha2-512",
+        "hmac-sha1",
+        "hmac-md5",
+      ],
       compress: ["none", "zlib@openssh.com", "zlib"],
     },
   };
@@ -827,12 +988,60 @@ async function connectSSHTunnel(
   conn.connect(connOptions);
 }
 
-function killRemoteTunnelByMarker(
+async function killRemoteTunnelByMarker(
   tunnelConfig: TunnelConfig,
   tunnelName: string,
   callback: (err?: Error) => void,
 ) {
   const tunnelMarker = getTunnelMarker(tunnelName);
+
+  let resolvedSourceCredentials = {
+    password: tunnelConfig.sourcePassword,
+    sshKey: tunnelConfig.sourceSSHKey,
+    keyPassword: tunnelConfig.sourceKeyPassword,
+    keyType: tunnelConfig.sourceKeyType,
+    authMethod: tunnelConfig.sourceAuthMethod,
+  };
+
+  if (tunnelConfig.sourceCredentialId && tunnelConfig.sourceUserId) {
+    try {
+      const userDataKey = DataCrypto.getUserDataKey(tunnelConfig.sourceUserId);
+      if (userDataKey) {
+        const credentials = await SimpleDBOps.select(
+          getDb()
+            .select()
+            .from(sshCredentials)
+            .where(
+              and(
+                eq(sshCredentials.id, tunnelConfig.sourceCredentialId),
+                eq(sshCredentials.userId, tunnelConfig.sourceUserId),
+              ),
+            ),
+          "ssh_credentials",
+          tunnelConfig.sourceUserId,
+        );
+
+        if (credentials.length > 0) {
+          const credential = credentials[0];
+          resolvedSourceCredentials = {
+            password: credential.password,
+            sshKey: credential.privateKey || credential.key,
+            keyPassword: credential.keyPassword,
+            keyType: credential.keyType,
+            authMethod: credential.authType,
+          };
+        }
+      } else {
+      }
+    } catch (error) {
+      tunnelLogger.warn("Failed to resolve source credentials for cleanup", {
+        tunnelName,
+        credentialId: tunnelConfig.sourceCredentialId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
   const conn = new Client();
   const connOptions: any = {
     host: tunnelConfig.sourceIP,
@@ -865,52 +1074,149 @@ function killRemoteTunnelByMarker(
         "aes256-cbc",
         "3des-cbc",
       ],
-      hmac: ["hmac-sha2-256", "hmac-sha2-512", "hmac-sha1", "hmac-md5"],
+      hmac: [
+        "hmac-sha2-256-etm@openssh.com",
+        "hmac-sha2-512-etm@openssh.com",
+        "hmac-sha2-256",
+        "hmac-sha2-512",
+        "hmac-sha1",
+        "hmac-md5",
+      ],
       compress: ["none", "zlib@openssh.com", "zlib"],
     },
   };
-  if (tunnelConfig.sourceAuthMethod === "key" && tunnelConfig.sourceSSHKey) {
+
+  if (
+    resolvedSourceCredentials.authMethod === "key" &&
+    resolvedSourceCredentials.sshKey
+  ) {
     if (
-      !tunnelConfig.sourceSSHKey.includes("-----BEGIN") ||
-      !tunnelConfig.sourceSSHKey.includes("-----END")
+      !resolvedSourceCredentials.sshKey.includes("-----BEGIN") ||
+      !resolvedSourceCredentials.sshKey.includes("-----END")
     ) {
       callback(new Error("Invalid SSH key format"));
       return;
     }
 
-    const cleanKey = tunnelConfig.sourceSSHKey
+    const cleanKey = resolvedSourceCredentials.sshKey
       .trim()
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, "\n");
     connOptions.privateKey = Buffer.from(cleanKey, "utf8");
-    if (tunnelConfig.sourceKeyPassword) {
-      connOptions.passphrase = tunnelConfig.sourceKeyPassword;
+    if (resolvedSourceCredentials.keyPassword) {
+      connOptions.passphrase = resolvedSourceCredentials.keyPassword;
     }
-    if (tunnelConfig.sourceKeyType && tunnelConfig.sourceKeyType !== "auto") {
-      connOptions.privateKeyType = tunnelConfig.sourceKeyType;
+    if (
+      resolvedSourceCredentials.keyType &&
+      resolvedSourceCredentials.keyType !== "auto"
+    ) {
+      connOptions.privateKeyType = resolvedSourceCredentials.keyType;
     }
   } else {
-    connOptions.password = tunnelConfig.sourcePassword;
+    connOptions.password = resolvedSourceCredentials.password;
   }
+
   conn.on("ready", () => {
-    const killCmd = `pkill -f '${tunnelMarker}'`;
-    conn.exec(killCmd, (err, stream) => {
-      if (err) {
-        conn.end();
-        callback(err);
-        return;
-      }
-      stream.on("close", () => {
-        conn.end();
-        callback();
+    const checkCmd = `ps aux | grep -E '(${tunnelMarker}|ssh.*-R.*${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort}.*${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP}|sshpass.*ssh.*-R.*${tunnelConfig.endpointPort})' | grep -v grep`;
+
+    conn.exec(checkCmd, (err, stream) => {
+      let foundProcesses = false;
+
+      stream.on("data", (data) => {
+        const output = data.toString().trim();
+        if (output) {
+          foundProcesses = true;
+        }
       });
-      stream.on("data", () => {});
-      stream.stderr.on("data", () => {});
+
+      stream.on("close", () => {
+        if (!foundProcesses) {
+          conn.end();
+          callback();
+          return;
+        }
+
+        const killCmds = [
+          `pkill -TERM -f '${tunnelMarker}'`,
+          `sleep 1 && pkill -f 'ssh.*-R.*${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort}.*${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP}'`,
+          `sleep 1 && pkill -f 'sshpass.*ssh.*-R.*${tunnelConfig.endpointPort}'`,
+          `sleep 2 && pkill -9 -f '${tunnelMarker}'`,
+        ];
+
+        let commandIndex = 0;
+
+        function executeNextKillCommand() {
+          if (commandIndex >= killCmds.length) {
+            conn.exec(checkCmd, (err, verifyStream) => {
+              let stillRunning = false;
+
+              verifyStream.on("data", (data) => {
+                const output = data.toString().trim();
+                if (output) {
+                  stillRunning = true;
+                  tunnelLogger.warn(
+                    `Processes still running after cleanup for '${tunnelName}': ${output}`,
+                  );
+                }
+              });
+
+              verifyStream.on("close", () => {
+                if (stillRunning) {
+                  tunnelLogger.warn(
+                    `Some tunnel processes may still be running for '${tunnelName}'`,
+                  );
+                }
+                conn.end();
+                callback();
+              });
+            });
+            return;
+          }
+
+          const killCmd = killCmds[commandIndex];
+
+          conn.exec(killCmd, (err, stream) => {
+            if (err) {
+              tunnelLogger.warn(
+                `Kill command ${commandIndex + 1} failed for '${tunnelName}': ${err.message}`,
+              );
+            } else {
+            }
+
+            stream.on("close", (code) => {
+              commandIndex++;
+              executeNextKillCommand();
+            });
+
+            stream.on("data", (data) => {
+              const output = data.toString().trim();
+              if (output) {
+              }
+            });
+
+            stream.stderr.on("data", (data) => {
+              const output = data.toString().trim();
+              if (output && !output.includes("debug1")) {
+                tunnelLogger.warn(
+                  `Kill command ${commandIndex + 1} stderr for '${tunnelName}': ${output}`,
+                );
+              }
+            });
+          });
+        }
+
+        executeNextKillCommand();
+      });
     });
   });
+
   conn.on("error", (err) => {
+    tunnelLogger.error(
+      `Failed to connect to source host for killing tunnel '${tunnelName}': ${err.message}`,
+    );
     callback(err);
   });
+
   conn.connect(connOptions);
 }
 
@@ -937,6 +1243,8 @@ app.post("/ssh/tunnel/connect", (req, res) => {
   }
 
   const tunnelName = tunnelConfig.name;
+
+  cleanupTunnelResources(tunnelName);
 
   manualDisconnects.delete(tunnelName);
   retryCounters.delete(tunnelName);
@@ -968,6 +1276,8 @@ app.post("/ssh/tunnel/disconnect", (req, res) => {
     clearTimeout(activeRetryTimers.get(tunnelName)!);
     activeRetryTimers.delete(tunnelName);
   }
+
+  cleanupTunnelResources(tunnelName, true);
 
   broadcastTunnelStatus(tunnelName, {
     connected: false,
@@ -1005,6 +1315,8 @@ app.post("/ssh/tunnel/cancel", (req, res) => {
     countdownIntervals.delete(tunnelName);
   }
 
+  cleanupTunnelResources(tunnelName, true);
+
   broadcastTunnelStatus(tunnelName, {
     connected: false,
     status: CONNECTION_STATES.DISCONNECTED,
@@ -1023,24 +1335,42 @@ app.post("/ssh/tunnel/cancel", (req, res) => {
 
 async function initializeAutoStartTunnels(): Promise<void> {
   try {
-    const response = await axios.get(
-      "http://localhost:8081/ssh/db/host/internal",
+    const systemCrypto = SystemCrypto.getInstance();
+    const internalAuthToken = await systemCrypto.getInternalAuthToken();
+
+    const autostartResponse = await axios.get(
+      "http://localhost:30001/ssh/db/host/internal",
       {
         headers: {
           "Content-Type": "application/json",
-          "X-Internal-Request": "1",
+          "X-Internal-Auth-Token": internalAuthToken,
         },
       },
     );
 
-    const hosts: SSHHost[] = response.data || [];
+    const allHostsResponse = await axios.get(
+      "http://localhost:30001/ssh/db/host/internal/all",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Auth-Token": internalAuthToken,
+        },
+      },
+    );
+
+    const autostartHosts: SSHHost[] = autostartResponse.data || [];
+    const allHosts: SSHHost[] = allHostsResponse.data || [];
     const autoStartTunnels: TunnelConfig[] = [];
 
-    for (const host of hosts) {
+    tunnelLogger.info(
+      `Found ${autostartHosts.length} autostart hosts and ${allHosts.length} total hosts for endpointHost resolution`,
+    );
+
+    for (const host of autostartHosts) {
       if (host.enableTunnel && host.tunnelConnections) {
         for (const tunnelConnection of host.tunnelConnections) {
           if (tunnelConnection.autoStart) {
-            const endpointHost = hosts.find(
+            const endpointHost = allHosts.find(
               (h) =>
                 h.name === tunnelConnection.endpointHost ||
                 `${h.username}@${h.ip}` === tunnelConnection.endpointHost,
@@ -1053,19 +1383,35 @@ async function initializeAutoStartTunnels(): Promise<void> {
                 sourceIP: host.ip,
                 sourceSSHPort: host.port,
                 sourceUsername: host.username,
-                sourcePassword: host.password,
+                sourcePassword: host.autostartPassword || host.password,
                 sourceAuthMethod: host.authType,
-                sourceSSHKey: host.key,
-                sourceKeyPassword: host.keyPassword,
+                sourceSSHKey: host.autostartKey || host.key,
+                sourceKeyPassword:
+                  host.autostartKeyPassword || host.keyPassword,
                 sourceKeyType: host.keyType,
+                sourceCredentialId: host.credentialId,
+                sourceUserId: host.userId,
                 endpointIP: endpointHost.ip,
                 endpointSSHPort: endpointHost.port,
                 endpointUsername: endpointHost.username,
-                endpointPassword: endpointHost.password,
-                endpointAuthMethod: endpointHost.authType,
-                endpointSSHKey: endpointHost.key,
-                endpointKeyPassword: endpointHost.keyPassword,
-                endpointKeyType: endpointHost.keyType,
+                endpointPassword:
+                  tunnelConnection.endpointPassword ||
+                  endpointHost.autostartPassword ||
+                  endpointHost.password,
+                endpointAuthMethod:
+                  tunnelConnection.endpointAuthType || endpointHost.authType,
+                endpointSSHKey:
+                  tunnelConnection.endpointKey ||
+                  endpointHost.autostartKey ||
+                  endpointHost.key,
+                endpointKeyPassword:
+                  tunnelConnection.endpointKeyPassword ||
+                  endpointHost.autostartKeyPassword ||
+                  endpointHost.keyPassword,
+                endpointKeyType:
+                  tunnelConnection.endpointKeyType || endpointHost.keyType,
+                endpointCredentialId: endpointHost.credentialId,
+                endpointUserId: endpointHost.userId,
                 sourcePort: tunnelConnection.sourcePort,
                 endpointPort: tunnelConnection.endpointPort,
                 maxRetries: tunnelConnection.maxRetries,
@@ -1074,14 +1420,24 @@ async function initializeAutoStartTunnels(): Promise<void> {
                 isPinned: host.pin,
               };
 
+              const hasSourcePassword = host.autostartPassword;
+              const hasSourceKey = host.autostartKey;
+              const hasEndpointPassword =
+                tunnelConnection.endpointPassword ||
+                endpointHost.autostartPassword;
+              const hasEndpointKey =
+                tunnelConnection.endpointKey || endpointHost.autostartKey;
+
               autoStartTunnels.push(tunnelConfig);
+            } else {
+              tunnelLogger.error(
+                `Failed to find endpointHost '${tunnelConnection.endpointHost}' for tunnel from ${host.name || `${host.username}@${host.ip}`}. Available hosts: ${allHosts.map((h) => h.name || `${h.username}@${h.ip}`).join(", ")}`,
+              );
             }
           }
         }
       }
     }
-
-    tunnelLogger.info(`Found ${autoStartTunnels.length} auto-start tunnels`);
 
     for (const tunnelConfig of autoStartTunnels) {
       tunnelConfigs.set(tunnelConfig.name, tunnelConfig);
@@ -1102,12 +1458,8 @@ async function initializeAutoStartTunnels(): Promise<void> {
   }
 }
 
-const PORT = 8083;
+const PORT = 30003;
 app.listen(PORT, () => {
-  tunnelLogger.success("SSH Tunnel API server started", {
-    operation: "server_start",
-    port: PORT,
-  });
   setTimeout(() => {
     initializeAutoStartTunnels();
   }, 2000);

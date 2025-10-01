@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, type FC } from "react";
 import { Terminal } from "@/ui/Mobile/Apps/Terminal/Terminal.tsx";
 import { TerminalKeyboard } from "@/ui/Mobile/Apps/Terminal/TerminalKeyboard.tsx";
 import { BottomNavbar } from "@/ui/Mobile/Navigation/BottomNavbar.tsx";
@@ -10,6 +10,7 @@ import {
 import { getUserInfo, getCookie } from "@/ui/main-axios.ts";
 import { HomepageAuth } from "@/ui/Mobile/Homepage/HomepageAuth.tsx";
 import { useTranslation } from "react-i18next";
+import { Toaster } from "@/components/ui/sonner.tsx";
 
 const AppContent: FC = () => {
   const { t } = useTranslation();
@@ -24,29 +25,31 @@ const AppContent: FC = () => {
 
   useEffect(() => {
     const checkAuth = () => {
-      const jwt = getCookie("jwt");
-      if (jwt) {
-        setAuthLoading(true);
-        getUserInfo()
-          .then((meRes) => {
-            setIsAuthenticated(true);
-            setIsAdmin(!!meRes.is_admin);
-            setUsername(meRes.username || null);
-          })
-          .catch((err) => {
+      setAuthLoading(true);
+      getUserInfo()
+        .then((meRes) => {
+          setIsAuthenticated(true);
+          setIsAdmin(!!meRes.is_admin);
+          setUsername(meRes.username || null);
+
+          if (!meRes.data_unlocked) {
+            console.warn("User data is locked - re-authentication required");
             setIsAuthenticated(false);
             setIsAdmin(false);
             setUsername(null);
-            document.cookie =
-              "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          })
-          .finally(() => setAuthLoading(false));
-      } else {
-        setIsAuthenticated(false);
-        setIsAdmin(false);
-        setUsername(null);
-        setAuthLoading(false);
-      }
+          }
+        })
+        .catch((err) => {
+          setIsAuthenticated(false);
+          setIsAdmin(false);
+          setUsername(null);
+
+          const errorCode = err?.response?.data?.code;
+          if (errorCode === "SESSION_EXPIRED") {
+            console.warn("Session expired - please log in again");
+          }
+        })
+        .finally(() => setAuthLoading(false));
     };
 
     checkAuth();
@@ -148,7 +151,6 @@ const AppContent: FC = () => {
               ref={tab.terminalRef}
               hostConfig={tab.hostConfig}
               isVisible={tab.id === currentTab}
-              onClose={() => removeTab(tab.id)}
             />
           </div>
         ))}
@@ -160,6 +162,14 @@ const AppContent: FC = () => {
             <p className="text-sm text-gray-300 max-w-xs">
               {t("mobile.limitedSupportMessage")}
             </p>
+            <button
+              className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+              onClick={() =>
+                window.open("https://docs.termix.site/install", "_blank")
+              }
+            >
+              {t("mobile.viewMobileAppDocs")}
+            </button>
           </div>
         )}
       </div>
@@ -196,6 +206,13 @@ const AppContent: FC = () => {
           />
         </div>
       </div>
+      <Toaster
+        position="bottom-center"
+        richColors={false}
+        closeButton
+        duration={5000}
+        offset={20}
+      />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
@@ -14,7 +15,7 @@ import { ChevronUp, Menu, User2 } from "lucide-react";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Separator } from "@/components/ui/separator.tsx";
 import { FolderCard } from "@/ui/Mobile/Navigation/Hosts/FolderCard.tsx";
-import { getSSHHosts } from "@/ui/main-axios.ts";
+import { getSSHHosts, logoutUser } from "@/ui/main-axios.ts";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input.tsx";
 import {
@@ -55,9 +56,14 @@ interface LeftSidebarProps {
   username?: string | null;
 }
 
-function handleLogout() {
-  document.cookie = "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-  window.location.reload();
+async function handleLogout() {
+  try {
+    await logoutUser();
+    window.location.reload();
+  } catch (error) {
+    console.error("Logout failed:", error);
+    window.location.reload();
+  }
 }
 
 export function LeftSidebar({
@@ -180,41 +186,43 @@ export function LeftSidebar({
             </SidebarGroupLabel>
           </SidebarHeader>
           <Separator />
-          <SidebarContent className="px-2 py-2">
-            <div className="!bg-dark-bg-input rounded-lg">
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("placeholders.searchHostsAny")}
-                className="w-full h-8 text-sm border-2 !bg-dark-bg-input border-dark-border rounded-md"
-                autoComplete="off"
-              />
-            </div>
-
-            {hostsError && (
-              <div className="px-1">
-                <div className="text-xs text-red-500 bg-red-500/10 rounded-lg px-2 py-1 border w-full">
-                  {t("leftSidebar.failedToLoadHosts")}
-                </div>
+          <SidebarContent>
+            <SidebarGroup className="flex flex-col gap-y-2">
+              <div className="!bg-dark-bg-input rounded-lg">
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("placeholders.searchHostsAny")}
+                  className="w-full h-8 text-sm border-2 !bg-dark-bg-input border-dark-border rounded-md"
+                  autoComplete="off"
+                />
               </div>
-            )}
 
-            {hostsLoading && (
-              <div className="px-4 pb-2">
-                <div className="text-xs text-muted-foreground text-center">
-                  {t("hosts.loadingHosts")}
+              {hostsError && (
+                <div className="px-1">
+                  <div className="text-xs text-red-500 bg-red-500/10 rounded-lg px-2 py-1 border w-full">
+                    {t("leftSidebar.failedToLoadHosts")}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {sortedFolders.map((folder) => (
-              <FolderCard
-                key={`folder-${folder}`}
-                folderName={folder}
-                hosts={getSortedHosts(hostsByFolder[folder])}
-                onHostConnect={onHostConnect}
-              />
-            ))}
+              {hostsLoading && (
+                <div className="px-4 pb-2">
+                  <div className="text-xs text-muted-foreground text-center">
+                    {t("hosts.loadingHosts")}
+                  </div>
+                </div>
+              )}
+
+              {sortedFolders.map((folder) => (
+                <FolderCard
+                  key={`folder-${folder}`}
+                  folderName={folder}
+                  hosts={getSortedHosts(hostsByFolder[folder])}
+                  onHostConnect={onHostConnect}
+                />
+              ))}
+            </SidebarGroup>
           </SidebarContent>
           <Separator className="mt-1" />
           <SidebarFooter>

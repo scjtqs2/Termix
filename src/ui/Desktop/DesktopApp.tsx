@@ -11,6 +11,7 @@ import { TopNavbar } from "@/ui/Desktop/Navigation/TopNavbar.tsx";
 import { AdminSettings } from "@/ui/Desktop/Admin/AdminSettings.tsx";
 import { UserProfile } from "@/ui/Desktop/User/UserProfile.tsx";
 import { Toaster } from "@/components/ui/sonner.tsx";
+import { VersionCheckModal } from "@/components/ui/version-check-modal.tsx";
 import { getUserInfo, getCookie } from "@/ui/main-axios.ts";
 
 function AppContent() {
@@ -22,34 +23,37 @@ function AppContent() {
   const [username, setUsername] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showVersionCheck, setShowVersionCheck] = useState(true);
   const [isTopbarOpen, setIsTopbarOpen] = useState<boolean>(true);
   const { currentTab, tabs } = useTabs();
 
   useEffect(() => {
     const checkAuth = () => {
-      const jwt = getCookie("jwt");
-      if (jwt) {
-        setAuthLoading(true);
-        getUserInfo()
-          .then((meRes) => {
-            setIsAuthenticated(true);
-            setIsAdmin(!!meRes.is_admin);
-            setUsername(meRes.username || null);
-          })
-          .catch((err) => {
+      setAuthLoading(true);
+      getUserInfo()
+        .then((meRes) => {
+          setIsAuthenticated(true);
+          setIsAdmin(!!meRes.is_admin);
+          setUsername(meRes.username || null);
+
+          if (!meRes.data_unlocked) {
+            console.warn("User data is locked - re-authentication required");
             setIsAuthenticated(false);
             setIsAdmin(false);
             setUsername(null);
-            document.cookie =
-              "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          })
-          .finally(() => setAuthLoading(false));
-      } else {
-        setIsAuthenticated(false);
-        setIsAdmin(false);
-        setUsername(null);
-        setAuthLoading(false);
-      }
+          }
+        })
+        .catch((err) => {
+          setIsAuthenticated(false);
+          setIsAdmin(false);
+          setUsername(null);
+
+          const errorCode = err?.response?.data?.code;
+          if (errorCode === "SESSION_EXPIRED") {
+            console.warn("Session expired - please log in again");
+          }
+        })
+        .finally(() => setAuthLoading(false));
     };
 
     checkAuth();
@@ -92,7 +96,15 @@ function AppContent() {
 
   return (
     <div>
-      {!isAuthenticated && !authLoading && (
+      {showVersionCheck && (
+        <VersionCheckModal
+          onDismiss={() => setShowVersionCheck(false)}
+          onContinue={() => setShowVersionCheck(false)}
+          isAuthenticated={isAuthenticated}
+        />
+      )}
+
+      {!isAuthenticated && !authLoading && !showVersionCheck && (
         <div>
           <div
             className="absolute inset-0"
@@ -112,7 +124,7 @@ function AppContent() {
         </div>
       )}
 
-      {!isAuthenticated && !authLoading && (
+      {!isAuthenticated && !authLoading && !showVersionCheck && (
         <div className="fixed inset-0 flex items-center justify-center z-[10000]">
           <Homepage
             onSelectView={handleSelectView}
@@ -131,11 +143,12 @@ function AppContent() {
           isAdmin={isAdmin}
           username={username}
         >
-          {showTerminalView && (
-            <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">
-              <AppView isTopbarOpen={isTopbarOpen} />
-            </div>
-          )}
+          <div
+            className="h-screen w-full visible pointer-events-auto static overflow-hidden"
+            style={{ display: showTerminalView ? "block" : "none" }}
+          >
+            <AppView isTopbarOpen={isTopbarOpen} />
+          </div>
 
           {showHome && (
             <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">

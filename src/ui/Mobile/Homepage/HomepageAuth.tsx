@@ -6,13 +6,14 @@ import { Label } from "@/components/ui/label.tsx";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert.tsx";
 import { useTranslation } from "react-i18next";
 import { LanguageSwitcher } from "@/ui/Desktop/User/LanguageSwitcher.tsx";
+import { toast } from "sonner";
 import {
   registerUser,
   loginUser,
   getUserInfo,
   getRegistrationAllowed,
   getOIDCConfig,
-  getUserCount,
+  getSetupRequired,
   initiatePasswordReset,
   verifyPasswordResetCode,
   completePasswordReset,
@@ -20,6 +21,8 @@ import {
   verifyTOTPLogin,
   setCookie,
   getCookie,
+  logoutUser,
+  isElectron,
 } from "@/ui/main-axios.ts";
 import { PasswordInput } from "@/components/ui/password-input.tsx";
 
@@ -64,6 +67,7 @@ export function HomepageAuth({
   const [error, setError] = useState<string | null>(null);
   const [internalLoggedIn, setInternalLoggedIn] = useState(false);
   const [firstUser, setFirstUser] = useState(false);
+  const [firstUserToastShown, setFirstUserToastShown] = useState(false);
   const [registrationAllowed, setRegistrationAllowed] = useState(true);
   const [oidcConfigured, setOidcConfigured] = useState(false);
 
@@ -87,10 +91,28 @@ export function HomepageAuth({
   }, [loggedIn]);
 
   useEffect(() => {
+    const clearJWTOnLoad = async () => {
+      try {
+        await logoutUser();
+      } catch (error) {
+        console.log("JWT cleanup on HomepageAuth load:", error);
+      }
+    };
+
+    clearJWTOnLoad();
+  }, []);
+
+  useEffect(() => {
     getRegistrationAllowed().then((res) => {
       setRegistrationAllowed(res.allowed);
     });
   }, []);
+
+  useEffect(() => {
+    if (!registrationAllowed && !internalLoggedIn) {
+      toast.warning(t("messages.registrationDisabled"));
+    }
+  }, [registrationAllowed, internalLoggedIn, t]);
 
   useEffect(() => {
     getOIDCConfig()
@@ -111,11 +133,15 @@ export function HomepageAuth({
   }, []);
 
   useEffect(() => {
-    getUserCount()
+    getSetupRequired()
       .then((res) => {
-        if (res.count === 0) {
+        if (res.setup_required) {
           setFirstUser(true);
           setTab("signup");
+          if (!firstUserToastShown) {
+            toast.info(t("auth.firstUserMessage"));
+            setFirstUserToastShown(true);
+          }
         } else {
           setFirstUser(false);
         }
@@ -124,7 +150,7 @@ export function HomepageAuth({
       .catch(() => {
         setDbError(t("errors.databaseConnection"));
       });
-  }, [setDbError]);
+  }, [setDbError, firstUserToastShown]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -132,7 +158,7 @@ export function HomepageAuth({
     setLoading(true);
 
     if (!localUsername.trim()) {
-      setError(t("errors.requiredField"));
+      toast.error(t("errors.requiredField"));
       setLoading(false);
       return;
     }
@@ -143,12 +169,12 @@ export function HomepageAuth({
         res = await loginUser(localUsername, password);
       } else {
         if (password !== signupConfirmPassword) {
-          setError(t("errors.passwordMismatch"));
+          toast.error(t("errors.passwordMismatch"));
           setLoading(false);
           return;
         }
         if (password.length < 6) {
-          setError(t("errors.minLength", { min: 6 }));
+          toast.error(t("errors.minLength", { min: 6 }));
           setLoading(false);
           return;
         }
@@ -164,11 +190,10 @@ export function HomepageAuth({
         return;
       }
 
-      if (!res || !res.token) {
-        throw new Error(t("errors.noTokenReceived"));
+      if (!res || !res.success) {
+        throw new Error(t("errors.loginFailed"));
       }
 
-      setCookie("jwt", res.token);
       [meRes] = await Promise.all([getUserInfo()]);
 
       setInternalLoggedIn(true);
@@ -185,20 +210,22 @@ export function HomepageAuth({
       setInternalLoggedIn(true);
       if (tab === "signup") {
         setSignupConfirmPassword("");
+        toast.success(t("messages.registrationSuccess"));
+      } else {
+        toast.success(t("messages.loginSuccess"));
       }
       setTotpRequired(false);
       setTotpCode("");
       setTotpTempToken("");
     } catch (err: any) {
-      setError(
-        err?.response?.data?.error || err?.message || t("errors.unknownError"),
-      );
+      const errorMessage =
+        err?.response?.data?.error || err?.message || t("errors.unknownError");
+      toast.error(errorMessage);
       setInternalLoggedIn(false);
       setLoggedIn(false);
       setIsAdmin(false);
       setUsername(null);
       setUserId(null);
-      setCookie("jwt", "", -1);
       if (err?.response?.data?.error?.includes("Database")) {
         setDbError(t("errors.databaseConnection"));
       } else {
@@ -215,9 +242,9 @@ export function HomepageAuth({
     try {
       const result = await initiatePasswordReset(localUsername);
       setResetStep("verify");
-      setError(null);
+      toast.success(t("messages.resetCodeSent"));
     } catch (err: any) {
-      setError(
+      toast.error(
         err?.response?.data?.error ||
           err?.message ||
           t("errors.failedPasswordReset"),
@@ -234,9 +261,9 @@ export function HomepageAuth({
       const response = await verifyPasswordResetCode(localUsername, resetCode);
       setTempToken(response.tempToken);
       setResetStep("newPassword");
-      setError(null);
+      toast.success(t("messages.codeVerified"));
     } catch (err: any) {
-      setError(err?.response?.data?.error || t("errors.failedVerifyCode"));
+      toast.error(err?.response?.data?.error || t("errors.failedVerifyCode"));
     } finally {
       setResetLoading(false);
     }
@@ -247,13 +274,13 @@ export function HomepageAuth({
     setResetLoading(true);
 
     if (newPassword !== confirmPassword) {
-      setError(t("errors.passwordMismatch"));
+      toast.error(t("errors.passwordMismatch"));
       setResetLoading(false);
       return;
     }
 
     if (newPassword.length < 6) {
-      setError(t("errors.minLength", { min: 6 }));
+      toast.error(t("errors.minLength", { min: 6 }));
       setResetLoading(false);
       return;
     }
@@ -269,8 +296,14 @@ export function HomepageAuth({
       setError(null);
 
       setResetSuccess(true);
+      toast.success(t("messages.passwordResetSuccess"));
+
+      setTab("login");
+      resetPasswordState();
     } catch (err: any) {
-      setError(err?.response?.data?.error || t("errors.failedCompleteReset"));
+      toast.error(
+        err?.response?.data?.error || t("errors.failedCompleteReset"),
+      );
     } finally {
       setResetLoading(false);
     }
@@ -295,7 +328,7 @@ export function HomepageAuth({
 
   async function handleTOTPVerification() {
     if (totpCode.length !== 6) {
-      setError(t("auth.enterCode"));
+      toast.error(t("auth.enterCode"));
       return;
     }
 
@@ -305,34 +338,50 @@ export function HomepageAuth({
     try {
       const res = await verifyTOTPLogin(totpTempToken, totpCode);
 
-      if (!res || !res.token) {
-        throw new Error(t("errors.noTokenReceived"));
+      if (!res || !res.success) {
+        throw new Error(t("errors.loginFailed"));
       }
 
-      setCookie("jwt", res.token);
-      const meRes = await getUserInfo();
+      if (isElectron() && res.token) {
+        localStorage.setItem("jwt", res.token);
+      }
 
       setInternalLoggedIn(true);
       setLoggedIn(true);
-      setIsAdmin(!!meRes.is_admin);
-      setUsername(meRes.username || null);
-      setUserId(meRes.userId || null);
+      setIsAdmin(!!res.is_admin);
+      setUsername(res.username || null);
+      setUserId(res.userId || null);
       setDbError(null);
-      onAuthSuccess({
-        isAdmin: !!meRes.is_admin,
-        username: meRes.username || null,
-        userId: meRes.userId || null,
-      });
+
+      setTimeout(() => {
+        onAuthSuccess({
+          isAdmin: !!res.is_admin,
+          username: res.username || null,
+          userId: res.userId || null,
+        });
+      }, 100);
+
       setInternalLoggedIn(true);
       setTotpRequired(false);
       setTotpCode("");
       setTotpTempToken("");
+      toast.success(t("messages.loginSuccess"));
     } catch (err: any) {
-      setError(
+      const errorCode = err?.response?.data?.code;
+      const errorMessage =
         err?.response?.data?.error ||
-          err?.message ||
-          t("errors.invalidTotpCode"),
-      );
+        err?.message ||
+        t("errors.invalidTotpCode");
+
+      if (errorCode === "SESSION_EXPIRED") {
+        setTotpRequired(false);
+        setTotpCode("");
+        setTotpTempToken("");
+        setTab("login");
+        toast.error(t("errors.sessionExpired"));
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setTotpLoading(false);
     }
@@ -351,11 +400,11 @@ export function HomepageAuth({
 
       window.location.replace(authUrl);
     } catch (err: any) {
-      setError(
+      const errorMessage =
         err?.response?.data?.error ||
-          err?.message ||
-          t("errors.failedOidcLogin"),
-      );
+        err?.message ||
+        t("errors.failedOidcLogin");
+      toast.error(errorMessage);
       setOidcLoading(false);
     }
   }
@@ -367,29 +416,28 @@ export function HomepageAuth({
     const error = urlParams.get("error");
 
     if (error) {
-      setError(`${t("errors.oidcAuthFailed")}: ${error}`);
+      toast.error(`${t("errors.oidcAuthFailed")}: ${error}`);
       setOidcLoading(false);
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
 
-    if (success && token) {
+    if (success) {
       setOidcLoading(true);
       setError(null);
 
-      setCookie("jwt", token);
       getUserInfo()
         .then((meRes) => {
           setInternalLoggedIn(true);
           setLoggedIn(true);
           setIsAdmin(!!meRes.is_admin);
           setUsername(meRes.username || null);
-          setUserId(meRes.id || null);
+          setUserId(meRes.userId || null);
           setDbError(null);
           onAuthSuccess({
             isAdmin: !!meRes.is_admin,
             username: meRes.username || null,
-            userId: meRes.id || null,
+            userId: meRes.userId || null,
           });
           setInternalLoggedIn(true);
           window.history.replaceState(
@@ -399,13 +447,12 @@ export function HomepageAuth({
           );
         })
         .catch((err) => {
-          setError(t("errors.failedUserInfo"));
+          toast.error(t("errors.failedUserInfo"));
           setInternalLoggedIn(false);
           setLoggedIn(false);
           setIsAdmin(false);
           setUsername(null);
           setUserId(null);
-          setCookie("jwt", "", -1);
           window.history.replaceState(
             {},
             document.title,
@@ -449,31 +496,6 @@ export function HomepageAuth({
         <Alert variant="destructive" className="mb-4">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{dbError}</AlertDescription>
-        </Alert>
-      )}
-      {firstUser && !dbError && !internalLoggedIn && (
-        <Alert variant="default" className="mb-4">
-          <AlertTitle>{t("auth.firstUser")}</AlertTitle>
-          <AlertDescription className="inline">
-            {t("auth.firstUserMessage")}{" "}
-            <a
-              href="https://github.com/LukeGus/Termix/issues/new"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline hover:text-blue-800 inline"
-            >
-              GitHub Issue
-            </a>
-            .
-          </AlertDescription>
-        </Alert>
-      )}
-      {!registrationAllowed && !internalLoggedIn && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTitle>{t("auth.registerTitle")}</AlertTitle>
-          <AlertDescription>
-            {t("messages.registrationDisabled")}
-          </AlertDescription>
         </Alert>
       )}
       {totpRequired && (
@@ -529,363 +551,365 @@ export function HomepageAuth({
         </div>
       )}
 
-      {!internalLoggedIn &&
-        (!authLoading || !getCookie("jwt")) &&
-        !totpRequired && (
-          <>
-            <div className="flex gap-2 mb-6">
-              <button
-                type="button"
-                className={cn(
-                  "flex-1 py-2 text-base font-medium rounded-md transition-all",
-                  tab === "login"
-                    ? "bg-primary text-primary-foreground shadow"
-                    : "bg-muted text-muted-foreground hover:bg-accent",
-                )}
-                onClick={() => {
-                  setTab("login");
-                  if (tab === "reset") resetPasswordState();
-                  if (tab === "signup") clearFormFields();
-                }}
-                aria-selected={tab === "login"}
-                disabled={loading || firstUser}
-              >
-                {t("common.login")}
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  "flex-1 py-2 text-base font-medium rounded-md transition-all",
-                  tab === "signup"
-                    ? "bg-primary text-primary-foreground shadow"
-                    : "bg-muted text-muted-foreground hover:bg-accent",
-                )}
-                onClick={() => {
-                  setTab("signup");
-                  if (tab === "reset") resetPasswordState();
-                  if (tab === "login") clearFormFields();
-                }}
-                aria-selected={tab === "signup"}
-                disabled={loading || !registrationAllowed}
-              >
-                {t("common.register")}
-              </button>
-              {oidcConfigured && (
-                <button
-                  type="button"
-                  className={cn(
-                    "flex-1 py-2 text-base font-medium rounded-md transition-all",
-                    tab === "external"
-                      ? "bg-primary text-primary-foreground shadow"
-                      : "bg-muted text-muted-foreground hover:bg-accent",
-                  )}
-                  onClick={() => {
-                    setTab("external");
-                    if (tab === "reset") resetPasswordState();
-                    if (tab === "login" || tab === "signup") clearFormFields();
-                  }}
-                  aria-selected={tab === "external"}
-                  disabled={oidcLoading}
-                >
-                  {t("auth.external")}
-                </button>
+      {internalLoggedIn && !authLoading && (
+        <div className="flex flex-col gap-5">
+          <div className="mb-6 text-center">
+            <h2 className="text-xl font-bold mb-1">
+              {t("homepage.loggedInTitle")}
+            </h2>
+            <p className="text-muted-foreground">
+              {t("mobile.mobileAppInProgressDesc")}
+            </p>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-11 text-base font-semibold"
+            onClick={() =>
+              window.open("https://docs.termix.site/install", "_blank")
+            }
+          >
+            {t("mobile.viewMobileAppDocs")}
+          </Button>
+        </div>
+      )}
+
+      {!internalLoggedIn && !authLoading && !totpRequired && (
+        <>
+          <div className="flex gap-2 mb-6">
+            <button
+              type="button"
+              className={cn(
+                "flex-1 py-2 text-base font-medium rounded-md transition-all",
+                tab === "login"
+                  ? "bg-primary text-primary-foreground shadow"
+                  : "bg-muted text-muted-foreground hover:bg-accent",
               )}
-            </div>
-            <div className="mb-6 text-center">
-              <h2 className="text-xl font-bold mb-1">
-                {tab === "login"
-                  ? t("auth.loginTitle")
-                  : tab === "signup"
-                    ? t("auth.registerTitle")
-                    : tab === "external"
-                      ? t("auth.loginWithExternal")
-                      : t("auth.forgotPassword")}
-              </h2>
-            </div>
-
-            {tab === "external" || tab === "reset" ? (
-              <div className="flex flex-col gap-5">
-                {tab === "external" && (
-                  <>
-                    <div className="text-center text-muted-foreground mb-4">
-                      <p>{t("auth.loginWithExternalDesc")}</p>
-                    </div>
-                    <Button
-                      type="button"
-                      className="w-full h-11 mt-2 text-base font-semibold"
-                      disabled={oidcLoading}
-                      onClick={handleOIDCLogin}
-                    >
-                      {oidcLoading ? Spinner : t("auth.loginWithExternal")}
-                    </Button>
-                  </>
+              onClick={() => {
+                setTab("login");
+                if (tab === "reset") resetPasswordState();
+                if (tab === "signup") clearFormFields();
+              }}
+              aria-selected={tab === "login"}
+              disabled={loading || firstUser}
+            >
+              {t("common.login")}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex-1 py-2 text-base font-medium rounded-md transition-all",
+                tab === "signup"
+                  ? "bg-primary text-primary-foreground shadow"
+                  : "bg-muted text-muted-foreground hover:bg-accent",
+              )}
+              onClick={() => {
+                setTab("signup");
+                if (tab === "reset") resetPasswordState();
+                if (tab === "login") clearFormFields();
+              }}
+              aria-selected={tab === "signup"}
+              disabled={loading || !registrationAllowed}
+            >
+              {t("common.register")}
+            </button>
+            {oidcConfigured && (
+              <button
+                type="button"
+                className={cn(
+                  "flex-1 py-2 text-base font-medium rounded-md transition-all",
+                  tab === "external"
+                    ? "bg-primary text-primary-foreground shadow"
+                    : "bg-muted text-muted-foreground hover:bg-accent",
                 )}
-                {tab === "reset" && (
-                  <>
-                    {resetStep === "initiate" && (
-                      <>
-                        <div className="text-center text-muted-foreground mb-4">
-                          <p>{t("auth.resetCodeDesc")}</p>
-                        </div>
-                        <div className="flex flex-col gap-4">
-                          <div className="flex flex-col gap-2">
-                            <Label htmlFor="reset-username">
-                              {t("common.username")}
-                            </Label>
-                            <Input
-                              id="reset-username"
-                              type="text"
-                              required
-                              className="h-11 text-base"
-                              value={localUsername}
-                              onChange={(e) => setLocalUsername(e.target.value)}
-                              disabled={resetLoading}
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            className="w-full h-11 text-base font-semibold"
-                            disabled={resetLoading || !localUsername.trim()}
-                            onClick={handleInitiatePasswordReset}
-                          >
-                            {resetLoading ? Spinner : t("auth.sendResetCode")}
-                          </Button>
-                        </div>
-                      </>
-                    )}
+                onClick={() => {
+                  setTab("external");
+                  if (tab === "reset") resetPasswordState();
+                  if (tab === "login" || tab === "signup") clearFormFields();
+                }}
+                aria-selected={tab === "external"}
+                disabled={oidcLoading}
+              >
+                {t("auth.external")}
+              </button>
+            )}
+          </div>
+          <div className="mb-6 text-center">
+            <h2 className="text-xl font-bold mb-1">
+              {tab === "login"
+                ? t("auth.loginTitle")
+                : tab === "signup"
+                  ? t("auth.registerTitle")
+                  : tab === "external"
+                    ? t("auth.loginWithExternal")
+                    : t("auth.forgotPassword")}
+            </h2>
+          </div>
 
-                    {resetStep === "verify" && (
-                      <>
-                        <div className="text-center text-muted-foreground mb-4">
-                          <p>
-                            {t("auth.enterResetCode")}{" "}
-                            <strong>{localUsername}</strong>
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-4">
-                          <div className="flex flex-col gap-2">
-                            <Label htmlFor="reset-code">
-                              {t("auth.resetCode")}
-                            </Label>
-                            <Input
-                              id="reset-code"
-                              type="text"
-                              required
-                              maxLength={6}
-                              className="h-11 text-base text-center text-lg tracking-widest"
-                              value={resetCode}
-                              onChange={(e) =>
-                                setResetCode(e.target.value.replace(/\D/g, ""))
-                              }
-                              disabled={resetLoading}
-                              placeholder="000000"
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            className="w-full h-11 text-base font-semibold"
-                            disabled={resetLoading || resetCode.length !== 6}
-                            onClick={handleVerifyResetCode}
-                          >
-                            {resetLoading
-                              ? Spinner
-                              : t("auth.verifyCodeButton")}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full h-11 text-base font-semibold"
+          {tab === "external" || tab === "reset" ? (
+            <div className="flex flex-col gap-5">
+              {tab === "external" && (
+                <>
+                  <div className="text-center text-muted-foreground mb-4">
+                    <p>{t("auth.loginWithExternalDesc")}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    className="w-full h-11 mt-2 text-base font-semibold"
+                    disabled={oidcLoading}
+                    onClick={handleOIDCLogin}
+                  >
+                    {oidcLoading ? Spinner : t("auth.loginWithExternal")}
+                  </Button>
+                </>
+              )}
+              {tab === "reset" && (
+                <>
+                  {resetStep === "initiate" && (
+                    <>
+                      <div className="text-center text-muted-foreground mb-4">
+                        <p>{t("auth.resetCodeDesc")}</p>
+                      </div>
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="reset-username">
+                            {t("common.username")}
+                          </Label>
+                          <Input
+                            id="reset-username"
+                            type="text"
+                            required
+                            className="h-11 text-base"
+                            value={localUsername}
+                            onChange={(e) => setLocalUsername(e.target.value)}
                             disabled={resetLoading}
-                            onClick={() => {
-                              setResetStep("initiate");
-                              setResetCode("");
-                            }}
-                          >
-                            {t("common.back")}
-                          </Button>
+                          />
                         </div>
-                      </>
-                    )}
-
-                    {resetSuccess && (
-                      <>
-                        <Alert className="mb-4">
-                          <AlertTitle>
-                            {t("auth.passwordResetSuccess")}
-                          </AlertTitle>
-                          <AlertDescription>
-                            {t("auth.passwordResetSuccessDesc")}
-                          </AlertDescription>
-                        </Alert>
                         <Button
                           type="button"
                           className="w-full h-11 text-base font-semibold"
+                          disabled={resetLoading || !localUsername.trim()}
+                          onClick={handleInitiatePasswordReset}
+                        >
+                          {resetLoading ? Spinner : t("auth.sendResetCode")}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {resetStep === "verify" && (
+                    <>
+                      <div className="text-center text-muted-foreground mb-4">
+                        <p>
+                          {t("auth.enterResetCode")}{" "}
+                          <strong>{localUsername}</strong>
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="reset-code">
+                            {t("auth.resetCode")}
+                          </Label>
+                          <Input
+                            id="reset-code"
+                            type="text"
+                            required
+                            maxLength={6}
+                            className="h-11 text-base text-center text-lg tracking-widest"
+                            value={resetCode}
+                            onChange={(e) =>
+                              setResetCode(e.target.value.replace(/\D/g, ""))
+                            }
+                            disabled={resetLoading}
+                            placeholder="000000"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          className="w-full h-11 text-base font-semibold"
+                          disabled={resetLoading || resetCode.length !== 6}
+                          onClick={handleVerifyResetCode}
+                        >
+                          {resetLoading ? Spinner : t("auth.verifyCodeButton")}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full h-11 text-base font-semibold"
+                          disabled={resetLoading}
                           onClick={() => {
-                            setTab("login");
-                            resetPasswordState();
+                            setResetStep("initiate");
+                            setResetCode("");
                           }}
                         >
-                          {t("auth.goToLogin")}
+                          {t("common.back")}
                         </Button>
-                      </>
-                    )}
+                      </div>
+                    </>
+                  )}
 
-                    {resetStep === "newPassword" && !resetSuccess && (
-                      <>
-                        <div className="text-center text-muted-foreground mb-4">
-                          <p>
-                            {t("auth.enterNewPassword")}{" "}
-                            <strong>{localUsername}</strong>
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-5">
-                          <div className="flex flex-col gap-2">
-                            <Label htmlFor="new-password">
-                              {t("auth.newPassword")}
-                            </Label>
-                            <PasswordInput
-                              id="new-password"
-                              required
-                              className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
-                              value={newPassword}
-                              onChange={(e) => setNewPassword(e.target.value)}
-                              disabled={resetLoading}
-                              autoComplete="new-password"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            <Label htmlFor="confirm-password">
-                              {t("auth.confirmNewPassword")}
-                            </Label>
-                            <PasswordInput
-                              id="confirm-password"
-                              required
-                              className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
-                              value={confirmPassword}
-                              onChange={(e) =>
-                                setConfirmPassword(e.target.value)
-                              }
-                              disabled={resetLoading}
-                              autoComplete="new-password"
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            className="w-full h-11 text-base font-semibold"
-                            disabled={
-                              resetLoading || !newPassword || !confirmPassword
-                            }
-                            onClick={handleCompletePasswordReset}
-                          >
-                            {resetLoading
-                              ? Spinner
-                              : t("auth.resetPasswordButton")}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full h-11 text-base font-semibold"
+                  {resetStep === "newPassword" && !resetSuccess && (
+                    <>
+                      <div className="text-center text-muted-foreground mb-4">
+                        <p>
+                          {t("auth.enterNewPassword")}{" "}
+                          <strong>{localUsername}</strong>
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="new-password">
+                            {t("auth.newPassword")}
+                          </Label>
+                          <PasswordInput
+                            id="new-password"
+                            required
+                            className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
                             disabled={resetLoading}
-                            onClick={() => {
-                              setResetStep("verify");
-                              setNewPassword("");
-                              setConfirmPassword("");
-                            }}
-                          >
-                            {t("common.back")}
-                          </Button>
+                            autoComplete="new-password"
+                          />
                         </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : (
-              <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="username">{t("common.username")}</Label>
-                  <Input
-                    id="username"
-                    type="text"
-                    required
-                    className="h-11 text-base"
-                    value={localUsername}
-                    onChange={(e) => setLocalUsername(e.target.value)}
-                    disabled={loading || internalLoggedIn}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="password">{t("common.password")}</Label>
-                  <PasswordInput
-                    id="password"
-                    required
-                    className="h-11 text-base"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading || internalLoggedIn}
-                  />
-                </div>
-                {tab === "signup" && (
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="signup-confirm-password">
-                      {t("common.confirmPassword")}
-                    </Label>
-                    <PasswordInput
-                      id="signup-confirm-password"
-                      required
-                      className="h-11 text-base"
-                      value={signupConfirmPassword}
-                      onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                      disabled={loading || internalLoggedIn}
-                    />
-                  </div>
-                )}
-                <Button
-                  type="submit"
-                  className="w-full h-11 mt-2 text-base font-semibold"
-                  disabled={loading || internalLoggedIn}
-                >
-                  {loading
-                    ? Spinner
-                    : tab === "login"
-                      ? t("common.login")
-                      : t("auth.signUp")}
-                </Button>
-                {tab === "login" && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-11 text-base font-semibold"
-                    disabled={loading || internalLoggedIn}
-                    onClick={() => {
-                      setTab("reset");
-                      resetPasswordState();
-                      clearFormFields();
-                    }}
-                  >
-                    {t("auth.resetPasswordButton")}
-                  </Button>
-                )}
-              </form>
-            )}
-
-            <div className="mt-6 pt-4 border-t border-dark-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm text-muted-foreground">
-                    {t("common.language")}
-                  </Label>
-                </div>
-                <LanguageSwitcher />
-              </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="confirm-password">
+                            {t("auth.confirmNewPassword")}
+                          </Label>
+                          <PasswordInput
+                            id="confirm-password"
+                            required
+                            className="h-11 text-base focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            disabled={resetLoading}
+                            autoComplete="new-password"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          className="w-full h-11 text-base font-semibold"
+                          disabled={
+                            resetLoading || !newPassword || !confirmPassword
+                          }
+                          onClick={handleCompletePasswordReset}
+                        >
+                          {resetLoading
+                            ? Spinner
+                            : t("auth.resetPasswordButton")}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full h-11 text-base font-semibold"
+                          disabled={resetLoading}
+                          onClick={() => {
+                            setResetStep("verify");
+                            setNewPassword("");
+                            setConfirmPassword("");
+                          }}
+                        >
+                          {t("common.back")}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
-          </>
-        )}
-      {error && (
-        <Alert variant="destructive" className="mt-4">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+          ) : (
+            <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="username">{t("common.username")}</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  required
+                  className="h-11 text-base"
+                  value={localUsername}
+                  onChange={(e) => setLocalUsername(e.target.value)}
+                  disabled={loading || internalLoggedIn}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="password">{t("common.password")}</Label>
+                <PasswordInput
+                  id="password"
+                  required
+                  className="h-11 text-base"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading || internalLoggedIn}
+                />
+              </div>
+              {tab === "signup" && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="signup-confirm-password">
+                    {t("common.confirmPassword")}
+                  </Label>
+                  <PasswordInput
+                    id="signup-confirm-password"
+                    required
+                    className="h-11 text-base"
+                    value={signupConfirmPassword}
+                    onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                    disabled={loading || internalLoggedIn}
+                  />
+                </div>
+              )}
+              <Button
+                type="submit"
+                className="w-full h-11 mt-2 text-base font-semibold"
+                disabled={loading || internalLoggedIn}
+              >
+                {loading
+                  ? Spinner
+                  : tab === "login"
+                    ? t("common.login")
+                    : t("auth.signUp")}
+              </Button>
+              {tab === "login" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-11 text-base font-semibold"
+                  disabled={loading || internalLoggedIn}
+                  onClick={() => {
+                    setTab("reset");
+                    resetPasswordState();
+                    clearFormFields();
+                  }}
+                >
+                  {t("auth.resetPasswordButton")}
+                </Button>
+              )}
+            </form>
+          )}
+
+          <div className="mt-6 pt-4 border-t border-dark-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm text-muted-foreground">
+                  {t("common.language")}
+                </Label>
+              </div>
+              <LanguageSwitcher />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 text-base font-semibold"
+              onClick={() =>
+                window.open("https://docs.termix.site/install", "_blank")
+              }
+            >
+              {t("mobile.viewMobileAppDocs")}
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );

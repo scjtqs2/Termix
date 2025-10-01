@@ -45,30 +45,39 @@ If you would like, you can support the project here!\
 
 Termix is an open-source, forever-free, self-hosted all-in-one server management platform. It provides a web-based
 solution for managing your servers and infrastructure through a single, intuitive interface. Termix offers SSH terminal
-access, SSH tunneling capabilities, and remote file editing, with many more tools to come.
+access, SSH tunneling capabilities, remote file management, with many more tools to come.
 
 # Features
 
 - **SSH Terminal Access** - Full-featured terminal with split-screen support (up to 4 panels) and tab system
 - **SSH Tunnel Management** - Create and manage SSH tunnels with automatic reconnection and health monitoring
-- **Remote File Editor** - Edit files directly on remote servers with syntax highlighting, file management features (
-  uploading, removing, renaming, deleting files)
-- **SSH Host Manager** - Save, organize, and manage your SSH connections with tags and folders
+- **Remote File Manager** - Manage files directly on remote servers with support for viewing and editing code, images, audio, and video. Upload, download, rename, delete, and move files seamlessly.
+- **SSH Host Manager** - Save, organize, and manage your SSH connections with tags and folders and easily save reusable login info while being able to automate the deploying of SSH keys
 - **Server Stats** - View CPU, memory, and HDD usage on any SSH server
 - **User Authentication** - Secure user management with admin controls and OIDC and 2FA (TOTP) support
-- **Modern UI** - Clean desktop/mobile friendly (in progress) interface built with React, Tailwind CSS, and Shadcn
+- **Database Encryption** - SQLite database files encrypted at rest with automatic encryption/decryption
+- **Data Export/Import** - Export and import SSH hosts, credentials, and file manager data with incremental sync
+- **Automatic SSL Setup** - Built-in SSL certificate generation and management with HTTPS redirects
+- **Modern UI** - Clean desktop/mobile friendly interface built with React, Tailwind CSS, and Shadcn
 - **Languages** - Built-in support for English and Chinese
-- **Improved Platform Support** - Now includes an installable Electron app (in progress) for desktop, with a dedicated
-  mobile app also planned.
+- **Platform Support** - Available as a web app, desktop application (Windows & Linux), and dedicated mobile app for iOS and Android (coming in a few days)
 
 # Planned Features
 
-See [Projects](https://github.com/users/LukeGus/projects/3). If you are looking to contribute,
-see [Contributing](https://github.com/LukeGus/Termix/blob/main/CONTRIBUTING.md),
+See [Projects](https://github.com/users/LukeGus/projects/3) for all planned features. If you are looking to contribute, see [Contributing](https://github.com/LukeGus/Termix/blob/main/CONTRIBUTING.md).
 
 # Installation
 
-Visit the Termix [Docs](https://docs.termix.site/install) for more information on how to install Termix. Otherwise, view
+Supported Devices:
+
+- Website (any modern browser like Google, Safari, and Firefox)
+- Windows (app)
+- Linux (app)
+- iOS (coming in a few days)
+- Android (coming in a few days)
+- iPadOS and macOS are in progress
+
+Visit the Termix [Docs](https://docs.termix.site/install) for more information on how to install Termix on all platforms. Otherwise, view
 a sample docker-compose file here:
 
 ```yaml
@@ -89,10 +98,6 @@ volumes:
     driver: local
 ```
 
-Pre-built binaries are now available for download, including a Windows installer/portable app and a Linux portable app (
-built with Electron). See [Docs](https://docs.termix.site/install#pre-built-binaries) for details. A native iOS/Android app
-is planned.
-
 # Support
 
 If you need help with Termix, you can join the [Discord](https://discord.gg/jVQGdvHDrf) server and visit the support
@@ -107,13 +112,17 @@ repo.
 </p>
 
 <p align="center">
-  <img src="./repo-images/Image 3.png" width="250" alt="Termix Demo 3"/>
-  <img src="./repo-images/Image 4.png" width="250" alt="Termix Demo 4"/>
-  <img src="./repo-images/Image 5.png" width="250" alt="Termix Demo 5"/>
+  <img src="./repo-images/Image 3.png" width="400" alt="Termix Demo 3"/>
+  <img src="./repo-images/Image 4.png" width="400" alt="Termix Demo 4"/>
 </p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/f9caa061-10dc-4173-ae7d-c6d42f05cf56" width="800" controls>
+  <img src="./repo-images/Image 5.png" width="400" alt="Termix Demo 5"/>
+  <img src="./repo-images/Image 6.png" width="400" alt="Termix Demo 6"/>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/88936e0d-2399-4122-8eee-c255c25da48c" width="800" controls>
     Your browser does not support the video tag.
   </video>
 </p>

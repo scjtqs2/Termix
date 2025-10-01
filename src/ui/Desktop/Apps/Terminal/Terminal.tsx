@@ -21,12 +21,28 @@ interface SSHTerminalProps {
   showTitle?: boolean;
   splitScreen?: boolean;
   onClose?: () => void;
+  initialPath?: string;
+  executeCommand?: string;
 }
 
 export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
-  { hostConfig, isVisible, splitScreen = false, onClose },
+  {
+    hostConfig,
+    isVisible,
+    splitScreen = false,
+    onClose,
+    initialPath,
+    executeCommand,
+  },
   ref,
 ) {
+  if (typeof window !== "undefined" && !(window as any).testJWT) {
+    (window as any).testJWT = () => {
+      const jwt = getCookie("jwt");
+      return jwt;
+    };
+  }
+
   const { t } = useTranslation();
   const { instance: terminal, ref: xtermRef } = useXTerm();
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -38,6 +54,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const isVisibleRef = useRef<boolean>(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
@@ -45,6 +62,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   const isUnmountingRef = useRef(false);
   const shouldNotReconnectRef = useRef(false);
   const isReconnectingRef = useRef(false);
+  const isConnectingRef = useRef(false);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
@@ -55,6 +73,26 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   useEffect(() => {
     isVisibleRef.current = isVisible;
   }, [isVisible]);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const jwtToken = getCookie("jwt");
+      const isAuth = !!(jwtToken && jwtToken.trim() !== "");
+
+      setIsAuthenticated((prev) => {
+        if (prev !== isAuth) {
+          return isAuth;
+        }
+        return prev;
+      });
+    };
+
+    checkAuth();
+
+    const authCheckInterval = setInterval(checkAuth, 5000);
+
+    return () => clearInterval(authCheckInterval);
+  }, []);
 
   function hardRefresh() {
     try {
@@ -130,11 +168,6 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
     [terminal],
   );
 
-  useEffect(() => {
-    window.addEventListener("resize", handleWindowResize);
-    return () => window.removeEventListener("resize", handleWindowResize);
-  }, []);
-
   function handleWindowResize() {
     if (!isVisibleRef.current) return;
     fitAddonRef.current?.fit();
@@ -150,7 +183,9 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
     if (
       isUnmountingRef.current ||
       shouldNotReconnectRef.current ||
-      isReconnectingRef.current
+      isReconnectingRef.current ||
+      isConnectingRef.current ||
+      wasDisconnectedBySSH.current
     ) {
       return;
     }
@@ -179,13 +214,25 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
     );
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      if (isUnmountingRef.current || shouldNotReconnectRef.current) {
+      if (
+        isUnmountingRef.current ||
+        shouldNotReconnectRef.current ||
+        wasDisconnectedBySSH.current
+      ) {
         isReconnectingRef.current = false;
         return;
       }
 
       if (reconnectAttempts.current > maxReconnectAttempts) {
         isReconnectingRef.current = false;
+        return;
+      }
+
+      const jwtToken = getCookie("jwt");
+      if (!jwtToken || jwtToken.trim() === "") {
+        console.warn("Reconnection cancelled - no authentication token");
+        isReconnectingRef.current = false;
+        setConnectionError("Authentication required for reconnection");
         return;
       }
 
@@ -201,18 +248,35 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   }
 
   function connectToHost(cols: number, rows: number) {
+    if (isConnectingRef.current) {
+      return;
+    }
+
+    isConnectingRef.current = true;
+
     const isDev =
       process.env.NODE_ENV === "development" &&
       (window.location.port === "3000" ||
         window.location.port === "5173" ||
         window.location.port === "");
 
-    const wsUrl = isDev
-      ? "ws://localhost:8082"
+    const jwtToken = getCookie("jwt");
+
+    if (!jwtToken || jwtToken.trim() === "") {
+      console.error("No JWT token available for WebSocket connection");
+      setIsConnected(false);
+      setIsConnecting(false);
+      setConnectionError("Authentication required");
+      isConnectingRef.current = false;
+      return;
+    }
+
+    const baseWsUrl = isDev
+      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://localhost:30002`
       : isElectron()
         ? (() => {
             const baseUrl =
-              (window as any).configuredServerUrl || "http://127.0.0.1:8081";
+              (window as any).configuredServerUrl || "http://127.0.0.1:30001";
             const wsProtocol = baseUrl.startsWith("https://")
               ? "wss://"
               : "ws://";
@@ -220,6 +284,24 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
             return `${wsProtocol}${wsHost}/ssh/websocket/`;
           })()
         : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ssh/websocket/`;
+
+    if (
+      webSocketRef.current &&
+      webSocketRef.current.readyState !== WebSocket.CLOSED
+    ) {
+      webSocketRef.current.close();
+    }
+
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+
+    const wsUrl = `${baseWsUrl}?token=${encodeURIComponent(jwtToken)}`;
 
     const ws = new WebSocket(wsUrl);
     webSocketRef.current = ws;
@@ -252,7 +334,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
       ws.send(
         JSON.stringify({
           type: "connectToHost",
-          data: { cols, rows, hostConfig },
+          data: { cols, rows, hostConfig, initialPath, executeCommand },
         }),
       );
       terminal.onData((data) => {
@@ -307,6 +389,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
               terminal.clear();
             }
             setIsConnecting(true);
+            wasDisconnectedBySSH.current = false;
             attemptReconnection();
             return;
           }
@@ -315,6 +398,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
         } else if (msg.type === "connected") {
           setIsConnected(true);
           setIsConnecting(false);
+          isConnectingRef.current = false;
           if (connectionTimeoutRef.current) {
             clearTimeout(connectionTimeoutRef.current);
             connectionTimeoutRef.current = null;
@@ -330,9 +414,9 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
           if (terminal) {
             terminal.clear();
           }
-          setIsConnecting(true);
-          if (!isUnmountingRef.current && !shouldNotReconnectRef.current) {
-            attemptReconnection();
+          setIsConnecting(false);
+          if (onClose) {
+            onClose();
           }
         }
       } catch (error) {
@@ -342,27 +426,45 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
 
     ws.addEventListener("close", (event) => {
       setIsConnected(false);
+      isConnectingRef.current = false;
       if (terminal) {
         terminal.clear();
       }
-      setIsConnecting(true);
+
+      if (event.code === 1008) {
+        console.error("WebSocket authentication failed:", event.reason);
+        setConnectionError("Authentication failed - please re-login");
+        setIsConnecting(false);
+        shouldNotReconnectRef.current = true;
+
+        localStorage.removeItem("jwt");
+
+        toast.error("Authentication failed. Please log in again.");
+
+        return;
+      }
+
+      setIsConnecting(false);
       if (
         !wasDisconnectedBySSH.current &&
         !isUnmountingRef.current &&
         !shouldNotReconnectRef.current
       ) {
+        wasDisconnectedBySSH.current = false;
         attemptReconnection();
       }
     });
 
     ws.addEventListener("error", (event) => {
       setIsConnected(false);
+      isConnectingRef.current = false;
       setConnectionError(t("terminal.websocketError"));
       if (terminal) {
         terminal.clear();
       }
-      setIsConnecting(true);
+      setIsConnecting(false);
       if (!isUnmountingRef.current && !shouldNotReconnectRef.current) {
+        wasDisconnectedBySSH.current = false;
         attemptReconnection();
       }
     });
@@ -399,7 +501,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   }
 
   useEffect(() => {
-    if (!terminal || !xtermRef.current || !hostConfig) return;
+    if (!terminal || !xtermRef.current) return;
 
     terminal.options = {
       cursorBlink: true,
@@ -407,7 +509,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
       scrollback: 10000,
       fontSize: 14,
       fontFamily:
-        '"JetBrains Mono Nerd Font", "MesloLGS NF", "FiraCode Nerd Font", "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace',
+        '"JetBrains Mono Nerd Font", "MesloLGS NF", "FiraCode Nerd Font", "Cascadia Code", "JetBrains Mono", "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       theme: { background: "#18181b", foreground: "#f7f7f7" },
       allowTransparency: true,
       convertEol: true,
@@ -452,6 +554,45 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
     };
     element?.addEventListener("contextmenu", handleContextMenu);
 
+    const handleMacKeyboard = (e: KeyboardEvent) => {
+      const isMacOS =
+        navigator.platform.toUpperCase().indexOf("MAC") >= 0 ||
+        navigator.userAgent.toUpperCase().indexOf("MAC") >= 0;
+
+      if (!isMacOS) return;
+
+      if (e.altKey && !e.metaKey && !e.ctrlKey) {
+        const keyMappings: { [key: string]: string } = {
+          "7": "|",
+          "2": "€",
+          "8": "[",
+          "9": "]",
+          l: "@",
+          L: "@",
+          Digit7: "|",
+          Digit2: "€",
+          Digit8: "[",
+          Digit9: "]",
+          KeyL: "@",
+        };
+
+        const char = keyMappings[e.key] || keyMappings[e.code];
+        if (char) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          if (webSocketRef.current?.readyState === 1) {
+            webSocketRef.current.send(
+              JSON.stringify({ type: "input", data: char }),
+            );
+          }
+          return false;
+        }
+      }
+    };
+
+    element?.addEventListener("keydown", handleMacKeyboard, true);
+
     const resizeObserver = new ResizeObserver(() => {
       if (resizeTimeout.current) clearTimeout(resizeTimeout.current);
       resizeTimeout.current = setTimeout(() => {
@@ -459,34 +600,12 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
         fitAddonRef.current?.fit();
         if (terminal) scheduleNotify(terminal.cols, terminal.rows);
         hardRefresh();
-      }, 100);
+      }, 150);
     });
 
     resizeObserver.observe(xtermRef.current);
 
-    const readyFonts =
-      (document as any).fonts?.ready instanceof Promise
-        ? (document as any).fonts.ready
-        : Promise.resolve();
-    readyFonts.then(() => {
-      setTimeout(() => {
-        fitAddon.fit();
-        setTimeout(() => {
-          fitAddon.fit();
-          if (terminal) scheduleNotify(terminal.cols, terminal.rows);
-          hardRefresh();
-          setVisible(true);
-          if (terminal && !splitScreen) {
-            terminal.focus();
-          }
-        }, 0);
-
-        const cols = terminal.cols;
-        const rows = terminal.rows;
-
-        connectToHost(cols, rows);
-      }, 300);
-    });
+    setVisible(true);
 
     return () => {
       isUnmountingRef.current = true;
@@ -495,6 +614,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
       setIsConnecting(false);
       resizeObserver.disconnect();
       element?.removeEventListener("contextmenu", handleContextMenu);
+      element?.removeEventListener("keydown", handleMacKeyboard, true);
       if (notifyTimerRef.current) clearTimeout(notifyTimerRef.current);
       if (resizeTimeout.current) clearTimeout(resizeTimeout.current);
       if (reconnectTimeoutRef.current)
@@ -507,7 +627,46 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
       }
       webSocketRef.current?.close();
     };
-  }, [xtermRef, terminal, hostConfig]);
+  }, [xtermRef, terminal]);
+
+  useEffect(() => {
+    if (!terminal || !hostConfig || !visible) return;
+
+    if (isConnected || isConnecting) return;
+
+    setIsConnecting(true);
+
+    const readyFonts =
+      (document as any).fonts?.ready instanceof Promise
+        ? (document as any).fonts.ready
+        : Promise.resolve();
+
+    readyFonts.then(() => {
+      setTimeout(() => {
+        fitAddonRef.current?.fit();
+        if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+        hardRefresh();
+
+        if (terminal && !splitScreen) {
+          terminal.focus();
+        }
+
+        const jwtToken = getCookie("jwt");
+
+        if (!jwtToken || jwtToken.trim() === "") {
+          setIsConnected(false);
+          setIsConnecting(false);
+          setConnectionError("Authentication required");
+          return;
+        }
+
+        const cols = terminal.cols;
+        const rows = terminal.rows;
+
+        connectToHost(cols, rows);
+      }, 200);
+    });
+  }, [terminal, hostConfig, visible, isConnected, isConnecting, splitScreen]);
 
   useEffect(() => {
     if (isVisible && fitAddonRef.current) {
@@ -541,11 +700,10 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   }, [splitScreen, isVisible, terminal]);
 
   return (
-    <div className="h-full w-full m-1 relative">
-      {/* Terminal */}
+    <div className="h-full w-full relative">
       <div
         ref={xtermRef}
-        className={`h-full w-full transition-opacity duration-200 ${visible && isVisible && !isConnecting ? "opacity-100" : "opacity-0"} overflow-hidden`}
+        className={`h-full w-full transition-opacity duration-200 ${visible && isVisible && !isConnecting ? "opacity-100" : "opacity-0"}`}
         onClick={() => {
           if (terminal && !splitScreen) {
             terminal.focus();
@@ -553,7 +711,6 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
         }}
       />
 
-      {/* Connecting State */}
       {isConnecting && (
         <div className="absolute inset-0 flex items-center justify-center bg-dark-bg">
           <div className="flex items-center gap-3">
@@ -570,7 +727,7 @@ const style = document.createElement("style");
 style.innerHTML = `
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
-/* Load NerdFonts locally */
+/* Load NerdFonts locally with fallback handling */
 @font-face {
   font-family: 'JetBrains Mono Nerd Font';
   src: url('./fonts/JetBrainsMonoNerdFont-Regular.ttf') format('truetype');
@@ -592,6 +749,15 @@ style.innerHTML = `
   src: url('./fonts/JetBrainsMonoNerdFont-Italic.ttf') format('truetype');
   font-weight: normal;
   font-style: italic;
+  font-display: swap;
+}
+
+/* Fallback fonts for when custom fonts fail to load */
+@font-face {
+  font-family: 'Terminal Fallback';
+  src: local('SF Mono'), local('Monaco'), local('Consolas'), local('Liberation Mono'), local('Courier New');
+  font-weight: normal;
+  font-style: normal;
   font-display: swap;
 }
 
@@ -619,7 +785,7 @@ style.innerHTML = `
 }
 
 .xterm .xterm-screen {
-  font-family: 'JetBrains Mono Nerd Font', 'MesloLGS NF', 'FiraCode Nerd Font', 'Cascadia Code', 'JetBrains Mono', Consolas, "Courier New", monospace !important;
+  font-family: 'JetBrains Mono Nerd Font', 'MesloLGS NF', 'FiraCode Nerd Font', 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace !important;
   font-variant-ligatures: contextual;
 }
 

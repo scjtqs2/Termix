@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { ChevronUp, User2, HardDrive, Menu, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { getCookie, setCookie, isElectron } from "@/ui/main-axios.ts";
+import {
+  getCookie,
+  setCookie,
+  isElectron,
+  logoutUser,
+} from "@/ui/main-axios.ts";
 
 import {
   Sidebar,
@@ -66,14 +71,19 @@ interface SidebarProps {
   children?: React.ReactNode;
 }
 
-function handleLogout() {
-  if (isElectron()) {
-    localStorage.removeItem("jwt");
-  } else {
-    document.cookie = "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-  }
+async function handleLogout() {
+  try {
+    await logoutUser();
 
-  window.location.reload();
+    if (isElectron()) {
+      localStorage.removeItem("jwt");
+    }
+
+    window.location.reload();
+  } catch (error) {
+    console.error("Logout failed:", error);
+    window.location.reload();
+  }
 }
 
 export function LeftSidebar({
@@ -361,8 +371,8 @@ export function LeftSidebar({
               </div>
 
               {hostsError && (
-                <div className="px-1">
-                  <div className="text-xs text-red-500 bg-red-500/10 rounded-lg px-2 py-1 border w-full">
+                <div className="!bg-dark-bg-input rounded-lg">
+                  <div className="w-full h-8 text-sm border-2 !bg-dark-bg-input border-dark-border rounded-md px-3 py-1.5 flex items-center text-red-500">
                     {t("leftSidebar.failedToLoadHosts")}
                   </div>
                 </div>

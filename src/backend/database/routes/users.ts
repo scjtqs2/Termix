@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "crypto";
 import { db } from "../db/index.js";
 import {
   users,
@@ -7,15 +8,21 @@ import {
   fileManagerPinned,
   fileManagerShortcuts,
   dismissedAlerts,
+  settings,
 } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
-import jwt from "jsonwebtoken";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
-import type { Request, Response, NextFunction } from "express";
-import { authLogger, apiLogger } from "../../utils/logger.js";
+import type { Request, Response } from "express";
+import { authLogger } from "../../utils/logger.js";
+import { AuthManager } from "../../utils/auth-manager.js";
+import { UserCrypto } from "../../utils/user-crypto.js";
+import { DataCrypto } from "../../utils/data-crypto.js";
+import { LazyFieldEncryption } from "../../utils/lazy-field-encryption.js";
+
+const authManager = AuthManager.getInstance();
 
 async function verifyOIDCToken(
   idToken: string,
@@ -70,12 +77,8 @@ async function verifyOIDCToken(
             );
           }
         } else {
-          authLogger.error(
-            `JWKS fetch failed from ${url}: ${response.status} ${response.statusText}`,
-          );
         }
       } catch (error) {
-        authLogger.error(`JWKS fetch error from ${url}:`, error);
         continue;
       }
     }
@@ -112,7 +115,6 @@ async function verifyOIDCToken(
 
     return payload;
   } catch (error) {
-    authLogger.error("OIDC token verification failed:", error);
     throw error;
   }
 }
@@ -129,35 +131,9 @@ interface JWTPayload {
   exp?: number;
 }
 
-// JWT authentication middleware
-function authenticateJWT(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    authLogger.warn("Missing or invalid Authorization header", {
-      operation: "auth",
-      method: req.method,
-      url: req.url,
-    });
-    return res
-      .status(401)
-      .json({ error: "Missing or invalid Authorization header" });
-  }
-  const token = authHeader.split(" ")[1];
-  const jwtSecret = process.env.JWT_SECRET || "secret";
-  try {
-    const payload = jwt.verify(token, jwtSecret) as JWTPayload;
-    (req as any).userId = payload.userId;
-    next();
-  } catch (err) {
-    authLogger.warn("Invalid or expired token", {
-      operation: "auth",
-      method: req.method,
-      url: req.url,
-      error: err,
-    });
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
-}
+const authenticateJWT = authManager.createAuthMiddleware();
+const requireAdmin = authManager.createAdminMiddleware();
+const requireDataAccess = authManager.createDataAccessMiddleware();
 
 // Route: Create traditional user (username/password)
 // POST /users/create
@@ -208,19 +184,10 @@ router.post("/create", async (req, res) => {
     }
 
     let isFirstUser = false;
-    try {
-      const countResult = db.$client
-        .prepare("SELECT COUNT(*) as count FROM users")
-        .get();
-      isFirstUser = ((countResult as any)?.count || 0) === 0;
-    } catch (e) {
-      isFirstUser = true;
-      authLogger.warn("Failed to check user count, assuming first user", {
-        operation: "user_create",
-        username,
-        error: e,
-      });
-    }
+    const countResult = db.$client
+      .prepare("SELECT COUNT(*) as count FROM users")
+      .get();
+    isFirstUser = ((countResult as any)?.count || 0) === 0;
 
     const saltRounds = parseInt(process.env.SALT || "10", 10);
     const password_hash = await bcrypt.hash(password, saltRounds);
@@ -243,6 +210,23 @@ router.post("/create", async (req, res) => {
       totp_enabled: false,
       totp_backup_codes: null,
     });
+
+    try {
+      await authManager.registerUser(id, password);
+    } catch (encryptionError) {
+      await db.delete(users).where(eq(users.id, id));
+      authLogger.error(
+        "Failed to setup user encryption, user creation rolled back",
+        encryptionError,
+        {
+          operation: "user_create_encryption_failed",
+          userId: id,
+        },
+      );
+      return res.status(500).json({
+        error: "Failed to setup user security - user creation cancelled",
+      });
+    }
 
     authLogger.success(
       `Traditional user created: ${username} (is_admin: ${isFirstUser})`,
@@ -343,11 +327,54 @@ router.post("/oidc-config", authenticateJWT, async (req, res) => {
         scopes: scopes || "openid email profile",
       };
 
+      let encryptedConfig;
+      try {
+        const adminDataKey = DataCrypto.getUserDataKey(userId);
+        if (adminDataKey) {
+          const configWithId = { ...config, id: `oidc-config-${userId}` };
+          encryptedConfig = DataCrypto.encryptRecord(
+            "settings",
+            configWithId,
+            userId,
+            adminDataKey,
+          );
+          authLogger.info("OIDC configuration encrypted with admin data key", {
+            operation: "oidc_config_encrypt",
+            userId,
+          });
+        } else {
+          encryptedConfig = {
+            ...config,
+            client_secret: `encrypted:${Buffer.from(client_secret).toString("base64")}`, // Simple base64 encoding
+          };
+          authLogger.warn(
+            "OIDC configuration stored with basic encoding - admin should re-save with password",
+            {
+              operation: "oidc_config_basic_encoding",
+              userId,
+            },
+          );
+        }
+      } catch (encryptError) {
+        authLogger.error(
+          "Failed to encrypt OIDC configuration, storing with basic encoding",
+          encryptError,
+          {
+            operation: "oidc_config_encrypt_failed",
+            userId,
+          },
+        );
+        encryptedConfig = {
+          ...config,
+          client_secret: `encoded:${Buffer.from(client_secret).toString("base64")}`,
+        };
+      }
+
       db.$client
         .prepare(
           "INSERT OR REPLACE INTO settings (key, value) VALUES ('oidc_config', ?)",
         )
-        .run(JSON.stringify(config));
+        .run(JSON.stringify(encryptedConfig));
       authLogger.info("OIDC configuration updated", {
         operation: "oidc_update",
         userId,
@@ -383,7 +410,7 @@ router.delete("/oidc-config", authenticateJWT, async (req, res) => {
   }
 });
 
-// Route: Get OIDC configuration
+// Route: Get OIDC configuration (public - needed for login page)
 // GET /users/oidc-config
 router.get("/oidc-config", async (req, res) => {
   try {
@@ -393,7 +420,67 @@ router.get("/oidc-config", async (req, res) => {
     if (!row) {
       return res.json(null);
     }
-    res.json(JSON.parse((row as any).value));
+
+    let config = JSON.parse((row as any).value);
+
+    if (config.client_secret) {
+      if (config.client_secret.startsWith("encrypted:")) {
+        const authHeader = req.headers["authorization"];
+        if (authHeader?.startsWith("Bearer ")) {
+          const token = authHeader.split(" ")[1];
+          const authManager = AuthManager.getInstance();
+          const payload = await authManager.verifyJWTToken(token);
+
+          if (payload) {
+            const userId = payload.userId;
+            const user = await db
+              .select()
+              .from(users)
+              .where(eq(users.id, userId));
+
+            if (user && user.length > 0 && user[0].is_admin) {
+              try {
+                const adminDataKey = DataCrypto.getUserDataKey(userId);
+                if (adminDataKey) {
+                  config = DataCrypto.decryptRecord(
+                    "settings",
+                    config,
+                    userId,
+                    adminDataKey,
+                  );
+                } else {
+                  config.client_secret = "[ENCRYPTED - PASSWORD REQUIRED]";
+                }
+              } catch (decryptError) {
+                authLogger.warn("Failed to decrypt OIDC config for admin", {
+                  operation: "oidc_config_decrypt_failed",
+                  userId,
+                });
+                config.client_secret = "[ENCRYPTED - DECRYPTION FAILED]";
+              }
+            } else {
+              config.client_secret = "[ENCRYPTED - ADMIN ONLY]";
+            }
+          } else {
+            config.client_secret = "[ENCRYPTED - AUTH REQUIRED]";
+          }
+        } else {
+          config.client_secret = "[ENCRYPTED - AUTH REQUIRED]";
+        }
+      } else if (config.client_secret.startsWith("encoded:")) {
+        try {
+          const decoded = Buffer.from(
+            config.client_secret.substring(8),
+            "base64",
+          ).toString("utf8");
+          config.client_secret = decoded;
+        } catch {
+          config.client_secret = "[ENCODING ERROR]";
+        }
+      }
+    }
+
+    res.json(config);
   } catch (err) {
     authLogger.error("Failed to get OIDC config", err);
     res.status(500).json({ error: "Failed to get OIDC config" });
@@ -421,7 +508,7 @@ router.get("/oidc/authorize", async (req, res) => {
       "http://localhost:5173";
 
     if (origin.includes("localhost")) {
-      origin = "http://localhost:8081";
+      origin = "http://localhost:30001";
     }
 
     const redirectUri = `${origin}/users/oidc/callback`;
@@ -565,10 +652,6 @@ router.get("/oidc/callback", async (req, res) => {
           config.client_id,
         );
       } catch (error) {
-        authLogger.error(
-          "OIDC token verification failed, trying userinfo endpoints",
-          error,
-        );
         try {
           const parts = tokenData.id_token.split(".");
           if (parts.length === 3) {
@@ -654,14 +737,10 @@ router.get("/oidc/callback", async (req, res) => {
 
     let isFirstUser = false;
     if (!user || user.length === 0) {
-      try {
-        const countResult = db.$client
-          .prepare("SELECT COUNT(*) as count FROM users")
-          .get();
-        isFirstUser = ((countResult as any)?.count || 0) === 0;
-      } catch (e) {
-        isFirstUser = true;
-      }
+      const countResult = db.$client
+        .prepare("SELECT COUNT(*) as count FROM users")
+        .get();
+      isFirstUser = ((countResult as any)?.count || 0) === 0;
 
       const id = nanoid();
       await db.insert(users).values({
@@ -681,6 +760,23 @@ router.get("/oidc/callback", async (req, res) => {
         scopes: config.scopes,
       });
 
+      try {
+        await authManager.registerOIDCUser(id);
+      } catch (encryptionError) {
+        await db.delete(users).where(eq(users.id, id));
+        authLogger.error(
+          "Failed to setup OIDC user encryption, user creation rolled back",
+          encryptionError,
+          {
+            operation: "oidc_user_create_encryption_failed",
+            userId: id,
+          },
+        );
+        return res.status(500).json({
+          error: "Failed to setup user security - user creation cancelled",
+        });
+      }
+
       user = await db.select().from(users).where(eq(users.id, id));
     } else {
       await db
@@ -693,8 +789,16 @@ router.get("/oidc/callback", async (req, res) => {
 
     const userRecord = user[0];
 
-    const jwtSecret = process.env.JWT_SECRET || "secret";
-    const token = jwt.sign({ userId: userRecord.id }, jwtSecret, {
+    try {
+      await authManager.authenticateOIDCUser(userRecord.id);
+    } catch (setupError) {
+      authLogger.error("Failed to setup OIDC user encryption", setupError, {
+        operation: "oidc_user_encryption_setup_failed",
+        userId: userRecord.id,
+      });
+    }
+
+    const token = await authManager.generateJWTToken(userRecord.id, {
       expiresIn: "50d",
     });
 
@@ -706,9 +810,14 @@ router.get("/oidc/callback", async (req, res) => {
 
     const redirectUrl = new URL(frontendUrl);
     redirectUrl.searchParams.set("success", "true");
-    redirectUrl.searchParams.set("token", token);
 
-    res.redirect(redirectUrl.toString());
+    return res
+      .cookie(
+        "jwt",
+        token,
+        authManager.getSecureCookieOptions(req, 50 * 24 * 60 * 60 * 1000),
+      )
+      .redirect(redirectUrl.toString());
   } catch (err) {
     authLogger.error("OIDC callback failed", err);
 
@@ -775,30 +884,98 @@ router.post("/login", async (req, res) => {
       });
       return res.status(401).json({ error: "Incorrect password" });
     }
-    const jwtSecret = process.env.JWT_SECRET || "secret";
-    const token = jwt.sign({ userId: userRecord.id }, jwtSecret, {
-      expiresIn: "50d",
-    });
+
+    try {
+      const kekSalt = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, `user_kek_salt_${userRecord.id}`));
+
+      if (kekSalt.length === 0) {
+        await authManager.registerUser(userRecord.id, password);
+      }
+    } catch (setupError) {
+      // Continue if setup fails - authenticateUser will handle it
+    }
+
+    const dataUnlocked = await authManager.authenticateUser(
+      userRecord.id,
+      password,
+    );
+    if (!dataUnlocked) {
+      return res.status(401).json({ error: "Incorrect password" });
+    }
 
     if (userRecord.totp_enabled) {
-      const tempToken = jwt.sign(
-        { userId: userRecord.id, pending_totp: true },
-        jwtSecret,
-        { expiresIn: "10m" },
-      );
+      const tempToken = await authManager.generateJWTToken(userRecord.id, {
+        pendingTOTP: true,
+        expiresIn: "10m",
+      });
       return res.json({
+        success: true,
         requires_totp: true,
         temp_token: tempToken,
       });
     }
-    return res.json({
-      token,
+
+    const token = await authManager.generateJWTToken(userRecord.id, {
+      expiresIn: "24h",
+    });
+
+    authLogger.success(`User logged in successfully: ${username}`, {
+      operation: "user_login_success",
+      username,
+      userId: userRecord.id,
+      dataUnlocked: true,
+    });
+
+    const response: any = {
+      success: true,
       is_admin: !!userRecord.is_admin,
       username: userRecord.username,
-    });
+    };
+
+    const isElectron =
+      req.headers["x-electron-app"] === "true" ||
+      req.headers["X-Electron-App"] === "true";
+
+    if (isElectron) {
+      response.token = token;
+    }
+
+    return res
+      .cookie(
+        "jwt",
+        token,
+        authManager.getSecureCookieOptions(req, 24 * 60 * 60 * 1000),
+      )
+      .json(response);
   } catch (err) {
     authLogger.error("Failed to log in user", err);
     return res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// Route: Logout user
+// POST /users/logout
+router.post("/logout", async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+
+    if (userId) {
+      authManager.logoutUser(userId);
+      authLogger.info("User logged out", {
+        operation: "user_logout",
+        userId,
+      });
+    }
+
+    return res
+      .clearCookie("jwt", authManager.getSecureCookieOptions(req))
+      .json({ success: true, message: "Logged out successfully" });
+  } catch (err) {
+    authLogger.error("Logout failed", err);
+    return res.status(500).json({ error: "Logout failed" });
   }
 });
 
@@ -816,12 +993,16 @@ router.get("/me", authenticateJWT, async (req: Request, res: Response) => {
       authLogger.warn(`User not found for /users/me: ${userId}`);
       return res.status(401).json({ error: "User not found" });
     }
+
+    const isDataUnlocked = authManager.isUserUnlocked(userId);
+
     res.json({
       userId: user[0].id,
       username: user[0].username,
       is_admin: !!user[0].is_admin,
       is_oidc: !!user[0].is_oidc,
       totp_enabled: !!user[0].totp_enabled,
+      data_unlocked: isDataUnlocked,
     });
   } catch (err) {
     authLogger.error("Failed to get username", err);
@@ -829,10 +1010,34 @@ router.get("/me", authenticateJWT, async (req: Request, res: Response) => {
   }
 });
 
-// Route: Count users
-// GET /users/count
-router.get("/count", async (req, res) => {
+// Route: Check if system requires initial setup (public - for first-time setup detection)
+// GET /users/setup-required
+router.get("/setup-required", async (req, res) => {
   try {
+    const countResult = db.$client
+      .prepare("SELECT COUNT(*) as count FROM users")
+      .get();
+    const count = (countResult as any)?.count || 0;
+
+    res.json({
+      setup_required: count === 0,
+    });
+  } catch (err) {
+    authLogger.error("Failed to check setup status", err);
+    res.status(500).json({ error: "Failed to check setup status" });
+  }
+});
+
+// Route: Count users (admin only - for dashboard statistics)
+// GET /users/count
+router.get("/count", authenticateJWT, async (req, res) => {
+  const userId = (req as any).userId;
+  try {
+    const user = await db.select().from(users).where(eq(users.id, userId));
+    if (!user[0] || !user[0].is_admin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
     const countResult = db.$client
       .prepare("SELECT COUNT(*) as count FROM users")
       .get();
@@ -846,7 +1051,7 @@ router.get("/count", async (req, res) => {
 
 // Route: DB health check (actually queries DB)
 // GET /users/db-health
-router.get("/db-health", async (req, res) => {
+router.get("/db-health", requireAdmin, async (req, res) => {
   try {
     db.$client.prepare("SELECT 1").get();
     res.json({ status: "ok" });
@@ -856,7 +1061,7 @@ router.get("/db-health", async (req, res) => {
   }
 });
 
-// Route: Get registration allowed status
+// Route: Get registration allowed status (public - needed for login page)
 // GET /users/registration-allowed
 router.get("/registration-allowed", async (req, res) => {
   try {
@@ -977,7 +1182,7 @@ router.post("/initiate-reset", async (req, res) => {
       });
     }
 
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetCode = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     db.$client
@@ -1095,6 +1300,15 @@ router.post("/complete-reset", async (req, res) => {
       return res.status(400).json({ error: "Invalid temporary token" });
     }
 
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
+    if (!user || user.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const userId = user[0].id;
+
     const saltRounds = parseInt(process.env.SALT || "10", 10);
     const password_hash = await bcrypt.hash(newPassword, saltRounds);
 
@@ -1103,6 +1317,8 @@ router.post("/complete-reset", async (req, res) => {
       .set({ password_hash })
       .where(eq(users.username, username));
 
+    authLogger.success(`Password successfully reset for user: ${username}`);
+
     db.$client
       .prepare("DELETE FROM settings WHERE key = ?")
       .run(`reset_code_${username}`);
@@ -1110,7 +1326,6 @@ router.post("/complete-reset", async (req, res) => {
       .prepare("DELETE FROM settings WHERE key = ?")
       .run(`temp_reset_token_${username}`);
 
-    authLogger.success(`Password successfully reset for user: ${username}`);
     res.json({ message: "Password has been successfully reset" });
   } catch (err) {
     authLogger.error("Failed to complete password reset", err);
@@ -1245,11 +1460,9 @@ router.post("/totp/verify-login", async (req, res) => {
     return res.status(400).json({ error: "Token and TOTP code are required" });
   }
 
-  const jwtSecret = process.env.JWT_SECRET || "secret";
-
   try {
-    const decoded = jwt.verify(temp_token, jwtSecret) as any;
-    if (!decoded.pending_totp) {
+    const decoded = await authManager.verifyJWTToken(temp_token);
+    if (!decoded || !decoded.pendingTOTP) {
       return res.status(401).json({ error: "Invalid temporary token" });
     }
 
@@ -1267,17 +1480,42 @@ router.post("/totp/verify-login", async (req, res) => {
       return res.status(400).json({ error: "TOTP not enabled for this user" });
     }
 
+    const userDataKey = authManager.getUserDataKey(userRecord.id);
+    if (!userDataKey) {
+      return res.status(401).json({
+        error: "Session expired - please log in again",
+        code: "SESSION_EXPIRED",
+      });
+    }
+
+    const totpSecret = LazyFieldEncryption.safeGetFieldValue(
+      userRecord.totp_secret,
+      userDataKey,
+      userRecord.id,
+      "totp_secret",
+    );
+
     const verified = speakeasy.totp.verify({
-      secret: userRecord.totp_secret,
+      secret: totpSecret,
       encoding: "base32",
       token: totp_code,
       window: 2,
     });
 
     if (!verified) {
-      const backupCodes = userRecord.totp_backup_codes
-        ? JSON.parse(userRecord.totp_backup_codes)
-        : [];
+      let backupCodes = [];
+      try {
+        backupCodes = userRecord.totp_backup_codes
+          ? JSON.parse(userRecord.totp_backup_codes)
+          : [];
+      } catch (parseError) {
+        backupCodes = [];
+      }
+
+      if (!Array.isArray(backupCodes)) {
+        backupCodes = [];
+      }
+
       const backupIndex = backupCodes.indexOf(totp_code);
 
       if (backupIndex === -1) {
@@ -1291,15 +1529,44 @@ router.post("/totp/verify-login", async (req, res) => {
         .where(eq(users.id, userRecord.id));
     }
 
-    const token = jwt.sign({ userId: userRecord.id }, jwtSecret, {
+    const token = await authManager.generateJWTToken(userRecord.id, {
       expiresIn: "50d",
     });
 
-    return res.json({
-      token,
+    const isElectron =
+      req.headers["x-electron-app"] === "true" ||
+      req.headers["X-Electron-App"] === "true";
+
+    const isDataUnlocked = authManager.isUserUnlocked(userRecord.id);
+
+    if (!isDataUnlocked) {
+      return res.status(401).json({
+        error: "Session expired - please log in again",
+        code: "SESSION_EXPIRED",
+      });
+    }
+
+    const response: any = {
+      success: true,
       is_admin: !!userRecord.is_admin,
       username: userRecord.username,
-    });
+      userId: userRecord.id,
+      is_oidc: !!userRecord.is_oidc,
+      totp_enabled: !!userRecord.totp_enabled,
+      data_unlocked: isDataUnlocked,
+    };
+
+    if (isElectron) {
+      response.token = token;
+    }
+
+    return res
+      .cookie(
+        "jwt",
+        token,
+        authManager.getSecureCookieOptions(req, 50 * 24 * 60 * 60 * 1000),
+      )
+      .json(response);
   } catch (err) {
     authLogger.error("TOTP verification failed", err);
     return res.status(500).json({ error: "TOTP verification failed" });
@@ -1603,6 +1870,119 @@ router.delete("/delete-user", authenticateJWT, async (req, res) => {
     } else {
       res.status(500).json({ error: "Failed to delete account" });
     }
+  }
+});
+
+// Route: User data unlock - used when session expires
+// POST /users/unlock-data
+router.post("/unlock-data", authenticateJWT, async (req, res) => {
+  const userId = (req as any).userId;
+  const { password } = req.body;
+
+  if (!password) {
+    return res.status(400).json({ error: "Password is required" });
+  }
+
+  try {
+    const unlocked = await authManager.authenticateUser(userId, password);
+    if (unlocked) {
+      res.json({
+        success: true,
+        message: "Data unlocked successfully",
+      });
+    } else {
+      authLogger.warn("Failed to unlock user data - invalid password", {
+        operation: "user_data_unlock_failed",
+        userId,
+      });
+      res.status(401).json({ error: "Invalid password" });
+    }
+  } catch (err) {
+    authLogger.error("Data unlock failed", err, {
+      operation: "user_data_unlock_error",
+      userId,
+    });
+    res.status(500).json({ error: "Failed to unlock data" });
+  }
+});
+
+// Route: Check user data unlock status
+// GET /users/data-status
+router.get("/data-status", authenticateJWT, async (req, res) => {
+  const userId = (req as any).userId;
+
+  try {
+    const isUnlocked = authManager.isUserUnlocked(userId);
+    res.json({
+      unlocked: isUnlocked,
+      message: isUnlocked
+        ? "Data is unlocked"
+        : "Data is locked - re-authenticate with password",
+    });
+  } catch (err) {
+    authLogger.error("Failed to check data status", err, {
+      operation: "data_status_check_failed",
+      userId,
+    });
+    res.status(500).json({ error: "Failed to check data status" });
+  }
+});
+
+// Route: Change user password (re-encrypt data keys)
+// POST /users/change-password
+router.post("/change-password", authenticateJWT, async (req, res) => {
+  const userId = (req as any).userId;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({
+      error: "Current password and new password are required",
+    });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({
+      error: "New password must be at least 8 characters long",
+    });
+  }
+
+  try {
+    const success = await authManager.changeUserPassword(
+      userId,
+      currentPassword,
+      newPassword,
+    );
+
+    if (success) {
+      const saltRounds = parseInt(process.env.SALT || "10", 10);
+      const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+      await db
+        .update(users)
+        .set({ password_hash: newPasswordHash })
+        .where(eq(users.id, userId));
+
+      authLogger.success("User password changed successfully", {
+        operation: "password_change_success",
+        userId,
+      });
+
+      res.json({
+        success: true,
+        message: "Password changed successfully",
+      });
+    } else {
+      authLogger.warn("Password change failed - invalid current password", {
+        operation: "password_change_failed",
+        userId,
+      });
+      res.status(401).json({ error: "Current password is incorrect" });
+    }
+  } catch (err) {
+    authLogger.error("Password change failed", err, {
+      operation: "password_change_error",
+      userId,
+    });
+    res.status(500).json({ error: "Failed to change password" });
   }
 });
 

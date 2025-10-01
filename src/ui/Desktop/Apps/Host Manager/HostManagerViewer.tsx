@@ -41,6 +41,7 @@ import {
   Check,
   Pencil,
   FolderMinus,
+  Copy,
 } from "lucide-react";
 import type {
   SSHHost,
@@ -203,6 +204,14 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
   const handleEdit = (host: SSHHost) => {
     if (onEditHost) {
       onEditHost(host);
+    }
+  };
+
+  const handleClone = (host: SSHHost) => {
+    if (onEditHost) {
+      const clonedHost = { ...host };
+      delete clonedHost.id;
+      onEditHost(clonedHost);
     }
   };
 
@@ -516,13 +525,13 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                 const sampleData = {
                   hosts: [
                     {
-                      name: "Web Server - Production",
+                      name: t("interface.webServerProduction"),
                       ip: "192.168.1.100",
                       port: 22,
                       username: "admin",
                       authType: "password",
                       password: "your_secure_password_here",
-                      folder: "Production",
+                      folder: t("interface.productionFolder"),
                       tags: ["web", "production", "nginx"],
                       pin: true,
                       enableTerminal: true,
@@ -531,7 +540,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                       defaultPath: "/var/www",
                     },
                     {
-                      name: "Database Server",
+                      name: t("interface.databaseServer"),
                       ip: "192.168.1.101",
                       port: 22,
                       username: "dbadmin",
@@ -539,7 +548,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                       key: "-----BEGIN OPENSSH PRIVATE KEY-----\nYour SSH private key content here\n-----END OPENSSH PRIVATE KEY-----",
                       keyPassword: "optional_key_passphrase",
                       keyType: "ssh-ed25519",
-                      folder: "Production",
+                      folder: t("interface.productionFolder"),
                       tags: ["database", "production", "postgresql"],
                       pin: false,
                       enableTerminal: true,
@@ -549,7 +558,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                         {
                           sourcePort: 5432,
                           endpointPort: 5432,
-                          endpointHost: "Web Server - Production",
+                          endpointHost: t("interface.webServerProduction"),
                           maxRetries: 3,
                           retryInterval: 10,
                           autoStart: true,
@@ -557,13 +566,13 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                       ],
                     },
                     {
-                      name: "Development Server",
+                      name: t("interface.developmentServer"),
                       ip: "192.168.1.102",
                       port: 2222,
                       username: "developer",
                       authType: "credential",
                       credentialId: 1,
-                      folder: "Development",
+                      folder: t("interface.developmentFolder"),
                       tags: ["dev", "testing"],
                       pin: false,
                       enableTerminal: true,
@@ -677,13 +686,13 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
               const sampleData = {
                 hosts: [
                   {
-                    name: "Web Server - Production",
+                    name: t("interface.webServerProduction"),
                     ip: "192.168.1.100",
                     port: 22,
                     username: "admin",
                     authType: "password",
                     password: "your_secure_password_here",
-                    folder: "Production",
+                    folder: t("interface.productionFolder"),
                     tags: ["web", "production", "nginx"],
                     pin: true,
                     enableTerminal: true,
@@ -692,7 +701,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                     defaultPath: "/var/www",
                   },
                   {
-                    name: "Database Server",
+                    name: t("interface.databaseServer"),
                     ip: "192.168.1.101",
                     port: 22,
                     username: "dbadmin",
@@ -700,7 +709,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                     key: "-----BEGIN OPENSSH PRIVATE KEY-----\nYour SSH private key content here\n-----END OPENSSH PRIVATE KEY-----",
                     keyPassword: "optional_key_passphrase",
                     keyType: "ssh-ed25519",
-                    folder: "Production",
+                    folder: t("interface.productionFolder"),
                     tags: ["database", "production", "postgresql"],
                     pin: false,
                     enableTerminal: true,
@@ -710,7 +719,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                       {
                         sourcePort: 5432,
                         endpointPort: 5432,
-                        endpointHost: "Web Server - Production",
+                        endpointHost: t("interface.webServerProduction"),
                         maxRetries: 3,
                         retryInterval: 10,
                         autoStart: true,
@@ -718,13 +727,13 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                     ],
                   },
                   {
-                    name: "Development Server",
+                    name: t("interface.developmentServer"),
                     ip: "192.168.1.102",
                     port: 2222,
                     username: "developer",
                     authType: "credential",
                     credentialId: 1,
-                    folder: "Development",
+                    folder: t("interface.developmentFolder"),
                     tags: ["dev", "testing"],
                     pin: false,
                     enableTerminal: true,
@@ -1007,6 +1016,24 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p>Export host</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleClone(host);
+                                          }}
+                                          className="h-5 w-5 p-0 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-500/10"
+                                        >
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Clone host</p>
                                       </TooltipContent>
                                     </Tooltip>
                                   </div>

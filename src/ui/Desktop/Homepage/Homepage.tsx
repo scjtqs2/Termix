@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { HomepageAuth } from "@/ui/Desktop/Homepage/HomepageAuth.tsx";
 import { HomepageUpdateLog } from "@/ui/Desktop/Homepage/HompageUpdateLog.tsx";
+import { HomepageAlertManager } from "@/ui/Desktop/Homepage/HomepageAlertManager.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { getUserInfo, getDatabaseHealth, getCookie } from "@/ui/main-axios.ts";
 import { useTranslation } from "react-i18next";
@@ -45,14 +46,19 @@ export function Homepage({
           .then(([meRes]) => {
             setIsAdmin(!!meRes.is_admin);
             setUsername(meRes.username || null);
-            setUserId(meRes.id || null);
+            setUserId(meRes.userId || null);
             setDbError(null);
           })
           .catch((err) => {
             setIsAdmin(false);
             setUsername(null);
             setUserId(null);
-            if (err?.response?.data?.error?.includes("Database")) {
+
+            const errorCode = err?.response?.data?.code;
+            if (errorCode === "SESSION_EXPIRED") {
+              console.warn("Session expired - please log in again");
+              setDbError("Session expired - please log in again");
+            } else if (err?.response?.data?.error?.includes("Database")) {
               setDbError(
                 "Could not connect to the database. Please try again later.",
               );
@@ -150,6 +156,8 @@ export function Homepage({
           </div>
         </div>
       )}
+
+      <HomepageAlertManager userId={userId} loggedIn={loggedIn} />
     </>
   );
 }
