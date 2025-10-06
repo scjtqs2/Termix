@@ -19,6 +19,9 @@
     "build:linux-portable": "npm run build && electron-builder --linux --dir",
     "build:linux-appimage": "npm run build && electron-builder --linux AppImage",
     "build:linux-targz": "npm run build && electron-builder --linux tar.gz",
+    "build:mac-dmg": "npm run build && electron-builder --mac dmg",
+    "build:mac-zip": "npm run build && electron-builder --mac zip",
+    "build:mac-dmg-universal": "npm run build && electron-builder --mac dmg --universal",
     "test:encryption": "tsc -p tsconfig.node.json && node ./dist/backend/backend/utils/encryption-test.js",
     "migrate:encryption": "tsc -p tsconfig.node.json && node ./dist/backend/backend/utils/encryption-migration.js"
   },

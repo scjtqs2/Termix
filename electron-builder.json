@@ -15,7 +15,9 @@
     "!vite.config.ts",
     "!eslint.config.js"
   ],
-  "asarUnpack": ["node_modules/node-fetch/**/*"],
+  "asarUnpack": [
+    "node_modules/node-fetch/**/*"
+  ],
   "extraMetadata": {
     "main": "electron/main.cjs"
   },
@@ -40,11 +42,15 @@
     "target": [
       {
         "target": "AppImage",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       },
       {
         "target": "tar.gz",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       }
     ],
     "icon": "public/icon.png",
@@ -58,5 +64,30 @@
         "StartupWMClass": "termix"
       }
     }
+  },
+  "mac": {
+    "category": "public.app-category.developer-tools",
+    "icon": "public/icon.icns",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "x64",
+          "arm64",
+          "universal"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "x64",
+          "arm64",
+          "universal"
+        ]
+      }
+    ],
+    "darkModeSupport": true,
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false
   }
 }
