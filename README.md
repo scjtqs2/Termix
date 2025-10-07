@@ -122,6 +122,10 @@ repo.
 </p>
 
 <p align="center">
+  <img src="./repo-images/Image 7.png" width="400" alt="Termix Demo 7"/>
+</p>
+
+<p align="center">
   <video src="https://github.com/user-attachments/assets/88936e0d-2399-4122-8eee-c255c25da48c" width="800" controls>
     Your browser does not support the video tag.
   </video>
